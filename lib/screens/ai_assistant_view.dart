@@ -29,13 +29,11 @@ class _AIAssistantViewState extends State<AIAssistantView> {
   List<AiRequest> _requests = [];
   bool _isProcessing = false;
   
-  // Hardware Services
   late stt.SpeechToText _speech;
   bool _isListening = false;
   late FlutterTts _flutterTts;
   final ImagePicker _picker = ImagePicker();
 
-  // UPDATED: Your specific local Wi-Fi IP Address
   static const String _pcIpAddress = "10.160.120.215"; 
   final String _apiUrl = "http://$_pcIpAddress:5000/api/query";
 
@@ -50,8 +48,8 @@ class _AIAssistantViewState extends State<AIAssistantView> {
 
   void _initTts() async {
     await _flutterTts.setLanguage("en-US");
-    await _flutterTts.setPitch(0.9);
-    await _flutterTts.setSpeechRate(0.5);
+    await _flutterTts.setPitch(1.0); // More natural pitch for medical context
+    await _flutterTts.setSpeechRate(0.45);
   }
 
   Future<void> _loadHistory() async {
@@ -63,19 +61,18 @@ class _AIAssistantViewState extends State<AIAssistantView> {
   void _scrollToBottom() {
     if (_scrollCtrl.hasClients) {
       Future.delayed(const Duration(milliseconds: 100), () {
-        _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+        _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent, 
+            duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
       });
     }
   }
 
-  // --- REAL BACKEND CONNECTION LOGIC ---
   Future<void> _processUserRequest(String input, String type, {String? imagePath}) async {
     if (input.isEmpty && imagePath == null) return;
-    try { SoundService.instance.playTransmit(); } catch(e) {}
 
     // 1. Save user's question locally
     final userReq = AiRequest(
-      inputText: input.isEmpty ? "[IMAGE CAPTURED]" : input,
+      inputText: input.isEmpty ? "Image captured for analysis" : input,
       inputType: type,
       imagePath: imagePath,
       timestamp: DateTime.now().toIso8601String(),
@@ -87,7 +84,6 @@ class _AIAssistantViewState extends State<AIAssistantView> {
 
     setState(() => _isProcessing = true);
 
-    // 2. Transmit to Flask Server
     try {
       final response = await http.post(
         Uri.parse(_apiUrl),
@@ -97,9 +93,8 @@ class _AIAssistantViewState extends State<AIAssistantView> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final aiAnswer = data['answer'] ?? "No response received.";
+        final aiAnswer = data['answer'] ?? "No data available.";
 
-        // 3. Save actual AI response from Server
         final sysReq = AiRequest(
           inputText: aiAnswer,
           inputType: 'system',
@@ -111,12 +106,11 @@ class _AIAssistantViewState extends State<AIAssistantView> {
         if (type == 'voice') await _flutterTts.speak(aiAnswer);
 
       } else {
-        throw Exception("Server connection failed");
+        throw Exception("Connection failed");
       }
     } catch (e) {
-      // Handle actual connection errors
       final errReq = AiRequest(
-        inputText: "ERROR: UPLINK FAILED. UNABLE TO REACH AI CORE. PLEASE CHECK SERVER STATUS. ($e)",
+        inputText: "Connection Error: Unable to reach clinical database. Please verify server status. ($e)",
         inputType: 'system',
         timestamp: DateTime.now().toIso8601String(),
         status: 'error',
@@ -128,21 +122,15 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     await _loadHistory();
   }
 
-  // --- Input Handlers ---
   void _submitText() => _processUserRequest(_textCtrl.text.trim(), 'text');
 
   void _listenVoice() async {
     if (!_isListening) {
-      bool available = await _speech.initialize(
-        onStatus: (status) {
-          if (status == 'done' || status == 'notListening') setState(() => _isListening = false);
-        },
-      );
+      bool available = await _speech.initialize();
       if (available) {
         setState(() => _isListening = true);
-        try { SoundService.instance.playButtonPress(); } catch(e) {}
         _speech.listen(onResult: (val) {
-            if (val.finalResult) _processUserRequest(val.recognizedWords, 'voice');
+          if (val.finalResult) _processUserRequest(val.recognizedWords, 'voice');
         });
       }
     } else {
@@ -152,131 +140,154 @@ class _AIAssistantViewState extends State<AIAssistantView> {
   }
 
   Future<void> _captureImage() async {
-    try {
-      final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
-      if (photo != null) {
-        final directory = await getApplicationDocumentsDirectory();
-        final String savedPath = '${directory.path}/${path.basename(photo.path)}';
-        await File(photo.path).copy(savedPath);
-        _processUserRequest("", 'image', imagePath: savedPath);
-      }
-    } catch (e) {
-      debugPrint("Camera Error: $e");
+    final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
+    if (photo != null) {
+      final directory = await getApplicationDocumentsDirectory();
+      final String savedPath = '${directory.path}/${path.basename(photo.path)}';
+      await File(photo.path).copy(savedPath);
+      _processUserRequest("", 'image', imagePath: savedPath);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              Icon(Icons.smart_toy, color: _isProcessing ? AppTheme.warning : AppTheme.primary),
-              const SizedBox(width: 10),
-              const Text("BERT AI DIAGNOSTICS", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white, fontFamily: 'Orbitron')),
-            ],
-          ),
-        ),
-        
-        if (_isProcessing) const LinearProgressIndicator(color: AppTheme.accent, backgroundColor: AppTheme.bgDark),
-
-        // Chat History
-        Expanded(
-          child: ListView.builder(
-            controller: _scrollCtrl,
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-            itemCount: _requests.length,
-            itemBuilder: (context, index) {
-              final req = _requests[index];
-              if (req.inputType == 'system') {
-                return _buildAssistantBubble(req);
-              } else {
-                return _buildUserBubble(req);
-              }
-            },
-          ),
-        ),
-
-        // Input Bar
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppTheme.primary, width: 2)), color: AppTheme.bgLight),
-          child: SafeArea(
+    return Container(
+      color: AppTheme.background,
+      child: Column(
+        children: [
+          // Professional Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+            color: Colors.white,
             child: Row(
               children: [
-                GestureDetector(onTap: _captureImage, child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(border: Border.all(color: Colors.white24)), child: const Icon(Icons.camera_alt, color: AppTheme.primary, size: 20))),
-                const SizedBox(width: 10),
-                GestureDetector(
-                  onTap: _listenVoice,
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: _isListening ? AppTheme.error.withOpacity(0.3) : Colors.transparent, border: Border.all(color: _isListening ? AppTheme.error : Colors.white24)),
-                    child: Icon(_isListening ? Icons.mic : Icons.mic_none, color: _isListening ? AppTheme.error : AppTheme.primary, size: 20).animate(target: _isListening ? 1 : 0).shimmer(duration: 500.ms),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    decoration: BoxDecoration(border: Border.all(color: Colors.white24)),
-                    child: TextField(
-                      controller: _textCtrl,
-                      style: const TextStyle(color: Colors.white, fontFamily: 'Share Tech Mono'),
-                      decoration: const InputDecoration(hintText: "ENTER QUERY...", hintStyle: TextStyle(color: AppTheme.textGrey), border: InputBorder.none),
-                      onSubmitted: (_) => _submitText(),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                GestureDetector(
-                  onTap: _isProcessing ? null : _submitText,
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: _isProcessing ? Colors.grey : AppTheme.primary.withOpacity(0.2), border: Border.all(color: AppTheme.primary)),
-                    child: const Icon(Icons.send, color: AppTheme.primary, size: 20),
-                  ),
-                ),
+                const Icon(Icons.psychology, color: AppTheme.primary, size: 28),
+                const SizedBox(width: 12),
+                Text("AI Assistant", 
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(color: AppTheme.primaryDark)),
+                const Spacer(),
+                const Text("Manuals Online", 
+                  style: TextStyle(color: AppTheme.success, fontSize: 11, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
+          
+          if (_isProcessing) 
+            const LinearProgressIndicator(
+              minHeight: 2,
+              color: AppTheme.primary, 
+              backgroundColor: Colors.transparent),
+
+          // Chat History
+          Expanded(
+            child: ListView.builder(
+              controller: _scrollCtrl,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+              itemCount: _requests.length,
+              itemBuilder: (context, index) {
+                final req = _requests[index];
+                return req.inputType == 'system' ? _buildAssistantBubble(req) : _buildUserBubble(req);
+              },
+            ),
+          ),
+
+          // Clean Input Bar
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: AppTheme.border)),
+            ),
+            child: SafeArea(
+              child: Row(
+                children: [
+                  _buildCircleIconButton(Icons.camera_alt_outlined, _captureImage),
+                  const SizedBox(width: 8),
+                  _buildCircleIconButton(
+                    _isListening ? Icons.mic : Icons.mic_none_outlined, 
+                    _listenVoice, 
+                    isActive: _isListening
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.background,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: TextField(
+                        controller: _textCtrl,
+                        style: const TextStyle(fontSize: 14, color: AppTheme.textPrimary),
+                        decoration: const InputDecoration(
+                          hintText: "Ask a technical question...", 
+                          hintStyle: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+                          border: InputBorder.none,
+                          isDense: true,
+                        ),
+                        onSubmitted: (_) => _submitText(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: _isProcessing ? null : _submitText,
+                    child: CircleAvatar(
+                      backgroundColor: _isProcessing ? AppTheme.neutral : AppTheme.primary,
+                      radius: 20,
+                      child: const Icon(Icons.arrow_upward, color: Colors.white, size: 20),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCircleIconButton(IconData icon, VoidCallback onTap, {bool isActive = false}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: isActive ? AppTheme.error.withOpacity(0.1) : AppTheme.background,
+          shape: BoxShape.circle,
         ),
-      ],
+        child: Icon(icon, color: isActive ? AppTheme.error : AppTheme.textSecondary, size: 22),
+      ),
     );
   }
 
   Widget _buildUserBubble(AiRequest req) {
-    IconData typeIcon = Icons.terminal;
-    if (req.inputType == 'voice') typeIcon = Icons.mic;
-    if (req.inputType == 'image') typeIcon = Icons.image;
-
     return Align(
       alignment: Alignment.centerRight,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 15, left: 40),
+        margin: const EdgeInsets.only(bottom: 16, left: 50),
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: AppTheme.primary.withOpacity(0.15), border: Border.all(color: AppTheme.primary)),
+        decoration: const BoxDecoration(
+          color: AppTheme.primary,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+            bottomLeft: Radius.circular(16),
+          ),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(typeIcon, size: 12, color: AppTheme.primary),
-                const SizedBox(width: 5),
-                Text(req.inputType.toUpperCase(), style: const TextStyle(fontSize: 10, color: AppTheme.primary, fontFamily: 'Share Tech Mono', fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 5),
             if (req.imagePath != null && File(req.imagePath!).existsSync())
-              Container(margin: const EdgeInsets.only(bottom: 8), decoration: BoxDecoration(border: Border.all(color: AppTheme.primary)), child: Image.file(File(req.imagePath!), height: 150, fit: BoxFit.cover)),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.file(File(req.imagePath!), height: 160, fit: BoxFit.cover),
+              ),
+            const SizedBox(height: 4),
             Text(req.inputText, style: const TextStyle(color: Colors.white, fontSize: 14)),
-            const SizedBox(height: 5),
-            Text("[${DateFormat('HH:mm').format(DateTime.parse(req.timestamp))}]", style: const TextStyle(fontSize: 8, color: AppTheme.primary, fontFamily: 'Share Tech Mono')),
           ],
         ),
-      ).animate().fadeIn().slideX(begin: 0.1),
+      ).animate().fadeIn(duration: 300.ms).slideX(begin: 0.1, end: 0),
     );
   }
 
@@ -285,34 +296,38 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 25, right: 40),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: AppTheme.bgLight, border: Border.all(color: isError ? AppTheme.error : AppTheme.primary.withOpacity(0.3))),
+        margin: const EdgeInsets.only(bottom: 20, right: 50),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border(left: BorderSide(color: isError ? AppTheme.error : AppTheme.primary, width: 4)),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 4))],
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(isError ? Icons.warning : Icons.smart_toy, size: 14, color: isError ? AppTheme.error : AppTheme.accent),
-                const SizedBox(width: 8),
-                Text("SYSTEM RESPONSE", style: TextStyle(fontSize: 10, color: isError ? AppTheme.error : AppTheme.accent, fontFamily: 'Orbitron', fontWeight: FontWeight.bold)),
+                Icon(isError ? Icons.report_problem : Icons.smart_toy_outlined, 
+                  size: 14, color: isError ? AppTheme.error : AppTheme.primary),
+                const SizedBox(width: 6),
+                Text(isError ? "System Alert" : "Clinical Assistant", 
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, 
+                  color: isError ? AppTheme.error : AppTheme.primary)),
               ],
             ),
-            const SizedBox(height: 10),
-            
-            Text(req.inputText, style: TextStyle(color: isError ? AppTheme.error : Colors.white, fontSize: 14)),
-            const SizedBox(height: 12),
-            
-            if (isError)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: AppTheme.error.withOpacity(0.1), border: Border.all(color: AppTheme.error.withOpacity(0.5))),
-                child: const Text("UPLINK FAILURE", style: TextStyle(fontSize: 9, color: AppTheme.error, fontFamily: 'Share Tech Mono', fontWeight: FontWeight.bold)),
-              ),
+            const SizedBox(height: 8),
+            Text(req.inputText, 
+              style: TextStyle(color: isError ? AppTheme.error : AppTheme.textPrimary, fontSize: 14, height: 1.4)),
+            if (!isError) ...[
+              const SizedBox(height: 10),
+              const Text("Source: Clinical Service Manuals", 
+                style: TextStyle(fontSize: 10, color: AppTheme.textSecondary, fontStyle: FontStyle.italic)),
+            ]
           ],
         ),
-      ).animate().fadeIn().slideX(begin: -0.1),
+      ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.1, end: 0),
     );
   }
 }

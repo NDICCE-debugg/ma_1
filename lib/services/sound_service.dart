@@ -7,20 +7,38 @@ class SoundService {
   
   SoundService._init();
   
-  Future<void> _play(String path) async {
+  // Internal helper to handle audio playback
+  Future<void> _play(String path, {double volume = 0.5}) async {
     try {
-      // In production, uncomment this once files are in assets/sounds/
-      // await _player.play(AssetSource(path));
-      debugPrint("🔊 SOUND TRIGGERED: $path");
+      await _player.setVolume(volume);
+      await _player.play(AssetSource(path));
+      debugPrint("🔊 CLINICAL AUDIO: $path");
     } catch (e) {
-      debugPrint("Sound error: $e");
+      debugPrint("Audio Playback Error: $e");
     }
   }
   
-  void playTabSwitch() => _play('sounds/tab_switch.mp3');
-  void playBoot() => _play('sounds/boot.mp3');
-  void playButtonPress() => _play('sounds/click_zap.mp3');
-  void playError() => _play('sounds/error_alarm.mp3');
-  void playSuccess() => _play('sounds/success_chime.mp3');
-  void playTransmit() => _play('sounds/transmit.mp3');
+  // --- MODERN CLINICAL SOUND BANK ---
+
+  /// Subtle click for tab navigation
+  void playTabSwitch() => _play('sounds/nav_subtle_click.mp3', volume: 0.3);
+
+  /// Soft chime when the system is ready
+  void playSystemReady() => _play('sounds/clinical_ready.mp3');
+
+  /// Discrete ping for successful data transmission or identification
+  void playSuccess() => _play('sounds/success_ping.mp3');
+
+  /// Soft alert for warnings or low stock (non-startling)
+  void playAlert() => _play('sounds/soft_alert.mp3', volume: 0.4);
+
+  /// Minimalist interaction sound for buttons
+  void playInteraction() => _play('sounds/interaction_tap.mp3', volume: 0.2);
+
+  // --- LEGACY ALIASES (Kept to prevent breaking screen code) ---
+  
+  void playBoot() => playSystemReady();
+  void playButtonPress() => playInteraction();
+  void playError() => playAlert();
+  void playTransmit() => playSuccess();
 }

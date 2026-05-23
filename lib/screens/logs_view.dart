@@ -9,57 +9,133 @@ class LogsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold( 
-      appBar: AppBar(title: const Text("Maintenance Logs")),
-      body: Container(
-        decoration: AppTheme.cosmicBackground,
-        child: FutureBuilder<List<ServiceLog>>(
-          future: DatabaseHelper.instance.getAllLogs(),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-            final logs = snapshot.data!;
+    return Scaffold(
+      // F4F6F9 - Professional medical background
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        title: const Text("Service History"),
+        centerTitle: false,
+        elevation: 0,
+        backgroundColor: Colors.white,
+      ),
+      body: FutureBuilder<List<ServiceLog>>(
+        future: DatabaseHelper.instance.getAllLogs(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(
+              child: CircularProgressIndicator(color: AppTheme.primary),
+            );
+          }
+          
+          final logs = snapshot.data!;
+          
+          if (logs.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.history_rounded, size: 64, color: AppTheme.textSecondary.withOpacity(0.3)),
+                  const SizedBox(height: 16),
+                  Text(
+                    "No maintenance logs found",
+                    style: TextStyle(color: AppTheme.textSecondary, fontFamily: 'Inter'),
+                  ),
+                ],
+              ),
+            );
+          }
 
-            return ListView.builder(
-              padding: const EdgeInsets.only(top: 10),
-              itemCount: logs.length,
-              itemBuilder: (context, index) {
-                final log = logs[index];
-                bool isSynced = log.isSynced == 1;
-                return Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  decoration: AppTheme.glassDecoration,
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    leading: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: isSynced ? AppTheme.success.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        isSynced ? Icons.cloud_done : Icons.cloud_off,
-                        color: isSynced ? AppTheme.success : Colors.grey,
-                      ),
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: logs.length,
+            itemBuilder: (context, index) {
+              final log = logs[index];
+              bool isSynced = log.isSynced == 1;
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: AppTheme.border),
+                ),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: isSynced 
+                          ? AppTheme.success.withOpacity(0.08) 
+                          : AppTheme.neutral.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    title: Text(log.machineModel, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 4),
-                        Text(log.errorCode, style: const TextStyle(color: AppTheme.primary, fontSize: 12, fontWeight: FontWeight.bold)),
-                        Text(log.notes, style: const TextStyle(color: Colors.grey), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      ],
-                    ),
-                    trailing: Text(
-                      DateFormat('MM/dd').format(DateTime.parse(log.timestamp)),
-                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    child: Icon(
+                      isSynced ? Icons.cloud_done_rounded : Icons.cloud_off_rounded,
+                      color: isSynced ? AppTheme.success : AppTheme.textSecondary,
+                      size: 22,
                     ),
                   ),
-                );
-              },
-            );
-          },
-        ),
+                  title: Text(
+                    log.machineModel,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
+                      fontFamily: 'Inter',
+                      fontSize: 15,
+                    ),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 4),
+                      Text(
+                        log.errorCode,
+                        style: const TextStyle(
+                          color: AppTheme.primary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Inter',
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        log.notes,
+                        style: const TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 13,
+                          fontFamily: 'Inter',
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        DateFormat('MMM dd').format(DateTime.parse(log.timestamp)),
+                        style: const TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        DateFormat('yyyy').format(DateTime.parse(log.timestamp)),
+                        style: const TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:ma_1/theme/app_theme.dart';
-import 'package:ma_1/utils/animation_helper.dart';
 import 'package:ma_1/models/spare_part.dart';
 import 'package:ma_1/services/database_helper.dart';
 import 'package:ma_1/services/notification_service.dart';
@@ -27,55 +26,68 @@ class _AnalyticsViewState extends State<AnalyticsView> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppTheme.bgDark,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, left: 20, right: 20, top: 20),
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, left: 24, right: 24, top: 24),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(existingPart == null ? "REGISTER NEW PART" : "EDIT PART RECORD", style: const TextStyle(color: AppTheme.primary, fontSize: 18, fontFamily: 'Orbitron', fontWeight: FontWeight.bold)),
-              const SizedBox(height: 20),
-              _buildTerminalInput("PART IDENTIFIER / NAME", nameCtrl),
-              _buildTerminalInput("COMPATIBLE SYSTEMS", modelCtrl),
-              Row(children: [ Expanded(child: _buildTerminalInput("QUANTITY", qtyCtrl, isNumber: true)), const SizedBox(width: 10), Expanded(child: _buildTerminalInput("MIN THRESHOLD", minCtrl, isNumber: true)) ]),
-              Row(children: [ Expanded(child: _buildTerminalInput("UNIT (e.g. pcs)", unitCtrl)), const SizedBox(width: 10), Expanded(child: _buildTerminalInput("LAST RESTOCKED", lastRestockCtrl)) ]),
-              _buildTerminalInput("NOTES", notesCtrl),
-              const SizedBox(height: 20),
-              GestureDetector(
-                onTap: () async {
-                  final newPart = SparePart(
-                    id: existingPart?.id,
-                    name: nameCtrl.text,
-                    compatibleModel: modelCtrl.text,
-                    quantity: int.tryParse(qtyCtrl.text) ?? 0,
-                    reorderThreshold: int.tryParse(minCtrl.text) ?? 0,
-                    location: existingPart?.location ?? 'General Store',
-                    unit: unitCtrl.text,
-                    lastRestocked: lastRestockCtrl.text,
-                    notes: notesCtrl.text,
-                  );
-                  
-                  if (existingPart == null) {
-                    await DatabaseHelper.instance.addSparePart(newPart);
-                  } else {
-                    await DatabaseHelper.instance.updateSparePart(newPart);
-                  }
-                  
-                  await NotificationService.checkInventoryAlerts();
-
-                  Navigator.pop(ctx);
-                  setState(() {});
-                  _showFlashMessage("RECORD UPDATED", AppTheme.success);
-                },
-                child: Container(
-                  width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 15),
-                  decoration: BoxDecoration(color: AppTheme.primary.withOpacity(0.2), border: Border.all(color: AppTheme.primary)),
-                  child: Text(existingPart == null ? "REGISTER PART" : "UPDATE PART RECORD", textAlign: TextAlign.center, style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+              Text(existingPart == null ? "Add Part" : "Edit Part Record", 
+                style: const TextStyle(color: AppTheme.primaryDark, fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 24),
+              _buildClinicalInput("Part Name / Identifier", nameCtrl),
+              _buildClinicalInput("Compatible Systems", modelCtrl),
+              Row(
+                children: [
+                  Expanded(child: _buildClinicalInput("Current Quantity", qtyCtrl, isNumber: true)),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildClinicalInput("Low Stock Threshold", minCtrl, isNumber: true)),
+                ],
+              ),
+              Row(
+                children: [
+                  Expanded(child: _buildClinicalInput("Unit (e.g. pcs)", unitCtrl)),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildClinicalInput("Last Restocked", lastRestockCtrl)),
+                ],
+              ),
+              _buildClinicalInput("Internal Notes", notesCtrl),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final newPart = SparePart(
+                      id: existingPart?.id,
+                      name: nameCtrl.text,
+                      compatibleModel: modelCtrl.text,
+                      quantity: int.tryParse(qtyCtrl.text) ?? 0,
+                      reorderThreshold: int.tryParse(minCtrl.text) ?? 0,
+                      location: existingPart?.location ?? 'General Store',
+                      unit: unitCtrl.text,
+                      lastRestocked: lastRestockCtrl.text,
+                      notes: notesCtrl.text,
+                    );
+                    
+                    if (existingPart == null) {
+                      await DatabaseHelper.instance.addSparePart(newPart);
+                    } else {
+                      await DatabaseHelper.instance.updateSparePart(newPart);
+                    }
+                    
+                    await NotificationService.checkInventoryAlerts();
+                    if (!mounted) return;
+                    Navigator.pop(ctx);
+                    setState(() {});
+                    _showStatusMessage("Record saved successfully", AppTheme.success);
+                  },
+                  child: Text(existingPart == null ? "Add Part" : "Save Changes"),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 32),
             ],
           ),
         ),
@@ -90,82 +102,73 @@ class _AnalyticsViewState extends State<AnalyticsView> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppTheme.bgDark,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, left: 20, right: 20, top: 20),
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, left: 24, right: 24, top: 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(part.name.toUpperCase(), style: const TextStyle(color: AppTheme.primary, fontSize: 18, fontFamily: 'Orbitron', fontWeight: FontWeight.bold, shadows: [Shadow(color: AppTheme.primary, blurRadius: 10)])),
-            const SizedBox(height: 10),
-            Text("CURRENT STOCK: ${part.quantity} ${part.unit}", style: const TextStyle(color: Colors.white, fontSize: 16)),
-            const SizedBox(height: 20),
-            _buildTerminalInput("ADD QUANTITY", addQtyCtrl, isNumber: true),
-            _buildTerminalInput("RESTOCK DATE", dateCtrl),
-            const SizedBox(height: 20),
-            GestureDetector(
-              onTap: () async {
-                int addQty = int.tryParse(addQtyCtrl.text) ?? 0;
-                if (addQty > 0) {
-                  final updatedPart = SparePart(
-                    id: part.id, name: part.name, compatibleModel: part.compatibleModel,
-                    quantity: part.quantity + addQty, reorderThreshold: part.reorderThreshold,
-                    location: part.location, unit: part.unit, lastRestocked: dateCtrl.text, notes: part.notes,
-                  );
-                  await DatabaseHelper.instance.updateSparePart(updatedPart);
-                  
-                  await NotificationService.checkInventoryAlerts();
-                  await NotificationService.showRestockConfirmation(updatedPart.name, updatedPart.quantity);
-
-                  Navigator.pop(ctx);
-                  setState(() {});
-                  _showFlashMessage("RESTOCK LOGGED — INVENTORY UPDATED", AppTheme.success);
-                }
-              },
-              child: Container(
-                width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 15),
-                decoration: BoxDecoration(color: AppTheme.accent.withOpacity(0.2), border: Border.all(color: AppTheme.accent)),
-                child: const Text("CONFIRM RESTOCK", textAlign: TextAlign.center, style: TextStyle(color: AppTheme.accent, fontWeight: FontWeight.bold)),
+            Text("Update Stock: ${part.name}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text("Current Inventory: ${part.quantity} ${part.unit}", style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
+            const SizedBox(height: 24),
+            _buildClinicalInput("Quantity to Add", addQtyCtrl, isNumber: true),
+            _buildClinicalInput("Restock Date", dateCtrl),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.secondary),
+                onPressed: () async {
+                  int addQty = int.tryParse(addQtyCtrl.text) ?? 0;
+                  if (addQty > 0) {
+                    final updatedPart = SparePart(
+                      id: part.id, name: part.name, compatibleModel: part.compatibleModel,
+                      quantity: part.quantity + addQty, reorderThreshold: part.reorderThreshold,
+                      location: part.location, unit: part.unit, lastRestocked: dateCtrl.text, notes: part.notes,
+                    );
+                    await DatabaseHelper.instance.updateSparePart(updatedPart);
+                    await NotificationService.checkInventoryAlerts();
+                    if (!mounted) return;
+                    Navigator.pop(ctx);
+                    setState(() {});
+                    _showStatusMessage("Inventory updated", AppTheme.secondary);
+                  }
+                },
+                child: const Text("Update Stock"),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 32),
           ],
         ),
       ),
     );
   }
 
-  void _showFlashMessage(String msg, Color color) {
+  void _showStatusMessage(String msg, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: color.withOpacity(0.9),
-        content: Text(msg, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontFamily: 'Orbitron')),
+        backgroundColor: color,
+        content: Text(msg, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontFamily: 'Inter')),
         duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
       )
     );
   }
 
-  Widget _buildTerminalInput(String label, TextEditingController ctrl, {bool isNumber = false}) {
+  Widget _buildClinicalInput(String label, TextEditingController ctrl, {bool isNumber = false}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 15),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text("> $label", style: const TextStyle(color: AppTheme.textGrey, fontSize: 10)),
-          const SizedBox(height: 5),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(border: Border.all(color: Colors.white24)),
-            child: TextField(
-              controller: ctrl,
-              keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-              style: const TextStyle(color: Colors.white, fontFamily: 'Share Tech Mono'), 
-              decoration: const InputDecoration(border: InputBorder.none, isDense: true)
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.only(bottom: 20),
+      child: TextField(
+        controller: ctrl,
+        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+        style: const TextStyle(fontSize: 14),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: AppTheme.textSecondary),
+        ),
       ),
     );
   }
@@ -173,19 +176,20 @@ class _AnalyticsViewState extends State<AnalyticsView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppTheme.background,
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppTheme.primary,
-        child: const Icon(Icons.add, color: Colors.black),
+        elevation: 4,
+        child: const Icon(Icons.add, color: Colors.white),
         onPressed: () => _showEditPartSheet(context),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("PARTS INVENTORY CONTROL", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white, fontFamily: 'Orbitron')),
-            const SizedBox(height: 15),
+            Text("Spare Parts", style: Theme.of(context).textTheme.displayLarge),
+            const SizedBox(height: 16),
             
             FutureBuilder<List<SparePart>>(
               future: DatabaseHelper.instance.getInventory(),
@@ -199,14 +203,21 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                   children: [
                     if (hasCritical)
                       Container(
-                        padding: const EdgeInsets.all(10),
-                        margin: const EdgeInsets.only(bottom: 20),
-                        color: AppTheme.error.withOpacity(0.2),
-                        child: const Row(
+                        padding: const EdgeInsets.all(16),
+                        margin: const EdgeInsets.only(bottom: 24),
+                        decoration: BoxDecoration(
+                          color: AppTheme.error.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppTheme.error.withOpacity(0.2)),
+                        ),
+                        child: Row(
                           children: [
-                            Icon(Icons.warning, color: AppTheme.error),
-                            SizedBox(width: 10),
-                            Expanded(child: GlitchText("CRITICAL: STOCK LEVELS DEPLETED", style: TextStyle(color: AppTheme.error, fontWeight: FontWeight.bold))),
+                            const Icon(Icons.error_outline, color: AppTheme.error),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Text("Low Stock Alert: Some items require immediate restock.", 
+                                style: TextStyle(color: AppTheme.error, fontWeight: FontWeight.bold, fontSize: 13)),
+                            ),
                           ],
                         ),
                       ),
@@ -222,73 +233,81 @@ class _AnalyticsViewState extends State<AnalyticsView> {
   }
 
   Widget _buildInventoryCard(SparePart part) {
-    Color statusColor = AppTheme.success;
-    if (part.quantity <= part.reorderThreshold) {
-      statusColor = AppTheme.error;
-    } else if (part.quantity <= part.reorderThreshold * 1.2) {
-      statusColor = AppTheme.warning;
-    }
-
-    double fillPercent = part.quantity == 0 ? 0.0 : (part.quantity / (part.reorderThreshold * 3)).clamp(0.0, 1.0);
+    bool isCritical = part.quantity <= part.reorderThreshold;
+    bool isWarning = part.quantity <= part.reorderThreshold * 1.5 && !isCritical;
     
-    return Container(
-      margin: const EdgeInsets.only(bottom: 15),
-      child: HudBrackets(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(child: Text(part.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white), overflow: TextOverflow.ellipsis)),
-                Text("QTY: ${part.quantity}", style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 18)),
-              ],
-            ),
-            Text(part.compatibleModel, style: const TextStyle(color: AppTheme.textGrey, fontSize: 10)),
-            const SizedBox(height: 15),
-            
-            Container(
-              height: 6, width: double.infinity, color: Colors.white10,
-              child: FractionallySizedBox(
-                alignment: Alignment.centerLeft, widthFactor: fillPercent,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: statusColor, 
-                    boxShadow: [BoxShadow(color: statusColor, blurRadius: 5)]
-                  )
+    Color statusColor = isCritical ? AppTheme.error : (isWarning ? AppTheme.warning : AppTheme.success);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          border: isCritical ? const Border(left: BorderSide(color: AppTheme.error, width: 4)) : null,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(part.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.textPrimary)),
+                        Text(part.compatibleModel, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(part.quantity.toString(), style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 22)),
+                      Text(part.unit.toUpperCase(), style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              
+              // Clinical Progress Bar
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: (part.quantity / (part.reorderThreshold * 3)).clamp(0.0, 1.0),
+                  minHeight: 6,
+                  backgroundColor: AppTheme.background,
+                  color: statusColor,
                 ),
               ),
-            ),
-            const SizedBox(height: 15),
-            
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text("LAST RESTOCK: ${part.lastRestocked}", style: const TextStyle(color: Colors.white54, fontSize: 10)),
-                Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => _showEditPartSheet(context, part),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), 
-                        decoration: BoxDecoration(border: Border.all(color: Colors.white24)), 
-                        child: const Text("EDIT", style: TextStyle(fontSize: 10, color: Colors.white))
+              const SizedBox(height: 16),
+              
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("Last Restocked: ${part.lastRestocked}", 
+                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11)),
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: () => _showEditPartSheet(context, part),
+                        child: const Text("Edit", style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    GestureDetector(
-                      onTap: () => _showRestockSheet(context, part),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), 
-                        color: AppTheme.primary.withOpacity(0.2), 
-                        child: const Text("RESTOCK", style: TextStyle(fontSize: 10, color: AppTheme.primary))
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: () => _showRestockSheet(context, part),
+                        style: TextButton.styleFrom(foregroundColor: AppTheme.secondary),
+                        child: const Text("Restock", style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                       ),
-                    ),
-                  ],
-                )
-              ],
-            )
-          ],
+                    ],
+                  )
+                ],
+              )
+            ],
+          ),
         ),
       ),
     );
