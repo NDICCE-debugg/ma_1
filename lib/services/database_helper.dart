@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
@@ -80,6 +81,38 @@ class DatabaseHelper {
       resolved_date TEXT,
       is_synced INTEGER DEFAULT 0
     )''');
+
+    await db.execute('''
+    CREATE TABLE sync_queue (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      action TEXT NOT NULL,
+      target_table TEXT NOT NULL,
+      record_id TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )''');
+  }
+
+  // --- SYNC QUEUE CRUD (Local transaction logs) ---
+  Future<List<Map<String, dynamic>>> getSyncQueue() async {
+    final db = await instance.database;
+    return await db.query('sync_queue', orderBy: 'id ASC');
+  }
+
+  Future<int> enqueueChange(String action, String targetTable, String recordId, Map<String, dynamic> payload) async {
+    final db = await instance.database;
+    return await db.insert('sync_queue', {
+      'action': action,
+      'target_table': targetTable,
+      'record_id': recordId,
+      'payload': jsonEncode(payload),
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+    });
+  }
+
+  Future<int> deleteQueueItem(int id) async {
+    final db = await instance.database;
+    return await db.delete('sync_queue', where: 'id = ?', whereArgs: [id]);
   }
 
   // --- AI REQUESTS CRUD (Kept Local) ---

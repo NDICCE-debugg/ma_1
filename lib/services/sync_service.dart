@@ -1,80 +1,109 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:ma_1/services/database_helper.dart';
 
 class SyncService {
-  // Your active local Wi-Fi IP Address
-  static const String _pcIpAddress = "10.160.120.215"; 
-  final String serverUrl = "http://$_pcIpAddress:5000/api/sync";
+  static final SyncService instance = SyncService._init();
+  final _client = Supabase.instance.client;
+  bool _isSyncing = false;
+
+  SyncService._init();
 
   Future<void> syncData() async {
-    try {
-      // Connect to local SQLite DB
-      final db = await DatabaseHelper.instance.database;
-      
-      // 1. Get Unsynced Service Logs (Existing functionality)
-      List<Map<String, dynamic>> unsyncedLogs = await db.query(
-        'logs', 
-        where: 'is_synced = ?', 
-        whereArgs: [0]
-      );
-      
-      // 2. Get Unsynced Fault Logs (NEW QR SCANNER FUNCTIONALITY)
-      List<Map<String, dynamic>> unsyncedFaults = await db.query(
-        'fault_log', 
-        where: 'is_synced = ?', 
-        whereArgs: [0]
-      );
+    if (_isSyncing) return;
+    _isSyncing = true;
 
-      // If nothing to sync, stop here to save battery/bandwidth
-      if (unsyncedLogs.isEmpty && unsyncedFaults.isEmpty) {
-        debugPrint("Sync Service: All local data is already synced.");
+    try {
+      // 1. Fetch FIFO sorted offline transactions
+      final queue = await DatabaseHelper.instance.getSyncQueue();
+      if (queue.isEmpty) {
+        debugPrint("Sync Service: All offline logs are synchronized.");
+        _isSyncing = false;
         return;
       }
 
-      // 3. Prepare combined JSON payload
-      Map<String, dynamic> payload = {
-        "logs": unsyncedLogs.map((log) => {
-          "id": log['id'],
-          "machine_model": log['machine_model'],
-          "error_code": log['error_code'],
-          "notes": log['notes'],
-          "timestamp": log['timestamp']
-        }).toList(),
-        
-        "faults": unsyncedFaults.map((fault) => {
-          "id": fault['id'],
-          "asset_id": fault['asset_id'],
-          "fault_description": fault['fault_description'],
-          "severity": fault['severity'],
-          "logged_by": fault['logged_by'],
-          "logged_date": fault['logged_date']
-        }).toList()
-      };
+      debugPrint("Sync Service: Initiating replay of ${queue.length} offline transactions...");
 
-      // 4. Send to Flask Backend
-      final response = await http.post(
-        Uri.parse(serverUrl),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(payload),
-      ).timeout(const Duration(seconds: 15));
+      for (var item in queue) {
+        final int id = item['id'];
+        final String action = item['action'];
+        final String targetTable = item['target_table'];
+        final String recordId = item['record_id'];
+        final Map<String, dynamic> payload = jsonDecode(item['payload']);
 
-      if (response.statusCode == 200) {
-        // 5. Update Local DB on Success (Mark all as synced)
-        for (var log in unsyncedLogs) {
-          await db.update('logs', {'is_synced': 1}, where: 'id = ?', whereArgs: [log['id']]);
+        bool replaySuccess = false;
+
+        try {
+          // 2. Map target tables to direct Supabase PostgreSQL transactions
+          if (targetTable == 'service_logs') {
+            if (action == 'INSERT') {
+              await _client.from('service_logs').insert({
+                'machine_id': payload['machine_id'],
+                'error_code': payload['error_code'],
+                'notes': payload['notes'],
+                'timestamp': payload['timestamp'],
+              });
+            }
+            replaySuccess = true;
+          } 
+          else if (targetTable == 'machines') {
+            if (action == 'UPDATE') {
+              await _client.from('machines').update({
+                'status': payload['status'],
+                'location': payload['location'],
+              }).eq('id', recordId);
+            } else if (action == 'INSERT') {
+              await _client.from('machines').insert({
+                'model_name': payload['model_name'],
+                'serial_number': payload['serial_number'],
+                'location': payload['location'],
+                'status': payload['status'],
+              });
+            }
+            replaySuccess = true;
+          } 
+          else if (targetTable == 'spare_parts') {
+            if (action == 'UPDATE') {
+              await _client.from('spare_parts').update({
+                'quantity': payload['quantity'],
+                'last_restocked': payload['last_restocked'],
+                'notes': payload['notes'],
+              }).eq('id', recordId);
+            } else if (action == 'INSERT') {
+              await _client.from('spare_parts').insert({
+                'name': payload['name'],
+                'compatible_model': payload['compatible_model'],
+                'quantity': payload['quantity'],
+                'reorder_threshold': payload['reorder_threshold'],
+                'location': payload['location'],
+                'unit': payload['unit'],
+                'last_restocked': payload['last_restocked'],
+                'notes': payload['notes'],
+              });
+            }
+            replaySuccess = true;
+          }
+
+          if (replaySuccess) {
+            // 3. Delete replayed transaction from local queue
+            await DatabaseHelper.instance.deleteQueueItem(id);
+            debugPrint("Sync Service: Successfully replayed $targetTable $action transaction.");
+          }
+        } on PostgrestException catch (pe) {
+          // If it's a conflict or table error, we log it and skip to prevent deadlocks
+          debugPrint("Sync Service DB Error on item $id: ${pe.message}");
+          await DatabaseHelper.instance.deleteQueueItem(id);
+        } catch (e) {
+          // Transient network error: halt replay to preserve sequence order
+          debugPrint("Sync Service transient network error: $e");
+          break;
         }
-        for (var fault in unsyncedFaults) {
-          await db.update('fault_log', {'is_synced': 1}, where: 'id = ?', whereArgs: [fault['id']]);
-        }
-        
-        debugPrint("Sync Successful: Uploaded ${unsyncedLogs.length} standard logs and ${unsyncedFaults.length} critical fault logs.");
-      } else {
-        debugPrint("Sync Failed: Server returned status ${response.statusCode}");
       }
     } catch (e) {
-      debugPrint("Sync Failed (Network or Timeout): $e");
+      debugPrint("Sync Service general error: $e");
+    } finally {
+      _isSyncing = false;
     }
   }
 }

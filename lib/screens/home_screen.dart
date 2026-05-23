@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/widgets/bioassist_drawer.dart';
 import 'package:ma_1/services/notification_service.dart';
+import 'package:ma_1/services/sync_service.dart';
 
 // Import your views - Ensure these file names match your project
 import 'package:ma_1/screens/dashboard_view.dart';
@@ -18,6 +20,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+  Timer? _syncTimer;
 
   // The list of clinical modules
   final List<Widget> _views = [
@@ -41,6 +44,17 @@ class _HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NotificationService.requestPermission(context);
     });
+
+    // Start background sync timer
+    _syncTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      SyncService.instance.syncData();
+    });
+  }
+
+  @override
+  void dispose() {
+    _syncTimer?.cancel();
+    super.dispose();
   }
 
   @override

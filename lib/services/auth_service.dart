@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService {
   static final AuthService instance = AuthService._init();
@@ -28,7 +29,8 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> register(String name, String email, String password, String reg) async {
+  Future<Map<String, dynamic>> register(
+      String name, String email, String password, String reg) async {
     try {
       final response = await _client.auth.signUp(
         email: email,
@@ -38,7 +40,7 @@ class AuthService {
           'reg_number': reg,
         },
       );
-      
+
       if (response.user != null) {
         // Explicitly write profile record into public.users table to ensure immediate indexing
         try {
@@ -65,12 +67,52 @@ class AuthService {
 
   Future<User?> signInWithGoogle() async {
     try {
-      await _client.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: kIsWeb ? null : 'io.supabase.biomedassist://login-callback',
+      // 🔑 CONFIGURE YOUR WEB/SERVER CLIENT ID HERE:
+      const String webClientId =
+          '287297883810-9ke9cqk0oena9s7ol062in2eijrjfco4.apps.googleusercontent.com';
+
+      // 1. Trigger the native system sign-in popup
+      final GoogleSignInAccount? googleUser = await GoogleSignIn(
+        serverClientId: webClientId,
+      ).signIn();
+
+      if (googleUser == null) return null;
+
+      // 2. Fetch the Google authentication credentials
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      final String? idToken = googleAuth.idToken;
+      final String? accessToken = googleAuth.accessToken;
+
+      if (idToken == null) {
+        throw 'No Google ID Token was retrieved.';
+      }
+
+      // 3. Exchange the Google token directly for a Supabase session
+      final AuthResponse response = await _client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
       );
-      return _client.auth.currentUser;
+
+      // 4. Synchronize details into the users profile index
+      if (response.user != null) {
+        try {
+          await _client.from('users').upsert({
+            'id': response.user!.id,
+            'name': googleUser.displayName ?? 'Google User',
+            'email': googleUser.email,
+            'reg_number':
+                'GOOG-${response.user!.id.substring(0, 5).toUpperCase()}',
+            'role': 'technician',
+            'online': true,
+          });
+        } catch (_) {}
+      }
+
+      return response.user;
     } catch (e) {
+      debugPrint("Supabase Google Auth Exception: $e");
       return null;
     }
   }
