@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 import 'package:ma_1/models/service_log.dart';
 import 'package:ma_1/models/spare_part.dart';
 import 'package:ma_1/models/chat_models.dart';
@@ -8,12 +9,13 @@ import 'package:ma_1/models/ai_request.dart';
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
+  final _client = sb.Supabase.instance.client;
 
   DatabaseHelper._init();
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('biomed_offline_v4.db'); // Forced v4 schema reset
+    _database = await _initDB('biomed_offline_v4.db');
     return _database!;
   }
 
@@ -24,7 +26,7 @@ class DatabaseHelper {
   }
 
   Future _createDB(Database db, int version) async {
-    // 1. Existing Tables
+    // Local AI request history & local client cache tables
     await db.execute('''
     CREATE TABLE logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT, machine_model TEXT, error_code TEXT,
@@ -56,7 +58,6 @@ class DatabaseHelper {
       FOREIGN KEY (contact_id) REFERENCES contacts (id)
     )''');
 
-    // 2. NEW AI REQUESTS TABLE
     await db.execute('''
     CREATE TABLE ai_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,7 +68,6 @@ class DatabaseHelper {
       status TEXT
     )''');
 
-    // NEW ASSET FAULT LOG TABLE
     await db.execute('''
     CREATE TABLE fault_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,23 +80,9 @@ class DatabaseHelper {
       resolved_date TEXT,
       is_synced INTEGER DEFAULT 0
     )''');
-
-    await _seedData(db);
   }
 
-  Future _seedData(Database db) async {
-    // Seed Inventory Data
-    List<Map<String, dynamic>> parts = [
-      {'name': 'Turbine (210003677)', 'compatible_model': 'Aeonmed VG70', 'quantity': 0, 'reorder_threshold': 1, 'location': 'Shelf B2', 'unit': 'pcs', 'last_restocked': '2026-02-15', 'notes': ''},
-      {'name': 'Flow Sensor TSI (210002403)', 'compatible_model': 'Aeonmed VG70', 'quantity': 5, 'reorder_threshold': 3, 'location': 'Drawer A', 'unit': 'pcs', 'last_restocked': '2026-03-01', 'notes': ''},
-      {'name': 'O2 Sensor (210001975)', 'compatible_model': 'Aeonmed VG70', 'quantity': 3, 'reorder_threshold': 2, 'location': 'Fridge', 'unit': 'pcs', 'last_restocked': '2026-01-10', 'notes': 'Keep refrigerated'},
-      {'name': 'Lithium-Ion Battery (210003734)', 'compatible_model': 'Aeonmed VG70', 'quantity': 4, 'reorder_threshold': 2, 'location': 'Battery Store', 'unit': 'units', 'last_restocked': '2025-11-20', 'notes': ''},
-      {'name': 'Sodalime Canister', 'compatible_model': 'Mindray A5', 'quantity': 20, 'reorder_threshold': 5, 'location': 'Store Room', 'unit': 'cans', 'last_restocked': '2026-02-28', 'notes': ''},
-    ];
-    for (var p in parts) { await db.insert('spare_parts', p); }
-  }
-
-  // --- AI REQUESTS CRUD ---
+  // --- AI REQUESTS CRUD (Kept Local) ---
   Future<List<AiRequest>> getAiRequests() async {
     final db = await instance.database;
     final result = await db.query('ai_requests', orderBy: 'timestamp ASC');
@@ -108,48 +94,121 @@ class DatabaseHelper {
     return await db.insert('ai_requests', request.toMap());
   }
 
-  // --- EXISTING CRUD METHODS ---
+  // --- SPARE PARTS (INVENTORY) - DIRECT SUPABASE ---
   Future<List<SparePart>> getInventory() async {
-    final db = await instance.database;
-    final result = await db.query('spare_parts');
-    return result.map((json) => SparePart.fromMap(json)).toList();
-  }
-  Future<int> updateSparePart(SparePart part) async {
-    final db = await instance.database;
-    return await db.update('spare_parts', part.toMap(), where: 'id = ?', whereArgs: [part.id]);
-  }
-  Future<int> addSparePart(SparePart part) async {
-    final db = await instance.database;
-    return await db.insert('spare_parts', part.toMap());
+    try {
+      final response = await _client.from('spare_parts').select();
+      return response.map<SparePart>((json) => SparePart.fromMap(json)).toList();
+    } catch (e) {
+      // Offline fallback: Query local SQLite cache
+      final db = await instance.database;
+      final result = await db.query('spare_parts');
+      return result.map((json) => SparePart.fromMap(json)).toList();
+    }
   }
 
+  Future<int> updateSparePart(SparePart part) async {
+    try {
+      await _client.from('spare_parts').update({
+        'name': part.name,
+        'compatible_model': part.compatibleModel,
+        'quantity': part.quantity,
+        'reorder_threshold': part.reorderThreshold,
+        'location': part.location,
+        'unit': part.unit,
+        'last_restocked': part.lastRestocked,
+        'notes': part.notes,
+      }).eq('id', part.id);
+      
+      // Update local cache as well
+      final db = await instance.database;
+      await db.update('spare_parts', part.toMap(), where: 'id = ?', whereArgs: [part.id]);
+      return 1;
+    } catch (e) {
+      // Local only write if offline (will be synced later)
+      final db = await instance.database;
+      return await db.update('spare_parts', part.toMap(), where: 'id = ?', whereArgs: [part.id]);
+    }
+  }
+
+  Future<int> addSparePart(SparePart part) async {
+    try {
+      await _client.from('spare_parts').insert({
+        'name': part.name,
+        'compatible_model': part.compatibleModel,
+        'quantity': part.quantity,
+        'reorder_threshold': part.reorderThreshold,
+        'location': part.location,
+        'unit': part.unit,
+        'last_restocked': part.lastRestocked,
+        'notes': part.notes,
+      });
+
+      // Insert into local cache
+      final db = await instance.database;
+      return await db.insert('spare_parts', part.toMap());
+    } catch (e) {
+      final db = await instance.database;
+      return await db.insert('spare_parts', part.toMap());
+    }
+  }
+
+  // --- SERVICE LOGS - DIRECT SUPABASE ---
+  Future<List<ServiceLog>> getAllLogs() async {
+    try {
+      final response = await _client
+          .from('service_logs')
+          .select('*, machines(model_name)')
+          .order('timestamp', descending: true);
+      
+      return response.map<ServiceLog>((json) {
+        final machineData = json['machines'] as Map<String, dynamic>?;
+        final modelName = machineData != null ? machineData['model_name'] ?? 'Unknown Machine' : 'Unknown Machine';
+        
+        return ServiceLog(
+          id: json['id'],
+          machineModel: modelName,
+          errorCode: json['error_code'] ?? '',
+          notes: json['notes'] ?? '',
+          timestamp: json['timestamp'] ?? '',
+          isSynced: 1,
+        );
+      }).toList();
+    } catch (e) {
+      // Offline fallback
+      final db = await instance.database;
+      final result = await db.query('logs', orderBy: 'timestamp DESC');
+      return result.map((json) => ServiceLog.fromMap(json)).toList();
+    }
+  }
+
+  // --- CONTACTS & CHAT CACHE (MIGRATING TO SUPABASE REALTIME IN PHASE 5) ---
   Future<List<Contact>> getContacts() async {
     final db = await instance.database;
     final result = await db.query('contacts', orderBy: 'created_at DESC');
     return result.map((json) => Contact.fromMap(json)).toList();
   }
+
   Future<int> addContact(Contact contact) async {
     final db = await instance.database;
     return await db.insert('contacts', contact.toMap());
   }
+
   Future<List<ChatMessage>> getMessagesForContact(int contactId) async {
     final db = await instance.database;
     final result = await db.query('messages', where: 'contact_id = ?', whereArgs: [contactId], orderBy: 'timestamp ASC');
     return result.map((json) => ChatMessage.fromMap(json)).toList();
   }
+
   Future<ChatMessage?> getLastMessageForContact(int contactId) async {
     final db = await instance.database;
     final result = await db.query('messages', where: 'contact_id = ?', whereArgs: [contactId], orderBy: 'timestamp DESC', limit: 1);
     if (result.isNotEmpty) return ChatMessage.fromMap(result.first);
     return null;
   }
+
   Future<int> addMessage(ChatMessage message) async {
     final db = await instance.database;
     return await db.insert('messages', message.toMap());
-  }
-  Future<List<ServiceLog>> getAllLogs() async {
-    final db = await instance.database;
-    final result = await db.query('logs', orderBy: 'timestamp DESC');
-    return result.map((json) => ServiceLog.fromMap(json)).toList();
   }
 }

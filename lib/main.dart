@@ -2,12 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:ma_1/utils/supabase_config.dart';
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/providers/theme_provider.dart';
 import 'package:ma_1/screens/login_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Supabase securely
+  try {
+    await Supabase.initialize(
+      url: SupabaseConfig.url,
+      anonKey: SupabaseConfig.anonKey,
+    );
+  } catch (e) {
+    debugPrint("Supabase initialization failed: $e");
+  }
   
   // Initialize Google Firebase safely (Web requires custom FirebaseOptions which may not be set yet)
   try {
