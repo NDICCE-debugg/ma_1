@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/services/auth_service.dart';
 import 'package:ma_1/screens/home_screen.dart';
+import 'package:ma_1/screens/registration_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,6 +15,33 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _pass = TextEditingController();
   bool _isLoading = false;
 
+  void _handleLogin() async {
+    if (_email.text.trim().isEmpty || _pass.text.trim().isEmpty) {
+      _showStatusMessage("Please fill in all fields", AppTheme.error);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final res = await AuthService.instance.login(
+        _email.text.trim(),
+        _pass.text.trim(),
+      );
+
+      if (res['success'] == true) {
+        if (!mounted) return;
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+      } else {
+        setState(() => _isLoading = false);
+        _showStatusMessage(res['message'] ?? "Invalid email or password", AppTheme.error);
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showStatusMessage("Connection error: Unable to reach auth server", AppTheme.error);
+    }
+  }
+
   void _handleGoogleSignIn() async {
     setState(() => _isLoading = true);
     final user = await AuthService.instance.signInWithGoogle();
@@ -25,6 +53,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _handleBypass() {
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+  }
+
+  void _showStatusMessage(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: color,
+        content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w600, fontFamily: 'Inter')),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -51,10 +89,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 16),
                         TextField(controller: _pass, obscureText: true, decoration: const InputDecoration(labelText: "Password")),
                         const SizedBox(height: 24),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(onPressed: () {}, child: const Text("Sign In")),
-                        ),
+                        _isLoading 
+                          ? const Center(child: CircularProgressIndicator())
+                          : SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: _handleLogin, 
+                                child: const Text("Sign In")
+                              ),
+                            ),
                       ],
                     ),
                   ),
@@ -84,6 +127,23 @@ class _LoginScreenState extends State<LoginScreen> {
                     icon: const Icon(Icons.terminal),
                     label: const Text("SYSTEM OVERRIDE: DEV BYPASS"),
                   ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text("New technician? ", style: TextStyle(color: AppTheme.textSecondary)),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const RegistrationScreen()),
+                        );
+                      },
+                      child: const Text("Create Account", 
+                        style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
                 ),
               ],
             ),

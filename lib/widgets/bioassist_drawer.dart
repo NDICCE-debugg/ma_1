@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/screens/profile_edit_screen.dart';
 import 'package:ma_1/screens/settings_screens.dart';
+import 'package:ma_1/services/auth_service.dart';
+import 'package:ma_1/screens/login_screen.dart';
 
 class BioAssistDrawer extends StatelessWidget {
   const BioAssistDrawer({super.key});
@@ -90,7 +92,16 @@ class BioAssistDrawer extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(20),
       child: OutlinedButton.icon(
-        onPressed: () {},
+        onPressed: () async {
+          await AuthService.instance.signOut();
+          if (context.mounted) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+              (route) => false,
+            );
+          }
+        },
         icon: const Icon(Icons.logout, color: Colors.red),
         label: const Text("Sign Out", style: TextStyle(color: Colors.red)),
       ),
