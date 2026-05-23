@@ -235,7 +235,35 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                 ),
                               ),
-                            ]
+                            ],
+                            const SizedBox(height: 15),
+                            GestureDetector(
+                              onTap: _bootSequence,
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.warning.withOpacity(0.08),
+                                  border: Border.all(color: AppTheme.warning.withOpacity(0.5), width: 1.5),
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.terminal, color: AppTheme.warning, size: 18),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      "SYSTEM OVERRIDE: DEV BYPASS",
+                                      style: TextStyle(
+                                        color: AppTheme.warning,
+                                        fontFamily: 'Share Tech Mono',
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 1.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ]
                         ],
                       ),

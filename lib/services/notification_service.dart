@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -32,6 +33,7 @@ class NotificationService {
   }
 
   static Future<void> requestPermission(BuildContext context) async {
+    if (kIsWeb) return;
     if (await Permission.notification.isDenied) {
       showDialog(
         context: context,
@@ -64,6 +66,7 @@ class NotificationService {
   }
 
   static Future<void> checkInventoryAlerts() async {
+    if (kIsWeb) return;
     final parts = await DatabaseHelper.instance.getInventory();
     int criticalCount = 0;
 
