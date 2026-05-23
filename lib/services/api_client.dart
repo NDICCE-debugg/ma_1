@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -6,7 +7,12 @@ class ApiClient {
   static final ApiClient instance = ApiClient._init();
   
   // Set your Flask server IP here
-  static const String baseUrl = 'http://10.160.120.215:5000/api'; 
+  static String get baseUrl {
+    if (kIsWeb) {
+      return 'http://localhost:5000/api';
+    }
+    return 'http://10.160.120.215:5000/api'; 
+  }
 
   ApiClient._init();
 

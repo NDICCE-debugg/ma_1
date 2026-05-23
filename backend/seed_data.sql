@@ -9,7 +9,8 @@ VALUES
 ('Dräger Medical Zimbabwe', '124 Samora Machel Ave, Harare, Zimbabwe', '-17.824858, 31.053028', '+263 24 279 1234', 'support.zw@draeger.com', 5, 'Primary local supplier for all Draeger ICU ventilators and anaesthetic monitors.'),
 ('Aeonmed Co. Ltd', 'No. 9 Zone B, Airport Industrial Zone, Shunyi District, Beijing, China', '40.068494, 116.598284', '+86 10 8498 1122', 'service@aeonmed.com', 14, 'Direct manufacturer contact for Aeonmed VG series parts.'),
 ('Mindray Clinical Solutions', 'Mindray Building, Keji 12th Road South, High-Tech Industrial Park, Nanshan, Shenzhen, China', '22.538562, 113.947262', '+86 755 8188 8999', 'service@mindray.com', 10, 'Manufacturer contact for Mindray A-series workstations.'),
-('Harare Surgical & Diagnostics', '88 Baines Avenue, Harare, Zimbabwe', '-17.821944, 31.051389', '+263 24 270 4545', 'orders@hararesurgical.co.zw', 2, 'Local distributor for consumables, O2 sensors, sodalime canisters, and standard clinical fittings.');
+('Harare Surgical & Diagnostics', '88 Baines Avenue, Harare, Zimbabwe', '-17.821944, 31.051389', '+263 24 270 4545', 'orders@hararesurgical.co.zw', 2, 'Local distributor for consumables, O2 sensors, sodalime canisters, and standard clinical fittings.')
+ON CONFLICT (email) DO NOTHING;
 
 -- 2. Seed 'machines' Table
 INSERT INTO public.machines (model_name, serial_number, location, status)
@@ -18,7 +19,8 @@ VALUES
 ('Aeonmed VG70', 'SN-VG70-442', 'MAIN • ICU 2', 'Needs Maintenance'),
 ('Dräger Evita V500', 'SN-DR-092', 'PAEDIATRIC • ICU 3', 'Operational'),
 ('Mindray A5', 'SN-MA5-998', 'MATERNITY • Theatre 1', 'Operational'),
-('WATO EX-35', 'SN-W35-102', 'MAIN • Theatre 2', 'Needs Maintenance');
+('WATO EX-35', 'SN-W35-102', 'MAIN • Theatre 2', 'Needs Maintenance')
+ON CONFLICT (serial_number) DO NOTHING;
 
 -- 3. Seed 'spare_parts' Table
 INSERT INTO public.spare_parts (name, compatible_model, quantity, reorder_threshold, location, unit, notes)
@@ -39,7 +41,8 @@ VALUES
 ((SELECT id FROM public.spare_parts WHERE name = 'O2 Sensor (210001975)' LIMIT 1), (SELECT id FROM public.suppliers WHERE name = 'Dräger Medical Zimbabwe' LIMIT 1)),
 ((SELECT id FROM public.spare_parts WHERE name = 'O2 Sensor (210001975)' LIMIT 1), (SELECT id FROM public.suppliers WHERE name = 'Harare Surgical & Diagnostics' LIMIT 1)),
 ((SELECT id FROM public.spare_parts WHERE name = 'Sodalime Canister' LIMIT 1), (SELECT id FROM public.suppliers WHERE name = 'Mindray Clinical Solutions' LIMIT 1)),
-((SELECT id FROM public.spare_parts WHERE name = 'Sodalime Canister' LIMIT 1), (SELECT id FROM public.suppliers WHERE name = 'Harare Surgical & Diagnostics' LIMIT 1));
+((SELECT id FROM public.spare_parts WHERE name = 'Sodalime Canister' LIMIT 1), (SELECT id FROM public.suppliers WHERE name = 'Harare Surgical & Diagnostics' LIMIT 1))
+ON CONFLICT (part_id, supplier_id) DO NOTHING;
 
 -- 5. Seed 'service_logs' Table
 -- We fetch machine IDs dynamically

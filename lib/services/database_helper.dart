@@ -6,6 +6,7 @@ import 'package:ma_1/models/service_log.dart';
 import 'package:ma_1/models/spare_part.dart';
 import 'package:ma_1/models/chat_models.dart';
 import 'package:ma_1/models/ai_request.dart';
+import 'package:ma_1/models/hospital_asset.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -231,7 +232,7 @@ class DatabaseHelper {
         'unit': part.unit,
         'last_restocked': part.lastRestocked,
         'notes': part.notes,
-      }).eq('id', part.id);
+      }).eq('id', part.id!);
       
       // Update local cache as well
       final db = await instance.database;
@@ -274,7 +275,7 @@ class DatabaseHelper {
       final response = await _client
           .from('service_logs')
           .select('*, machines(model_name)')
-          .order('timestamp', descending: true);
+          .order('timestamp', ascending: false);
       
       return response.map<ServiceLog>((json) {
         final machineData = json['machines'] as Map<String, dynamic>?;

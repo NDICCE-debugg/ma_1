@@ -73,6 +73,7 @@ class AuthService {
 
       // 1. Trigger the native system sign-in popup
       final GoogleSignInAccount? googleUser = await GoogleSignIn(
+        clientId: webClientId,
         serverClientId: webClientId,
       ).signIn();
 

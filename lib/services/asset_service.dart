@@ -56,7 +56,7 @@ class AssetService {
     };
 
     try {
-      await _client.from('machines').update(payload).eq('id', asset.id);
+      await _client.from('machines').update(payload).eq('id', asset.id!);
       await DatabaseHelper.instance.updateCachedAsset(asset);
     } catch (e) {
       // Offline fallback: Write to SQLite cache, then enqueue transaction

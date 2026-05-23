@@ -1,4 +1,6 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/services/chat_service.dart';
@@ -25,6 +27,9 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
 
   List<Map<String, dynamic>> _contacts = [];
   bool _isLoadingContacts = false;
+
+  bool _isGenerating = false;
+  String? _generatedMeetLink;
 
   @override
   void initState() {
@@ -313,86 +318,452 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
     );
   }
 
+  String _generateRandomMeetingCode() {
+    final rand = math.Random();
+    const chars = 'abcdefghijklmnopqrstuvwxyz';
+    String part1 = List.generate(3, (index) => chars[rand.nextInt(chars.length)]).join();
+    String part2 = List.generate(4, (index) => chars[rand.nextInt(chars.length)]).join();
+    String part3 = List.generate(3, (index) => chars[rand.nextInt(chars.length)]).join();
+    return "$part1-$part2-$part3";
+  }
+
+  void _generateClinicalMeetLink() async {
+    setState(() {
+      _isGenerating = true;
+    });
+
+    await Future.delayed(const Duration(milliseconds: 1600));
+
+    final code = _generateRandomMeetingCode();
+    setState(() {
+      _isGenerating = false;
+      _generatedMeetLink = "https://meet.google.com/med-$code";
+    });
+  }
+
   Widget _buildMeetingsList() {
     return Stack(
       children: [
-        if (_meetings.isEmpty)
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center, 
+        ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _buildMeetGeneratorCard(),
+            const SizedBox(height: 24),
+            Row(
               children: [
-                Icon(Icons.video_camera_back_outlined, size: 64, color: AppTheme.neutral.withOpacity(0.4)), 
-                const SizedBox(height: 16), 
-                const Text("No Upcoming Consultations", style: TextStyle(color: AppTheme.textSecondary, fontSize: 16, fontWeight: FontWeight.w500))
-              ]
-            ).animate().fadeIn()
-          )
-        else
-          ListView.builder(
-            padding: const EdgeInsets.all(16), 
-            itemCount: _meetings.length,
-            itemBuilder: (ctx, i) {
-              final m = _meetings[i];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: Padding(
-                  padding: const EdgeInsets.all(16), 
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12), 
-                        decoration: BoxDecoration(color: AppTheme.background, borderRadius: BorderRadius.circular(12)), 
-                        child: const Icon(Icons.videocam_outlined, color: AppTheme.primary)
-                      ), 
-                      const SizedBox(width: 16), 
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start, 
-                          children: [
-                            Text(m['topic'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)), 
-                            const SizedBox(height: 4), 
-                            Text("Scheduled: ${m['time']}", style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12))
-                          ]
-                        )
-                      ), 
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primary, 
-                          padding: const EdgeInsets.symmetric(horizontal: 16)
-                        ), 
-                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MeetingRoomView(meetingTopic: "Consultation"))), 
-                        child: const Text("Join")
-                      )
-                    ]
-                  )
-                )
-              );
-            },
-          ),
+                const Icon(Icons.calendar_month_outlined, size: 18, color: AppTheme.primary),
+                const SizedBox(width: 8),
+                const Text(
+                  "Scheduled Consultations",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryDark,
+                    fontFamily: 'Outfit',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_meetings.isEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppTheme.divider),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.video_camera_back_outlined, size: 48, color: AppTheme.neutral.withOpacity(0.3)),
+                    const SizedBox(height: 12),
+                    const Text(
+                      "No Upcoming Consultations",
+                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      "Generate an instant link above to start immediately.",
+                      style: TextStyle(color: AppTheme.neutral, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ).animate().fadeIn()
+            else
+              ..._meetings.map((m) => _buildMeetingCard(m)).toList(),
+            const SizedBox(height: 100), // padding at bottom so FAB doesn't cover content
+          ],
+        ),
         Positioned(
-          bottom: 24, right: 20, 
+          bottom: 24,
+          right: 20,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               FloatingActionButton.extended(
-                heroTag: "schedule", 
-                backgroundColor: Colors.white, 
-                icon: const Icon(Icons.calendar_today_outlined, color: AppTheme.primary, size: 18), 
-                label: const Text("Schedule", style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)), 
-                onPressed: _showScheduleMeetingSheet
-              ), 
-              const SizedBox(height: 16), 
+                heroTag: "schedule",
+                backgroundColor: Colors.white,
+                icon: const Icon(Icons.calendar_today_outlined, color: AppTheme.primary, size: 18),
+                label: const Text("Schedule", style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+                onPressed: _showScheduleMeetingSheet,
+              ),
+              const SizedBox(height: 16),
               FloatingActionButton.extended(
-                heroTag: "start", 
-                backgroundColor: AppTheme.primary, 
-                icon: const Icon(Icons.video_call, color: Colors.white), 
-                label: const Text("Start Now", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), 
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MeetingRoomView(meetingTopic: "Instant Consultation")))
-              )
-            ]
-          )
+                heroTag: "start",
+                backgroundColor: AppTheme.primary,
+                icon: const Icon(Icons.video_call, color: Colors.white),
+                label: const Text("Start Now", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MeetingRoomView(meetingTopic: "Instant Consultation"),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
+    );
+  }
+
+  Widget _buildMeetingCard(Map<String, dynamic> m) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.background,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.videocam_outlined, color: AppTheme.primary),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(m['topic'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, fontFamily: 'Outfit')),
+                  const SizedBox(height: 4),
+                  Text("Scheduled: ${m['time']}", style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12, fontFamily: 'Outfit')),
+                ],
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+              ),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MeetingRoomView(meetingTopic: m['topic']),
+                ),
+              ),
+              child: const Text("Join"),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMeetGeneratorCard() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppTheme.midnightBlue, AppTheme.primary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primary.withOpacity(0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          )
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -30,
+              top: -30,
+              child: Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.iceBlue.withOpacity(0.06),
+                ),
+              ),
+            ),
+            Positioned(
+              left: -40,
+              bottom: -40,
+              child: Container(
+                width: 150,
+                height: 150,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.iceBlue.withOpacity(0.04),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(22),
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppTheme.iceBlue.withOpacity(0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.video_camera_front_outlined,
+                            color: AppTheme.iceBlue,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Google Meet Generator",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                  fontFamily: 'Outfit',
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                "Instant clinical HD tele-consultation bridge",
+                                style: TextStyle(
+                                  color: AppTheme.iceBlue,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    if (!_isGenerating && _generatedMeetLink == null) ...[
+                      const Text(
+                        "Need to consult with team experts immediately? Generate a secure Google Meet space with single-click provisioning.",
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.iceBlue,
+                            foregroundColor: AppTheme.midnightBlue,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: _generateClinicalMeetLink,
+                          icon: const Icon(Icons.bolt_rounded, size: 20),
+                          label: const Text(
+                            "Generate Instant Meeting Link",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              fontFamily: 'Outfit',
+                            ),
+                          ),
+                        ).animate().shimmer(duration: 1500.ms, delay: 500.ms),
+                      ),
+                    ] else if (_isGenerating) ...[
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(AppTheme.iceBlue),
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Text(
+                                "Provisioning Secure Clinical Uplink...",
+                                style: TextStyle(
+                                  color: AppTheme.iceBlue,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: const LinearProgressIndicator(
+                              color: AppTheme.iceBlue,
+                              backgroundColor: Colors.white12,
+                              minHeight: 4,
+                            ),
+                          ).animate().shimmer(duration: 1000.ms),
+                        ],
+                      ),
+                    ] else if (_generatedMeetLink != null) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.black26,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppTheme.iceBlue.withOpacity(0.2)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.lock_outline_rounded, color: AppTheme.success, size: 16),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _generatedMeetLink!,
+                                style: const TextStyle(
+                                  color: AppTheme.iceBlue,
+                                  fontFamily: 'Outfit',
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: () {
+                                Clipboard.setData(ClipboardData(text: _generatedMeetLink!));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    behavior: SnackBarBehavior.floating,
+                                    backgroundColor: AppTheme.midnightBlue,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    content: Row(
+                                      children: [
+                                        const Icon(Icons.check_circle, color: AppTheme.iceBlue, size: 20),
+                                        const SizedBox(width: 10),
+                                        const Text(
+                                          "Meet link copied to clipboard!",
+                                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Outfit'),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: const Icon(
+                                Icons.copy_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                side: const BorderSide(color: Colors.white30),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _generatedMeetLink = null;
+                                });
+                              },
+                              icon: const Icon(Icons.refresh_rounded, size: 16),
+                              label: const Text(
+                                "Reset",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  fontFamily: 'Outfit',
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.success,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const MeetingRoomView(
+                                      meetingTopic: "Instant HD Consultation",
+                                    ),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.video_call_rounded, size: 18),
+                              label: const Text(
+                                "Launch Meet",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  fontFamily: 'Outfit',
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

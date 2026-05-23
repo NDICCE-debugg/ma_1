@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -13,7 +13,6 @@ import 'package:http/http.dart' as http;
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/services/database_helper.dart';
 import 'package:ma_1/models/ai_request.dart';
-import 'package:ma_1/services/sound_service.dart';
 
 class AIAssistantView extends StatefulWidget {
   const AIAssistantView({super.key});
@@ -35,7 +34,9 @@ class _AIAssistantViewState extends State<AIAssistantView> {
   final ImagePicker _picker = ImagePicker();
 
   static const String _pcIpAddress = "10.160.120.215"; 
-  final String _apiUrl = "http://$_pcIpAddress:5000/api/query";
+  String get _apiUrl => kIsWeb 
+      ? "http://localhost:5000/api/query" 
+      : "http://$_pcIpAddress:5000/api/query";
 
   @override
   void initState() {

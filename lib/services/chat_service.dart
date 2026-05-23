@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -57,7 +56,6 @@ class ChatService {
           callback: (payload) {
             final record = payload.newRecord;
             incomingMessage.value = record;
-            incomingMessage.notifyListeners();
           },
         );
     _msgChannel!.subscribe();
@@ -68,7 +66,6 @@ class ChatService {
       event: 'typing',
       callback: (payload) {
         typingIndicator.value = payload;
-        typingIndicator.notifyListeners();
       },
     );
     _typingChannel!.subscribe();
@@ -129,7 +126,7 @@ class ChatService {
   // --- BROADCAST TYPING STATUS ---
   void sendTyping(String conversationId, String userId) {
     if (_typingChannel == null) return;
-    _typingChannel!.sendBroadcast(
+    _typingChannel!.sendBroadcastMessage(
       event: 'typing',
       payload: {
         'conversation_id': conversationId,

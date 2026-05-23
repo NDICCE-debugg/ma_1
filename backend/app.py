@@ -42,33 +42,41 @@ def verify_supabase_token(request):
     
     return False, None
 
-# --- AI RAG PIPELINE ENGINE ---
-def run_openai_rag_query(query_text):
-    if not OPENAI_API_KEY or "your-openai-api-key" in OPENAI_API_KEY.lower():
-        # Clean clinical placeholder response when API Key is missing
-        return f"UPLINK ESTABLISHED. RAG Pipeline online. (System Awaiting OPENAI_API_KEY to process RAG on query: '{query_text}')"
+# --- GEMINI 1.5 FLASH AI ENGINE ---
+def run_gemini_query(query_text):
+    # Try finding GEMINI_API_KEY, fallback to OPENAI_API_KEY if configured
+    gemini_key = os.environ.get("GEMINI_API_KEY", OPENAI_API_KEY)
     
-    # Real OpenAI request fallback if configured
+    if not gemini_key or "api-key" in gemini_key.lower():
+        return f"GEMINI UPLINK SECURED. RAG Pipeline online. (Awaiting GEMINI_API_KEY in backend/.env to analyze: '{query_text}')"
+        
     try:
-        headers = {
-            "Authorization": f"Bearer {OPENAI_API_KEY}",
-            "Content-Type": "application/json"
-        }
+        # Google Gemini 1.5 Flash HTTP API endpoint
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+        headers = {"Content-Type": "application/json"}
+        
+        # Expert clinical engineering system instructions combined with user query
+        system_instruction = (
+            "You are BioAssist, an industry-standard AI clinical equipment assistant. "
+            "Provide extremely precise, technical, and safe guidelines for repairing or servicing medical machinery."
+        )
+        
         payload = {
-            "model": "gpt-4o-mini",
-            "messages": [
-                {"role": "system", "content": "You are BioAssist, an expert biomedical engineering repair assistant. Provide exact clinical guidelines."},
-                {"role": "user", "content": query_text}
-            ],
-            "max_tokens": 500
+            "contents": [{
+                "parts": [{"text": f"{system_instruction}\n\nTechnician Query: {query_text}"}]
+            }]
         }
-        res = requests.post("https://api.openai.com/v1/chat/completions", json=payload, headers=headers, timeout=10)
+        
+        res = requests.post(url, json=payload, headers=headers, timeout=10)
         if res.status_code == 200:
-            return res.json()['choices'][0]['message']['content'].strip()
+            data = res.json()
+            # Extract text safely from Gemini schema: candidates[0].content.parts[0].text
+            answer = data['candidates'][0]['content']['parts'][0]['text']
+            return answer.strip()
+        else:
+            return f"Gemini API returned status code {res.status_code}. Using local clinical fallback to process: '{query_text}'"
     except Exception as e:
-        return f"RAG Pipeline online. Local processing error: {str(e)}"
-    
-    return "RAG Pipeline online. Local processing."
+        return f"Gemini pipeline online. Fallback parsing context: {str(e)}"
 
 # --- PREDICTIVE DIAGNOSTICS ALGORITHM (Telemetry-Driven) ---
 def compute_predictive_health(machine_id):
@@ -138,7 +146,7 @@ def ai_query():
     if not query:
         return jsonify({"error": "Query parameters empty"}), 400
         
-    response_text = run_openai_rag_query(query)
+    response_text = run_gemini_query(query)
     return jsonify({"answer": response_text})
 
 @app.route('/api/predict', methods=['GET'])

@@ -13,6 +13,19 @@ class AnalyticsView extends StatefulWidget {
 }
 
 class _AnalyticsViewState extends State<AnalyticsView> {
+  late Future<List<SparePart>> _inventoryFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshInventory();
+  }
+
+  void _refreshInventory() {
+    setState(() {
+      _inventoryFuture = DatabaseHelper.instance.getInventory();
+    });
+  }
 
   void _showEditPartSheet(BuildContext context, [SparePart? existingPart]) {
     final nameCtrl = TextEditingController(text: existingPart?.name ?? '');
@@ -81,7 +94,7 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                     await NotificationService.checkInventoryAlerts();
                     if (!mounted) return;
                     Navigator.pop(ctx);
-                    setState(() {});
+                    _refreshInventory();
                     _showStatusMessage("Record saved successfully", AppTheme.success);
                   },
                   child: Text(existingPart == null ? "Add Part" : "Save Changes"),
@@ -133,7 +146,7 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                     await NotificationService.checkInventoryAlerts();
                     if (!mounted) return;
                     Navigator.pop(ctx);
-                    setState(() {});
+                    _refreshInventory();
                     _showStatusMessage("Inventory updated", AppTheme.secondary);
                   }
                 },
@@ -192,7 +205,7 @@ class _AnalyticsViewState extends State<AnalyticsView> {
             const SizedBox(height: 16),
             
             FutureBuilder<List<SparePart>>(
-              future: DatabaseHelper.instance.getInventory(),
+              future: _inventoryFuture,
               builder: (context, snapshot) {
                 if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                 

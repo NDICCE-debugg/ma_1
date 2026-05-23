@@ -60,6 +60,7 @@ dependencies:
   google_sign_in: ^6.2.1
   flutter_secure_storage: ^9.0.0
   supabase_flutter: ^2.12.4
+  sqflite_common_ffi_web: ^1.0.2
 
 dev_dependencies:
   flutter_test:
@@ -77,6 +78,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icon.png
+    - assets/clinical_bg.png
     # - assets/sounds/nav_subtle_click.mp3
     # - assets/sounds/clinical_ready.mp3
     # - assets/sounds/success_ping.mp3
