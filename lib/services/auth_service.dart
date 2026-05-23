@@ -5,12 +5,27 @@ import 'package:google_sign_in/google_sign_in.dart';
 class AuthService {
   static final AuthService instance = AuthService._init();
   final _client = Supabase.instance.client;
+  User? _mockUser;
 
   AuthService._init();
 
-  Future<bool> checkSession() async => _client.auth.currentSession != null;
+  Future<bool> checkSession() async => _mockUser != null || _client.auth.currentSession != null;
 
-  User? get currentUser => _client.auth.currentUser;
+  User? get currentUser => _mockUser ?? _client.auth.currentUser;
+
+  void enableBypassMode() {
+    _mockUser = User(
+      id: 'mock-technician-id-12345',
+      appMetadata: const {},
+      userMetadata: const {
+        'name': 'Tadiwanashe M.',
+        'reg_number': 'REG: 2026-HIT-04',
+      },
+      aud: 'authenticated',
+      email: 'technician@hararehospital.gov.zw',
+      createdAt: DateTime.now().toIso8601String(),
+    );
+  }
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
@@ -52,8 +67,8 @@ class AuthService {
             'role': 'technician',
             'online': true,
           });
-        } catch (_) {
-          // Fallback in case a Supabase trigger handles the insert
+        } catch (e) {
+          debugPrint("Supabase User Profile Sync Exception: $e");
         }
         return {'success': true};
       }
@@ -67,7 +82,17 @@ class AuthService {
 
   Future<User?> signInWithGoogle() async {
     try {
-      // 🔑 CONFIGURE YOUR WEB/SERVER CLIENT ID HERE:
+      if (kIsWeb) {
+        // On Web, use standard Supabase OAuth redirect. This is extremely robust, 
+        // official, and avoids the Google identity services 'idToken' deprecation trap.
+        await _client.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: Uri.base.origin,
+        );
+        return _client.auth.currentUser;
+      }
+
+      // 🔑 CONFIGURE YOUR WEB/SERVER CLIENT ID HERE (Native Platforms):
       const String webClientId =
           '287297883810-9ke9cqk0oena9s7ol062in2eijrjfco4.apps.googleusercontent.com';
 
@@ -119,6 +144,7 @@ class AuthService {
   }
 
   Future<void> signOut() async {
+    _mockUser = null;
     try {
       if (_client.auth.currentUser != null) {
         // Mark user as offline before logging out

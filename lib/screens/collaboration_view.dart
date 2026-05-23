@@ -6,6 +6,7 @@ import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/services/chat_service.dart';
 import 'package:ma_1/screens/chat_screen.dart';
 import 'package:ma_1/screens/meeting_room_view.dart';
+import 'package:ma_1/screens/call_screen.dart';
 import 'package:intl/intl.dart';
 
 class CollaborationView extends StatefulWidget {
@@ -21,8 +22,72 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
   bool _isSearching = false;
   final TextEditingController _searchCtrl = TextEditingController();
 
-  final List<Map<String, dynamic>> _chats = [];
-  final List<Map<String, dynamic>> _meetings = [];
+  final List<Map<String, dynamic>> _chats = [
+    {
+      "id": "dr-chipo-moyo",
+      "name": "Dr. Chipo Moyo",
+      "last_msg": "Urgent: ICU Aeonmed VG70 Ventilator has a constant 'Low O2 Pressure' fault alarm. Purity cell reading at 88%.",
+      "time": "10:45 AM",
+      "unread": 2,
+      "online": true
+    },
+    {
+      "id": "farai-gumbo",
+      "name": "Farai Gumbo",
+      "last_msg": "Evita V500 PEEP valve calibration test complete. Volume leakage check passed, ready to redeploy.",
+      "time": "Yesterday",
+      "unread": 0,
+      "online": false
+    },
+    {
+      "id": "tendai-chidi",
+      "name": "Tendai Chidi",
+      "last_msg": "Central oxygen plant manifold pressure dropping below 4.2 bar. Manually routing to reserve cylinder banks.",
+      "time": "May 22",
+      "unread": 1,
+      "online": true
+    }
+  ];
+
+  final List<Map<String, dynamic>> _calls = [
+    {
+      "name": "Dr. Chipo Moyo",
+      "type": "voice", 
+      "direction": "incoming", 
+      "time": "Today, 10:45 AM",
+      "status": "Low O2 Alarm Fault (12m 4s)",
+      "online": true,
+    },
+    {
+      "name": "Farai Gumbo",
+      "type": "video",
+      "direction": "outgoing",
+      "time": "Yesterday, 15:30",
+      "status": "PEEP Valve Calibrated (8m 15s)",
+      "online": false,
+    },
+    {
+      "name": "Tendai Chidi",
+      "type": "voice",
+      "direction": "missed",
+      "time": "Yesterday, 09:15",
+      "status": "Manifold Pressure Drop",
+      "online": true,
+    },
+  ];
+
+  final List<Map<String, dynamic>> _meetings = [
+    {
+      "topic": "Oxygen Plant Pipeline Pressure Failure Consultation",
+      "time": "Today, 14:00",
+      "host": "Farai Gumbo"
+    },
+    {
+      "topic": "ICU Ventilator Oxygen Cell Failover Audit",
+      "time": "Tomorrow, 09:30",
+      "host": "Dr. Chipo Moyo"
+    }
+  ];
 
   List<Map<String, dynamic>> _contacts = [];
   bool _isLoadingContacts = false;
@@ -294,16 +359,86 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
   Widget _buildCallHistory() {
     return Stack(
       children: [
-        Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center, 
-            children: [
-              Icon(Icons.phone_outlined, size: 64, color: AppTheme.neutral.withValues(alpha: 0.4)), 
-              const SizedBox(height: 16), 
-              const Text("No Recent Calls", style: TextStyle(color: AppTheme.textSecondary, fontSize: 16, fontWeight: FontWeight.w500))
-            ]
-          ).animate().fadeIn()
-        ),
+        if (_calls.isEmpty)
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center, 
+              children: [
+                Icon(Icons.phone_outlined, size: 64, color: AppTheme.neutral.withValues(alpha: 0.4)), 
+                const SizedBox(height: 16), 
+                const Text("No Recent Calls", style: TextStyle(color: AppTheme.textSecondary, fontSize: 16, fontWeight: FontWeight.w500))
+              ]
+            ).animate().fadeIn()
+          )
+        else
+          ListView.separated(
+            padding: const EdgeInsets.only(top: 8, bottom: 80),
+            itemCount: _calls.length,
+            separatorBuilder: (context, index) => const Divider(height: 1, indent: 80, color: AppTheme.divider),
+            itemBuilder: (ctx, i) {
+              final call = _calls[i];
+              final isVideo = call['type'] == 'video';
+              final isMissed = call['direction'] == 'missed';
+              final isIncoming = call['direction'] == 'incoming';
+              
+              IconData directionIcon;
+              Color directionColor;
+              if (isMissed) {
+                directionIcon = Icons.call_missed;
+                directionColor = AppTheme.error;
+              } else if (isIncoming) {
+                directionIcon = Icons.call_received;
+                directionColor = AppTheme.success;
+              } else {
+                directionIcon = Icons.call_made;
+                directionColor = AppTheme.primary;
+              }
+
+              return ListTile(
+                tileColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                leading: CircleAvatar(
+                  radius: 28,
+                  backgroundColor: AppTheme.primary.withValues(alpha: 0.1), 
+                  child: Text(
+                    call['name'].substring(0, 1), 
+                    style: const TextStyle(color: AppTheme.primary, fontSize: 20, fontWeight: FontWeight.bold)
+                  )
+                ),
+                title: Text(call['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 4.0),
+                  child: Row(
+                    children: [
+                      Icon(directionIcon, size: 14, color: directionColor),
+                      const SizedBox(width: 6),
+                      Text(
+                        "${call['status']} • ${call['time']}", 
+                        style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)
+                      ),
+                    ],
+                  ),
+                ),
+                trailing: IconButton(
+                  icon: Icon(
+                    isVideo ? Icons.videocam_outlined : Icons.phone_outlined, 
+                    color: AppTheme.secondary
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CallScreen(
+                          contactName: call['name'],
+                          isVideoCall: isVideo,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
         Positioned(
           bottom: 24, right: 20, 
           child: FloatingActionButton(

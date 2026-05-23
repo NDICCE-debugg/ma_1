@@ -38,11 +38,11 @@ class SparePart {
   factory SparePart.fromMap(Map<String, dynamic> map) {
     return SparePart(
       id: map['id'],
-      name: map['name'],
-      compatibleModel: map['compatible_model'],
-      quantity: map['quantity'],
-      reorderThreshold: map['reorder_threshold'],
-      location: map['location'],
+      name: map['name'] ?? '',
+      compatibleModel: map['compatible_model'] ?? '',
+      quantity: (map['quantity'] as num?)?.toInt() ?? 0,
+      reorderThreshold: (map['reorder_threshold'] as num?)?.toInt() ?? 1,
+      location: map['location'] ?? 'General Store',
       unit: map['unit'] ?? 'units',
       lastRestocked: map['last_restocked'] ?? 'UNKNOWN',
       notes: map['notes'] ?? '',

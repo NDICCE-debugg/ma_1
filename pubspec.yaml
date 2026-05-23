@@ -35,8 +35,9 @@ dependencies:
   app_badge_plus: ^1.1.2
   workmanager: ^0.6.0 
 
-  # --- AI ASSISTANT (Voice & Speech) ---
+  # --- AI ASSISTANT (Voice, Speech & Gemini) ---
   flutter_tts: ^3.8.5
+  google_generative_ai: ^0.4.6
   speech_to_text:
     git:
       url: https://github.com/csdcorp/speech_to_text.git
@@ -55,12 +56,11 @@ dependencies:
   emoji_picker_flutter: ^4.4.0 
 
   # --- AUTHENTICATION & SECURITY ---
-  firebase_core: ^3.0.0
-  firebase_auth: ^5.0.0
   google_sign_in: ^6.2.1
   flutter_secure_storage: ^9.0.0
   supabase_flutter: ^2.12.4
   sqflite_common_ffi_web: ^1.0.2
+  local_auth: ^2.2.0
 
 dev_dependencies:
   flutter_test:

@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:ma_1/theme/app_theme.dart';
@@ -19,10 +18,22 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   final TextEditingController _regCtrl = TextEditingController();
   
   bool _isLoading = false;
+  bool _isPasswordVisible = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _passCtrl.dispose();
+    _regCtrl.dispose();
+    super.dispose();
+  }
 
   void _handleRegister() async {
-    // Basic clinical validation
-    if (_nameCtrl.text.isEmpty || _emailCtrl.text.isEmpty || _passCtrl.text.isEmpty || _regCtrl.text.isEmpty) {
+    if (_nameCtrl.text.trim().isEmpty || 
+        _emailCtrl.text.trim().isEmpty || 
+        _passCtrl.text.trim().isEmpty || 
+        _regCtrl.text.trim().isEmpty) {
       _showStatusMessage("Please complete all required fields", AppTheme.error);
       return;
     }
@@ -39,7 +50,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
       if (res['success'] == true) {
         if (!mounted) return;
-        _showStatusMessage("Account created successfully", AppTheme.success);
+        _showStatusMessage(
+          "Account created successfully! If email verification is enabled on your Supabase, check your inbox to confirm before signing in.",
+          AppTheme.success,
+        );
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
       } else {
         setState(() => _isLoading = false);
@@ -47,7 +61,16 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      _showStatusMessage("Connection error: Unable to reach server", AppTheme.error);
+      _showStatusMessage("Connection error: Unable to reach auth server", AppTheme.error);
+    }
+  }
+
+  void _handleGoogleSignIn() async {
+    setState(() => _isLoading = true);
+    final user = await AuthService.instance.signInWithGoogle();
+    setState(() => _isLoading = false);
+    if (user != null && mounted) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
     }
   }
 
@@ -66,76 +89,102 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // 1. High-Fidelity Background Asset
-          Image.asset(
-            'assets/clinical_bg.png',
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
+          // 1. Sleek clinical holo-gradient background (white to soft ice-blue and light slate)
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFFFFFFF), // Clinical white
+                  Color(0xFFF1F5F9), // Very soft ice-blue grey
+                  Color(0xFFE2E8F0), // Light slate
+                  Color(0xFFF8FAFC), // Faint blue white
+                ],
+                stops: [0.0, 0.4, 0.8, 1.0],
+              ),
+            ),
           ),
           
-          // Dark layout mask
-          Container(color: AppTheme.midnightBlue.withValues(alpha: 0.4)),
-          
-          // 2. Scrolling content
+          // 2. Main content area inside reactive scrolling container with LayoutBuilder + ConstrainedBox
           SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 20.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // BioAssist Medical Logo Header
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.midnightBlue.withValues(alpha: 0.6),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppTheme.iceBlue.withValues(alpha: 0.3), width: 1.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.iceBlue.withValues(alpha: 0.1),
-                            blurRadius: 20,
-                            spreadRadius: 2,
-                          )
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.medical_services_outlined, 
-                        size: 55, 
-                        color: AppTheme.iceBlue,
-                      ),
-                    ).animate().scale(duration: 400.ms, curve: Curves.easeOutBack),
-                    
-                    const SizedBox(height: 16),
-                    
-                    const Text(
-                      "Deploy Terminal Console", 
-                      style: TextStyle(
-                        fontSize: 24, 
-                        fontWeight: FontWeight.bold, 
-                        color: Colors.white,
-                        fontFamily: 'Outfit',
-                        letterSpacing: 0.5,
-                      ),
-                    ).animate().fadeIn(delay: 100.ms),
-                    
-                    const SizedBox(height: 32),
-                    
-                    // 3. Glassmorphic Card Container
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 28.0),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  physics: const ClampingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight - 32,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const SizedBox(height: 20),
+                        
+                        // BioAssist Clinical Logo Header (Clean clinical design, matches Login)
+                        Container(
+                          padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(
-                              color: AppTheme.iceBlue.withValues(alpha: 0.2), 
-                              width: 1.5,
-                            ),
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: AppTheme.primary.withValues(alpha: 0.15), width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.primary.withValues(alpha: 0.05),
+                                blurRadius: 15,
+                                offset: const Offset(0, 5),
+                              )
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.health_and_safety, 
+                            size: 55, 
+                            color: AppTheme.primary,
+                          ),
+                        ).animate().scale(duration: 400.ms, curve: Curves.easeOutBack),
+                        
+                        const SizedBox(height: 16),
+                        
+                        const Text(
+                          "BioMed Assistant", 
+                          style: TextStyle(
+                            fontSize: 26, 
+                            fontWeight: FontWeight.bold, 
+                            color: Color(0xFF0F172A),
+                            fontFamily: 'Outfit',
+                            letterSpacing: -0.5,
+                          ),
+                        ).animate().fadeIn(delay: 100.ms).slideY(begin: 0.2, end: 0),
+                        
+                        const Text(
+                          "Clinical Fleet Registration", 
+                          style: TextStyle(
+                            color: Color(0xFF475569), 
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            fontFamily: 'Outfit',
+                          ),
+                        ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.2, end: 0),
+                        
+                        const SizedBox(height: 28),
+                        
+                        // 3. Functional and clean registration card
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.04),
+                                blurRadius: 15,
+                                offset: const Offset(0, 6),
+                              )
+                            ],
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -143,95 +192,194 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                               const Text(
                                 "SUBMIT TECHNICIAN CREDENTIALS",
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: AppTheme.iceBlue,
-                                  letterSpacing: 1.5,
+                                  color: AppTheme.primary,
+                                  letterSpacing: 1.2,
+                                  fontFamily: 'Outfit',
                                 ),
                               ),
                               const SizedBox(height: 20),
                               
-                              _buildInputField("Full Name", _nameCtrl, Icons.person_outline),
-                              _buildInputField("Email Address", _emailCtrl, Icons.email_outlined, keyboardType: TextInputType.emailAddress),
-                              _buildInputField("Technician ID / Reg Number", _regCtrl, Icons.badge_outlined),
-                              _buildInputField("Password", _passCtrl, Icons.lock_outline, isObscure: true),
+                              // Full Name (words capitalized)
+                              TextField(
+                                controller: _nameCtrl, 
+                                keyboardType: TextInputType.name,
+                                autocorrect: true,
+                                enableSuggestions: true,
+                                textCapitalization: TextCapitalization.words,
+                                style: const TextStyle(color: Color(0xFF0F172A), fontFamily: 'Outfit', fontSize: 14),
+                                decoration: const InputDecoration(
+                                  labelText: "Full Name",
+                                  labelStyle: TextStyle(color: Color(0xFF64748B)),
+                                  prefixIcon: Icon(Icons.person_outline, color: Color(0xFF64748B)),
+                                  fillColor: Color(0xFFF8FAFC),
+                                  filled: true,
+                                  contentPadding: EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+                                ),
+                              ),
+                              const SizedBox(height: 14),
                               
-                              const SizedBox(height: 16),
+                              // Email Address
+                              TextField(
+                                controller: _emailCtrl, 
+                                keyboardType: TextInputType.emailAddress,
+                                autocorrect: false,
+                                enableSuggestions: false,
+                                textCapitalization: TextCapitalization.none,
+                                style: const TextStyle(color: Color(0xFF0F172A), fontFamily: 'Outfit', fontSize: 14),
+                                decoration: const InputDecoration(
+                                  labelText: "Email Address",
+                                  labelStyle: TextStyle(color: Color(0xFF64748B)),
+                                  prefixIcon: Icon(Icons.email_outlined, color: Color(0xFF64748B)),
+                                  fillColor: Color(0xFFF8FAFC),
+                                  filled: true,
+                                  contentPadding: EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+                                ),
+                              ),
+                              const SizedBox(height: 14),
                               
+                              // Technician ID / Reg Number (characters capitalized)
+                              TextField(
+                                controller: _regCtrl, 
+                                keyboardType: TextInputType.text,
+                                autocorrect: false,
+                                enableSuggestions: false,
+                                textCapitalization: TextCapitalization.characters,
+                                style: const TextStyle(color: Color(0xFF0F172A), fontFamily: 'Outfit', fontSize: 14),
+                                decoration: const InputDecoration(
+                                  labelText: "Technician ID / Reg Number",
+                                  labelStyle: TextStyle(color: Color(0xFF64748B)),
+                                  prefixIcon: Icon(Icons.badge_outlined, color: Color(0xFF64748B)),
+                                  fillColor: Color(0xFFF8FAFC),
+                                  filled: true,
+                                  contentPadding: EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              
+                              // Security Password
+                              TextField(
+                                controller: _passCtrl, 
+                                obscureText: !_isPasswordVisible,
+                                autocorrect: false,
+                                enableSuggestions: false,
+                                textCapitalization: TextCapitalization.none,
+                                style: const TextStyle(color: Color(0xFF0F172A), fontFamily: 'Outfit', fontSize: 14),
+                                decoration: InputDecoration(
+                                  labelText: "Security Password",
+                                  labelStyle: const TextStyle(color: Color(0xFF64748B)),
+                                  prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF64748B)),
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _isPasswordVisible ? Icons.visibility : Icons.visibility_off, 
+                                      color: const Color(0xFF64748B),
+                                      size: 20,
+                                    ),
+                                    onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+                                  ),
+                                  fillColor: const Color(0xFFF8FAFC),
+                                  filled: true,
+                                  contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+                                ),
+                              ),
+                              const SizedBox(height: 22),
+                              
+                              // Submit Action
                               _isLoading 
-                                ? const Center(child: CircularProgressIndicator(color: AppTheme.iceBlue))
+                                ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
                                 : SizedBox(
                                     width: double.infinity,
                                     height: 52,
                                     child: ElevatedButton(
-                                      onPressed: _handleRegister,
+                                      onPressed: _handleRegister, 
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppTheme.iceBlue,
-                                        foregroundColor: AppTheme.midnightBlue,
+                                        backgroundColor: AppTheme.primary,
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                       ),
-                                      child: const Text("DEPLOY ACCOUNT"),
+                                      child: const Text(
+                                        "DEPLOY ACCOUNT", 
+                                        style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5, fontSize: 13)
+                                      ),
                                     ),
                                   ),
                             ],
                           ),
-                        ),
-                      ),
-                    ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1, end: 0),
-                    
-                    const SizedBox(height: 28),
-                    
-                    // Already have an account? Prompt
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          "Already authorized? ", 
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontFamily: 'Outfit'),
-                        ),
-                        GestureDetector(
-                          onTap: () => Navigator.pop(context),
-                          child: const Text(
-                            "Authenticate Session", 
-                            style: TextStyle(
-                              color: AppTheme.iceBlue, 
-                              fontWeight: FontWeight.bold,
-                              fontFamily: 'Outfit',
-                              decoration: TextDecoration.underline,
+                        ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.1, end: 0),
+                        
+                        const SizedBox(height: 24),
+                        
+                        // 4. Secure Google Signup (Symmetric to Login)
+                        Row(
+                          children: [
+                            const Expanded(child: Divider(color: Color(0xFFCBD5E1), indent: 10, endIndent: 10)),
+                            Text(
+                              "SECURE SOCIAL REGISTRATION", 
+                              style: TextStyle(
+                                fontSize: 9, 
+                                fontWeight: FontWeight.bold, 
+                                color: const Color(0xFF64748B).withValues(alpha: 0.7),
+                                letterSpacing: 1.5,
+                              ),
                             ),
+                            const Expanded(child: Divider(color: Color(0xFFCBD5E1), indent: 10, endIndent: 10)),
+                          ],
+                        ).animate().fadeIn(delay: 400.ms),
+                        
+                        const SizedBox(height: 18),
+                        
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: OutlinedButton.icon(
+                            onPressed: _isLoading ? null : _handleGoogleSignIn,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF0F172A),
+                              side: const BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+                              backgroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                            icon: const Icon(Icons.security, size: 18, color: AppTheme.primary),
+                            label: const Text("Sign up with Google", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                           ),
-                        ),
+                        ).animate().fadeIn(delay: 450.ms),
+                        
+                        const SizedBox(height: 28),
+                        
+                        // 5. Back to Login link
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              "Already authorized? ", 
+                              style: TextStyle(color: Color(0xFF475569), fontFamily: 'Outfit', fontSize: 13),
+                            ),
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.pop(context);
+                              },
+                              child: const Text(
+                                "Sign in here", 
+                                style: TextStyle(
+                                  color: AppTheme.primary, 
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'Outfit',
+                                  fontSize: 13,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ).animate().fadeIn(delay: 500.ms),
+                        
+                        const SizedBox(height: 20),
                       ],
-                    ).animate().fadeIn(delay: 300.ms),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInputField(String label, TextEditingController controller, IconData icon, {bool isObscure = false, TextInputType? keyboardType}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.softBlue, fontFamily: 'Outfit')),
-          const SizedBox(height: 6),
-          TextField(
-            controller: controller,
-            obscureText: isObscure,
-            keyboardType: keyboardType,
-            style: const TextStyle(color: Colors.white, fontSize: 14, fontFamily: 'Outfit'),
-            decoration: InputDecoration(
-              prefixIcon: Icon(icon, size: 20, color: AppTheme.softBlue),
-              hintText: "Enter $label",
-              hintStyle: TextStyle(color: AppTheme.softBlue.withValues(alpha: 0.5), fontSize: 13),
-              fillColor: AppTheme.midnightBlue.withValues(alpha: 0.3),
-              filled: true,
+                    ),
+                  ),
+                );
+              }
             ),
           ),
         ],

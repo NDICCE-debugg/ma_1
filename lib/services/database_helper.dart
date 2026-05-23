@@ -90,7 +90,7 @@ class DatabaseHelper {
         'last_service_date': '2024-04-01',
         'service_interval': '6 Months',
         'notes': 'Operational'
-      });
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
       await db.insert('machines', {
         'asset_type': 'ventilator',
         'model_name': 'Aeonmed VG70',
@@ -102,7 +102,7 @@ class DatabaseHelper {
         'last_service_date': '2024-04-01',
         'service_interval': '6 Months',
         'notes': 'Needs Maintenance'
-      });
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
       await db.insert('machines', {
         'asset_type': 'ventilator',
         'model_name': 'Dräger Evita V500',
@@ -114,7 +114,7 @@ class DatabaseHelper {
         'last_service_date': '2024-04-01',
         'service_interval': '6 Months',
         'notes': 'Operational'
-      });
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
       await db.insert('machines', {
         'asset_type': 'anaesthetic_machine',
         'model_name': 'Mindray A5',
@@ -126,7 +126,7 @@ class DatabaseHelper {
         'last_service_date': '2024-04-01',
         'service_interval': '6 Months',
         'notes': 'Operational'
-      });
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
       await db.insert('machines', {
         'asset_type': 'anaesthetic_machine',
         'model_name': 'WATO EX-35',
@@ -138,7 +138,7 @@ class DatabaseHelper {
         'last_service_date': '2024-04-01',
         'service_interval': '6 Months',
         'notes': 'Needs Maintenance'
-      });
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
     }
   }
 
@@ -328,6 +328,17 @@ class DatabaseHelper {
   Future<int> deleteQueueItem(int id) async {
     final db = await instance.database;
     return await db.delete('sync_queue', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // --- MANUAL ENTRIES CRUD ---
+  Future<int> addManualEntry(Map<String, dynamic> entry) async {
+    final db = await instance.database;
+    return await db.insert('manual_entries', entry);
+  }
+
+  Future<List<Map<String, dynamic>>> getManualEntries() async {
+    final db = await instance.database;
+    return await db.query('manual_entries');
   }
 
   // --- AI REQUESTS CRUD (Kept Local) ---
