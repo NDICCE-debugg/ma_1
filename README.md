@@ -14,3 +14,12 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+
+
+##feautrers=> 1) dashboard -> real data from the db
+2) Assets page -> crud functions
+3)AI chat -> api intergraations
+4) Comms -> notes as an addition
+5) -> qr code scanner input, chat for dets
+6) manuals -> as an independent window for file uploads, pdfs
+7) auth credentials w firebase
