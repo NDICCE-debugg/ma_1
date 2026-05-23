@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:ma_1/theme/app_theme.dart';
 
 class MeetingRoomView extends StatefulWidget {
@@ -155,7 +154,7 @@ class _MeetingRoomViewState extends State<MeetingRoomView> {
       decoration: BoxDecoration(
         color: AppTheme.background,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.iceBlue.withOpacity(0.5), width: 1.2),
+        border: Border.all(color: AppTheme.iceBlue.withValues(alpha: 0.5), width: 1.2),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -165,7 +164,7 @@ class _MeetingRoomViewState extends State<MeetingRoomView> {
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: AppTheme.primary.withOpacity(0.08), borderRadius: BorderRadius.circular(20)),
+                decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(20)),
                 child: Text(callId, style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 11, fontFamily: 'Outfit')),
               ),
               Text(date, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11, fontWeight: FontWeight.w500, fontFamily: 'Outfit')),
@@ -360,7 +359,7 @@ class _MeetingRoomViewState extends State<MeetingRoomView> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, -2))
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, -2))
                 ],
                 border: const Border(top: BorderSide(color: AppTheme.divider)),
               ),
@@ -410,7 +409,7 @@ class _MeetingRoomViewState extends State<MeetingRoomView> {
           width: isActive ? 2 : 1
         ),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 4))
+          BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 4))
         ],
       ),
       child: Stack(
@@ -429,7 +428,7 @@ class _MeetingRoomViewState extends State<MeetingRoomView> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.6), 
+                color: Colors.black.withValues(alpha: 0.6), 
                 borderRadius: BorderRadius.circular(6)
               ),
               child: Row(
@@ -466,7 +465,7 @@ class _MeetingRoomViewState extends State<MeetingRoomView> {
         children: [
           Icon(icon, color: isActive ? AppTheme.primary : AppTheme.textSecondary, size: 24),
           const SizedBox(height: 6),
-          Text(label, style: TextStyle(color: AppTheme.textSecondary, fontSize: 11, fontWeight: FontWeight.w600, fontFamily: 'Outfit')),
+          Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11, fontWeight: FontWeight.w600, fontFamily: 'Outfit')),
         ],
       ),
     );
@@ -484,14 +483,14 @@ class _MeetingRoomViewState extends State<MeetingRoomView> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: isMe ? AppTheme.primary.withOpacity(0.08) : AppTheme.background, 
+              color: isMe ? AppTheme.primary.withValues(alpha: 0.08) : AppTheme.background, 
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(12),
                 topRight: const Radius.circular(12),
                 bottomLeft: Radius.circular(isMe ? 12 : 2),
                 bottomRight: Radius.circular(isMe ? 2 : 12),
               ),
-              border: Border.all(color: isMe ? AppTheme.primary.withOpacity(0.2) : AppTheme.divider),
+              border: Border.all(color: isMe ? AppTheme.primary.withValues(alpha: 0.2) : AppTheme.divider),
             ),
             child: Text(text, style: const TextStyle(fontSize: 11, color: AppTheme.textPrimary, fontFamily: 'Outfit')),
           ),

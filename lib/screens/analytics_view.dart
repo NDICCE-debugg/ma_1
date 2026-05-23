@@ -92,7 +92,7 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                     }
                     
                     await NotificationService.checkInventoryAlerts();
-                    if (!mounted) return;
+                    if (!ctx.mounted) return;
                     Navigator.pop(ctx);
                     _refreshInventory();
                     _showStatusMessage("Record saved successfully", AppTheme.success);
@@ -144,7 +144,7 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                     );
                     await DatabaseHelper.instance.updateSparePart(updatedPart);
                     await NotificationService.checkInventoryAlerts();
-                    if (!mounted) return;
+                    if (!ctx.mounted) return;
                     Navigator.pop(ctx);
                     _refreshInventory();
                     _showStatusMessage("Inventory updated", AppTheme.secondary);
@@ -219,15 +219,15 @@ class _AnalyticsViewState extends State<AnalyticsView> {
                         padding: const EdgeInsets.all(16),
                         margin: const EdgeInsets.only(bottom: 24),
                         decoration: BoxDecoration(
-                          color: AppTheme.error.withOpacity(0.08),
+                          color: AppTheme.error.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppTheme.error.withOpacity(0.2)),
+                          border: Border.all(color: AppTheme.error.withValues(alpha: 0.2)),
                         ),
-                        child: Row(
+                        child: const Row(
                           children: [
-                            const Icon(Icons.error_outline, color: AppTheme.error),
-                            const SizedBox(width: 12),
-                            const Expanded(
+                            Icon(Icons.error_outline, color: AppTheme.error),
+                            SizedBox(width: 12),
+                            Expanded(
                               child: Text("Low Stock Alert: Some items require immediate restock.", 
                                 style: TextStyle(color: AppTheme.error, fontWeight: FontWeight.bold, fontSize: 13)),
                             ),

@@ -195,7 +195,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
           // Clean Input Bar
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: Colors.white,
               border: Border(top: BorderSide(color: AppTheme.border)),
             ),
@@ -254,7 +254,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: isActive ? AppTheme.error.withOpacity(0.1) : AppTheme.background,
+          color: isActive ? AppTheme.error.withValues(alpha: 0.1) : AppTheme.background,
           shape: BoxShape.circle,
         ),
         child: Icon(icon, color: isActive ? AppTheme.error : AppTheme.textSecondary, size: 22),
@@ -303,7 +303,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border(left: BorderSide(color: isError ? AppTheme.error : AppTheme.primary, width: 4)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 4))],
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 4))],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

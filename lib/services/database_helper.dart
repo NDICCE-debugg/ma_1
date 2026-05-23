@@ -18,7 +18,128 @@ class DatabaseHelper {
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDB('biomed_offline_v4.db');
+    await checkAndSeedLocalData(_database!);
     return _database!;
+  }
+
+  Future<void> checkAndSeedLocalData(Database db) async {
+    final countParts = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM spare_parts')) ?? 0;
+    if (countParts == 0) {
+      await db.insert('spare_parts', {
+        'name': 'Turbine (210003677)',
+        'compatible_model': 'Aeonmed VG70',
+        'quantity': 2,
+        'reorder_threshold': 1,
+        'location': 'Shelf B2',
+        'unit': 'pcs',
+        'last_restocked': '2026-05-01',
+        'notes': 'Critical part. High replacement rate.'
+      });
+      await db.insert('spare_parts', {
+        'name': 'Flow Sensor TSI (210002403)',
+        'compatible_model': 'Aeonmed VG70',
+        'quantity': 5,
+        'reorder_threshold': 3,
+        'location': 'Drawer A',
+        'unit': 'pcs',
+        'last_restocked': '2026-05-10',
+        'notes': 'Handle with care. Calibration required after install.'
+      });
+      await db.insert('spare_parts', {
+        'name': 'O2 Sensor (210001975)',
+        'compatible_model': 'Aeonmed VG70',
+        'quantity': 3,
+        'reorder_threshold': 2,
+        'location': 'Fridge',
+        'unit': 'pcs',
+        'last_restocked': '2026-05-12',
+        'notes': 'Keep refrigerated between 2-8 degrees Celsius.'
+      });
+      await db.insert('spare_parts', {
+        'name': 'Lithium-Ion Battery (210003734)',
+        'compatible_model': 'Aeonmed VG70',
+        'quantity': 4,
+        'reorder_threshold': 2,
+        'location': 'Battery Store',
+        'unit': 'units',
+        'last_restocked': '2026-05-15',
+        'notes': 'Ensure fully charged prior to storage.'
+      });
+      await db.insert('spare_parts', {
+        'name': 'Sodalime Canister',
+        'compatible_model': 'Mindray A5',
+        'quantity': 20,
+        'reorder_threshold': 5,
+        'location': 'Store Room',
+        'unit': 'cans',
+        'last_restocked': '2026-05-18',
+        'notes': 'CO2 absorbent consumable.'
+      });
+    }
+
+    final countMachines = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM machines')) ?? 0;
+    if (countMachines == 0) {
+      await db.insert('machines', {
+        'asset_type': 'ventilator',
+        'model_name': 'Aeonmed VG70',
+        'serial_number': 'SN-VG70-441',
+        'hospital_unit': 'MAIN • ICU 1',
+        'ward_location': 'Bed 1',
+        'status': 'OPERATIONAL',
+        'date_acquired': '2024-01-01',
+        'last_service_date': '2024-04-01',
+        'service_interval': '6 Months',
+        'notes': 'Operational'
+      });
+      await db.insert('machines', {
+        'asset_type': 'ventilator',
+        'model_name': 'Aeonmed VG70',
+        'serial_number': 'SN-VG70-442',
+        'hospital_unit': 'MAIN • ICU 2',
+        'ward_location': 'Bed 2',
+        'status': 'MAINTENANCE',
+        'date_acquired': '2024-01-01',
+        'last_service_date': '2024-04-01',
+        'service_interval': '6 Months',
+        'notes': 'Needs Maintenance'
+      });
+      await db.insert('machines', {
+        'asset_type': 'ventilator',
+        'model_name': 'Dräger Evita V500',
+        'serial_number': 'SN-DR-092',
+        'hospital_unit': 'PAEDIATRIC • ICU 3',
+        'ward_location': 'Bed 1',
+        'status': 'OPERATIONAL',
+        'date_acquired': '2024-01-01',
+        'last_service_date': '2024-04-01',
+        'service_interval': '6 Months',
+        'notes': 'Operational'
+      });
+      await db.insert('machines', {
+        'asset_type': 'anaesthetic_machine',
+        'model_name': 'Mindray A5',
+        'serial_number': 'SN-MA5-998',
+        'hospital_unit': 'MATERNITY • Theatre 1',
+        'ward_location': 'OT Room 1',
+        'status': 'OPERATIONAL',
+        'date_acquired': '2024-01-01',
+        'last_service_date': '2024-04-01',
+        'service_interval': '6 Months',
+        'notes': 'Operational'
+      });
+      await db.insert('machines', {
+        'asset_type': 'anaesthetic_machine',
+        'model_name': 'WATO EX-35',
+        'serial_number': 'SN-W35-102',
+        'hospital_unit': 'MAIN • Theatre 2',
+        'ward_location': 'OT Room 2',
+        'status': 'MAINTENANCE',
+        'date_acquired': '2024-01-01',
+        'last_service_date': '2024-04-01',
+        'service_interval': '6 Months',
+        'notes': 'Needs Maintenance'
+      });
+    }
   }
 
   Future<Database> _initDB(String filePath) async {
@@ -155,6 +276,19 @@ class DatabaseHelper {
     });
   }
 
+  Future<void> upsertCachedAssets(List<HospitalAsset> assets) async {
+    final db = await instance.database;
+    await db.transaction((txn) async {
+      for (var asset in assets) {
+        await txn.insert(
+          'machines', 
+          asset.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+  }
+
   Future<int> updateCachedAsset(HospitalAsset asset) async {
     final db = await instance.database;
     return await db.update(
@@ -212,6 +346,13 @@ class DatabaseHelper {
   Future<List<SparePart>> getInventory() async {
     try {
       final response = await _client.from('spare_parts').select();
+      if (response.isEmpty) {
+        final db = await instance.database;
+        final result = await db.query('spare_parts');
+        if (result.isNotEmpty) {
+          return result.map((json) => SparePart.fromMap(json)).toList();
+        }
+      }
       return response.map<SparePart>((json) => SparePart.fromMap(json)).toList();
     } catch (e) {
       // Offline fallback: Query local SQLite cache
@@ -277,6 +418,14 @@ class DatabaseHelper {
           .select('*, machines(model_name)')
           .order('timestamp', ascending: false);
       
+      if (response.isEmpty) {
+        final db = await instance.database;
+        final result = await db.query('logs', orderBy: 'timestamp DESC');
+        if (result.isNotEmpty) {
+          return result.map((json) => ServiceLog.fromMap(json)).toList();
+        }
+      }
+
       return response.map<ServiceLog>((json) {
         final machineData = json['machines'] as Map<String, dynamic>?;
         final modelName = machineData != null ? machineData['model_name'] ?? 'Unknown Machine' : 'Unknown Machine';

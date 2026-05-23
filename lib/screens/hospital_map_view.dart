@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:ma_1/theme/app_theme.dart';
@@ -85,20 +84,19 @@ class _HospitalMapViewState extends State<HospitalMapView> {
         child: FutureBuilder<List<HospitalAsset>>(
           future: AssetService.instance.getAssetsByUnit(dept.toUpperCase()),
           builder: (context, snapshot) {
-            int vents = 0, anaes = 0;
+            int vents = 0;
             Color statusColor = AppTheme.primary; // Neutral Blue
-            String statusText = "Operational";
 
             if (snapshot.hasData) {
               for (var a in snapshot.data!) {
-                if (a.assetType == 'ventilator') vents++; else anaes++;
+                if (a.assetType == 'ventilator') {
+                  vents++;
+                }
                 
                 if (a.status == 'OFFLINE') {
                   statusColor = AppTheme.error;
-                  statusText = "Critical Issues";
                 } else if (a.status == 'MAINTENANCE' && statusColor != AppTheme.error) {
                   statusColor = AppTheme.warning;
-                  statusText = "Maintenance Required";
                 }
               }
             }
@@ -106,7 +104,7 @@ class _HospitalMapViewState extends State<HospitalMapView> {
             return AnimatedContainer(
               duration: 300.ms,
               decoration: BoxDecoration(
-                color: isSelected ? AppTheme.primary.withOpacity(0.05) : Colors.transparent,
+                color: isSelected ? AppTheme.primary.withValues(alpha: 0.05) : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Center(
@@ -123,8 +121,8 @@ class _HospitalMapViewState extends State<HospitalMapView> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: statusColor.withOpacity(0.5)),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)],
+                        border: Border.all(color: statusColor.withValues(alpha: 0.5)),
+                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4)],
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -152,7 +150,7 @@ class ClinicalMapPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final linePaint = Paint()
-      ..color = AppTheme.primary.withOpacity(0.15)
+      ..color = AppTheme.primary.withValues(alpha: 0.15)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
 
@@ -217,7 +215,7 @@ class _EquipmentListPanelState extends State<_EquipmentListPanel> with SingleTic
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       height: MediaQuery.of(context).size.height * 0.85,
       child: Column(
         children: [
@@ -268,7 +266,7 @@ class _EquipmentListPanelState extends State<_EquipmentListPanel> with SingleTic
                         subtitle: Text("ID: ${asset.serialNumber} • ${asset.wardLocation}"),
                         trailing: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                          decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
                           child: Text(asset.status, style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold)),
                         ),
                       ),
@@ -343,7 +341,7 @@ class _EquipmentEntryFormState extends State<_EquipmentEntryForm> {
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            value: _status,
+            initialValue: _status,
             decoration: const InputDecoration(labelText: "Current Status"),
             items: ['OPERATIONAL', 'MAINTENANCE', 'OFFLINE', 'DECOMMISSIONED']
                 .map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),

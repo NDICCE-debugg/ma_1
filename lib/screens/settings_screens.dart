@@ -67,25 +67,25 @@ class AboutScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("About")),
-      body: Center(
+      body: const Center(
         child: Padding(
-          padding: const EdgeInsets.all(32),
+          padding: EdgeInsets.all(32),
           child: Column(
             children: [
-              const Icon(Icons.health_and_safety, size: 80, color: AppTheme.primaryBlue),
-              const SizedBox(height: 16),
-              const Text("BioAssist", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-              const Text("Version 1.0.0", style: TextStyle(color: Colors.grey)),
-              const Spacer(),
-              const Text(
+              Icon(Icons.health_and_safety, size: 80, color: AppTheme.primaryBlue),
+              SizedBox(height: 16),
+              Text("BioAssist", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              Text("Version 1.0.0", style: TextStyle(color: Colors.grey)),
+              Spacer(),
+              Text(
                 "Developed for biomedical technicians at public hospitals in Zimbabwe.",
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 14),
               ),
-              const SizedBox(height: 40),
-              const Text("HIT400 Capstone Project", style: TextStyle(fontWeight: FontWeight.bold)),
-              const Text("Harare Institute of Technology"),
-              const Text("2026"),
+              SizedBox(height: 40),
+              Text("HIT400 Capstone Project", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("Harare Institute of Technology"),
+              Text("2026"),
             ],
           ),
         ),

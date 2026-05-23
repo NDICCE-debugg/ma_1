@@ -63,7 +63,7 @@ class _CallScreenState extends State<CallScreen> {
 
           // AUDIO CALL BACKGROUND (Medical Gradient)
           if (!widget.isVideoCall)
-            Container(
+            const DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
@@ -71,6 +71,7 @@ class _CallScreenState extends State<CallScreen> {
                   colors: [Colors.white, AppTheme.background],
                 ),
               ),
+              child: SizedBox.expand(),
             ),
 
           // MAIN CALL INFO
@@ -82,7 +83,7 @@ class _CallScreenState extends State<CallScreen> {
                   // Profile Avatar - Clean and non-pulsing
                   CircleAvatar(
                     radius: 54, 
-                    backgroundColor: AppTheme.primary.withOpacity(0.1),
+                    backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
                     child: Text(
                       widget.contactName.substring(0, 1), 
                       style: const TextStyle(fontSize: 42, color: AppTheme.primary, fontWeight: FontWeight.bold, fontFamily: 'Inter')
@@ -129,7 +130,7 @@ class _CallScreenState extends State<CallScreen> {
                 gradient: widget.isVideoCall ? LinearGradient(
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
-                  colors: [Colors.black.withOpacity(0.8), Colors.transparent],
+                  colors: [Colors.black.withValues(alpha: 0.8), Colors.transparent],
                 ) : null,
               ),
               child: Row(
@@ -142,7 +143,7 @@ class _CallScreenState extends State<CallScreen> {
                     // Mute Toggle
                     _buildCallButton(
                       _isMuted ? Icons.mic_off : Icons.mic_none, 
-                      widget.isVideoCall ? Colors.white.withOpacity(0.2) : Colors.white, 
+                      widget.isVideoCall ? Colors.white.withValues(alpha: 0.2) : Colors.white, 
                       "Mute", 
                       () => setState(() => _isMuted = !_isMuted),
                       iconColor: widget.isVideoCall ? Colors.white : AppTheme.textPrimary
@@ -151,14 +152,14 @@ class _CallScreenState extends State<CallScreen> {
                     if (widget.isVideoCall)
                       _buildCallButton(
                         _isCameraOn ? Icons.videocam_outlined : Icons.videocam_off_outlined, 
-                        Colors.white.withOpacity(0.2), 
+                        Colors.white.withValues(alpha: 0.2), 
                         "Camera", 
                         () => setState(() => _isCameraOn = !_isCameraOn)
                       ),
                     // Speaker Toggle
                     _buildCallButton(
                       Icons.volume_up_outlined, 
-                      widget.isVideoCall ? Colors.white.withOpacity(0.2) : Colors.white, 
+                      widget.isVideoCall ? Colors.white.withValues(alpha: 0.2) : Colors.white, 
                       "Speaker", 
                       () {},
                       iconColor: widget.isVideoCall ? Colors.white : AppTheme.textPrimary
@@ -186,7 +187,7 @@ class _CallScreenState extends State<CallScreen> {
             decoration: BoxDecoration(
               shape: BoxShape.circle, 
               color: bgColor,
-              boxShadow: bgColor == Colors.white ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)] : null,
+              boxShadow: bgColor == Colors.white ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)] : null,
             ),
             child: Icon(icon, color: iconColor, size: 28),
           ),

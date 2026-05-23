@@ -99,7 +99,7 @@ class _AssetDetailViewState extends State<AssetDetailView> {
               const Text("Severity Level", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: severity,
+                initialValue: severity,
                 decoration: const InputDecoration(),
                 items: ['critical', 'moderate', 'minor'].map((s) => DropdownMenuItem(
                   value: s, 
@@ -121,8 +121,9 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                       description: descCtrl.text,
                       severity: severity,
                     );
-                    if (!mounted) return;
+                    if (!ctx.mounted) return;
                     Navigator.pop(ctx);
+                    if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(backgroundColor: AppTheme.error, content: Text("Issue logged successfully"))
                     );
@@ -171,7 +172,7 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                           style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1)),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                          decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
                           child: Text(status, style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold)),
                         ),
                       ],
@@ -251,7 +252,7 @@ class _AssetDetailViewState extends State<AssetDetailView> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppTheme.border),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)],
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10)],
         ),
         child: Column(
           children: [

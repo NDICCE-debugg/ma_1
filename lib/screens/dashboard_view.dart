@@ -67,10 +67,10 @@ class _DashboardViewState extends State<DashboardView> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppTheme.iceBlue.withOpacity(0.5), width: 1.5),
+                    border: Border.all(color: AppTheme.iceBlue.withValues(alpha: 0.5), width: 1.5),
                     boxShadow: [
                       BoxShadow(
-                        color: AppTheme.primary.withOpacity(0.04),
+                        color: AppTheme.primary.withValues(alpha: 0.04),
                         blurRadius: 16,
                         offset: const Offset(0, 8),
                       )
@@ -94,9 +94,9 @@ class _DashboardViewState extends State<DashboardView> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
-                                color: capColor.withOpacity(0.08), 
+                                color: capColor.withValues(alpha: 0.08), 
                                 borderRadius: BorderRadius.circular(30),
-                                border: Border.all(color: capColor.withOpacity(0.2), width: 1),
+                                border: Border.all(color: capColor.withValues(alpha: 0.2), width: 1),
                               ),
                               child: Text(
                                 "${cap.toInt()}% Capacity", 
@@ -154,7 +154,7 @@ class _DashboardViewState extends State<DashboardView> {
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppTheme.iceBlue.withOpacity(0.4), width: 1),
+                          border: Border.all(color: AppTheme.iceBlue.withValues(alpha: 0.4), width: 1),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -210,7 +210,7 @@ class _DashboardViewState extends State<DashboardView> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppTheme.iceBlue.withOpacity(0.3), width: 1.5),
+                        border: Border.all(color: AppTheme.iceBlue.withValues(alpha: 0.3), width: 1.5),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

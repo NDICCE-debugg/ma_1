@@ -10,7 +10,6 @@ class ProfileEditScreen extends StatefulWidget {
 
 class _ProfileEditScreenState extends State<ProfileEditScreen> {
   final TextEditingController _nameController = TextEditingController(text: "Tadiwanashe M.");
-  final TextEditingController _bioController = TextEditingController();
   
   @override
   Widget build(BuildContext context) {

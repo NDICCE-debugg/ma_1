@@ -75,7 +75,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           ),
           
           // Dark layout mask
-          Container(color: AppTheme.midnightBlue.withOpacity(0.4)),
+          Container(color: AppTheme.midnightBlue.withValues(alpha: 0.4)),
           
           // 2. Scrolling content
           SafeArea(
@@ -89,12 +89,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppTheme.midnightBlue.withOpacity(0.6),
+                        color: AppTheme.midnightBlue.withValues(alpha: 0.6),
                         shape: BoxShape.circle,
-                        border: Border.all(color: AppTheme.iceBlue.withOpacity(0.3), width: 1.5),
+                        border: Border.all(color: AppTheme.iceBlue.withValues(alpha: 0.3), width: 1.5),
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.iceBlue.withOpacity(0.1),
+                            color: AppTheme.iceBlue.withValues(alpha: 0.1),
                             blurRadius: 20,
                             spreadRadius: 2,
                           )
@@ -130,10 +130,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 28.0),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.08),
+                            color: Colors.white.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(
-                              color: AppTheme.iceBlue.withOpacity(0.2), 
+                              color: AppTheme.iceBlue.withValues(alpha: 0.2), 
                               width: 1.5,
                             ),
                           ),
@@ -187,7 +187,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       children: [
                         Text(
                           "Already authorized? ", 
-                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontFamily: 'Outfit'),
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontFamily: 'Outfit'),
                         ),
                         GestureDetector(
                           onTap: () => Navigator.pop(context),
@@ -229,8 +229,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             decoration: InputDecoration(
               prefixIcon: Icon(icon, size: 20, color: AppTheme.softBlue),
               hintText: "Enter $label",
-              hintStyle: TextStyle(color: AppTheme.softBlue.withOpacity(0.5), fontSize: 13),
-              fillColor: AppTheme.midnightBlue.withOpacity(0.3),
+              hintStyle: TextStyle(color: AppTheme.softBlue.withValues(alpha: 0.5), fontSize: 13),
+              fillColor: AppTheme.midnightBlue.withValues(alpha: 0.3),
               filled: true,
             ),
           ),

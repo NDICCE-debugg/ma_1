@@ -34,9 +34,9 @@ class LogsView extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.history_rounded, size: 64, color: AppTheme.textSecondary.withOpacity(0.3)),
+                  Icon(Icons.history_rounded, size: 64, color: AppTheme.textSecondary.withValues(alpha: 0.3)),
                   const SizedBox(height: 16),
-                  Text(
+                  const Text(
                     "No maintenance logs found",
                     style: TextStyle(color: AppTheme.textSecondary, fontFamily: 'Inter'),
                   ),
@@ -65,8 +65,8 @@ class LogsView extends StatelessWidget {
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: isSynced 
-                          ? AppTheme.success.withOpacity(0.08) 
-                          : AppTheme.neutral.withOpacity(0.08),
+                          ? AppTheme.success.withValues(alpha: 0.08) 
+                          : AppTheme.neutral.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(

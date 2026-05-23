@@ -46,7 +46,7 @@ class _QrScannerViewState extends State<QrScannerView> with SingleTickerProvider
             setState(() => _isProcessing = true);
             
             // Professional confirmation sound
-            try { SoundService.instance.playSuccess(); } catch (e) {}
+            try { SoundService.instance.playSuccess(); } catch (e) { /* sound bypass */ }
             
             _scannerController.stop();
 
@@ -82,7 +82,7 @@ class _QrScannerViewState extends State<QrScannerView> with SingleTickerProvider
           // 2. PROFESSIONAL MEDICAL OVERLAY (The Mask)
           ColorFiltered(
             colorFilter: ColorFilter.mode(
-              Colors.black.withOpacity(0.6), 
+              Colors.black.withValues(alpha: 0.6), 
               BlendMode.srcOut
             ),
             child: Stack(
@@ -285,9 +285,9 @@ class _ScanningPulseLineState extends State<_ScanningPulseLine> with SingleTicke
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  AppTheme.primary.withOpacity(0),
-                  AppTheme.primary.withOpacity(0.5),
-                  AppTheme.primary.withOpacity(0),
+                  AppTheme.primary.withValues(alpha: 0),
+                  AppTheme.primary.withValues(alpha: 0.5),
+                  AppTheme.primary.withValues(alpha: 0),
                 ],
               ),
             ),

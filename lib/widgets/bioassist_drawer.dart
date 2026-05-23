@@ -15,7 +15,6 @@ class BioAssistDrawer extends StatelessWidget {
     // Dynamic authenticated technician details
     final user = AuthService.instance.currentUser;
     final String name = user?.userMetadata?['name'] as String? ?? "Tadiwanashe M.";
-    final String email = user?.email ?? "tadiwa@bioassist.org";
     final String reg = user?.userMetadata?['reg_number'] as String? ?? "REG: 2026-HIT-04";
     final String initial = name.isNotEmpty ? name.substring(0, 1).toUpperCase() : "T";
 
@@ -56,18 +55,18 @@ class BioAssistDrawer extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppTheme.midnightBlue,
           border: Border(
-            bottom: BorderSide(color: AppTheme.iceBlue.withOpacity(0.15), width: 1.5),
+            bottom: BorderSide(color: AppTheme.iceBlue.withValues(alpha: 0.15), width: 1.5),
           ),
         ),
         child: Row(
           children: [
             CircleAvatar(
               radius: 30,
-              backgroundColor: AppTheme.iceBlue.withOpacity(0.15),
+              backgroundColor: AppTheme.iceBlue.withValues(alpha: 0.15),
               child: Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: AppTheme.iceBlue.withOpacity(0.4), width: 1.5),
+                  border: Border.all(color: AppTheme.iceBlue.withValues(alpha: 0.4), width: 1.5),
                 ),
                 alignment: Alignment.center,
                 child: Text(
@@ -101,7 +100,7 @@ class BioAssistDrawer extends StatelessWidget {
                       const SizedBox(width: 6),
                       Text(
                         "4.8 Rating", 
-                        style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 11, fontWeight: FontWeight.bold, fontFamily: 'Outfit')
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 11, fontWeight: FontWeight.bold, fontFamily: 'Outfit')
                       ),
                     ],
                   )

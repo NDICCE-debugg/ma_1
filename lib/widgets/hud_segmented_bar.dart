@@ -30,7 +30,7 @@ class HudSegmentedBar extends StatelessWidget {
               height: 12,
               decoration: BoxDecoration(
                 color: isFilled ? color : Colors.white10,
-                boxShadow: isFilled ? [BoxShadow(color: color.withOpacity(0.5), blurRadius: 4)] : null,
+                boxShadow: isFilled ? [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 4)] : null,
               ),
             );
           }),

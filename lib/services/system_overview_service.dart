@@ -58,8 +58,11 @@ class SystemOverviewService {
       modelData[a.modelName]!['total'] = modelData[a.modelName]!['total']! + 1;
       if (a.status == 'OPERATIONAL') {
         modelData[a.modelName]!['working'] = modelData[a.modelName]!['working']! + 1;
-      } else if (a.status == 'MAINTENANCE') modelData[a.modelName]!['maintenance'] = modelData[a.modelName]!['maintenance']! + 1;
-      else if (a.status == 'OFFLINE' || a.status == 'DECOMMISSIONED') modelData[a.modelName]!['offline'] = modelData[a.modelName]!['offline']! + 1;
+      } else if (a.status == 'MAINTENANCE') {
+        modelData[a.modelName]!['maintenance'] = modelData[a.modelName]!['maintenance']! + 1;
+      } else if (a.status == 'OFFLINE' || a.status == 'DECOMMISSIONED') {
+        modelData[a.modelName]!['offline'] = modelData[a.modelName]!['offline']! + 1;
+      }
     }
 
     return modelData.entries.map((e) => {'model': e.key, ...e.value}).toList();

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/services/chat_service.dart';
 
@@ -129,7 +128,7 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             CircleAvatar(
               radius: 18,
-              backgroundColor: AppTheme.primary.withOpacity(0.1),
+              backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
               child: Text(widget.contactName.substring(0, 1), 
                 style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 14)),
             ),
@@ -182,7 +181,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         bottomRight: Radius.circular(isMe ? 4 : 16),
                       ),
                       boxShadow: [
-                        if (!isMe) BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))
+                        if (!isMe) BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))
                       ],
                     ),
                     child: Column(
@@ -263,7 +262,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     onTap: _msgCtrl.text.trim().isNotEmpty ? _sendMessage : null,
                     child: CircleAvatar(
                       radius: 20,
-                      backgroundColor: _msgCtrl.text.trim().isEmpty ? AppTheme.neutral.withOpacity(0.3) : AppTheme.primary,
+                      backgroundColor: _msgCtrl.text.trim().isEmpty ? AppTheme.neutral.withValues(alpha: 0.3) : AppTheme.primary,
                       child: const Icon(Icons.arrow_upward, color: Colors.white, size: 20),
                     ),
                   ),

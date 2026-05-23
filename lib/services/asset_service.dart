@@ -77,6 +77,14 @@ class AssetService {
           .select()
           .like('location', '$unit%');
       
+      if (response.isEmpty) {
+        final cached = await DatabaseHelper.instance.getCachedAssets();
+        final filtered = cached.where((asset) => asset.hospitalUnit.toUpperCase() == unit.toUpperCase()).toList();
+        if (filtered.isNotEmpty) {
+          return filtered;
+        }
+      }
+
       final assets = response.map<HospitalAsset>((json) {
         final locParts = (json['location'] as String).split(' • ');
         final hospUnit = locParts.isNotEmpty ? locParts[0] : unit;
@@ -99,8 +107,10 @@ class AssetService {
         );
       }).toList();
 
-      // Bulk update local SQLite cache on successful fetch
-      await DatabaseHelper.instance.cacheAssets(assets);
+      // Bulk update local SQLite cache on successful fetch using upsert so we don't delete other units!
+      if (assets.isNotEmpty) {
+        await DatabaseHelper.instance.upsertCachedAssets(assets);
+      }
       return assets;
     } catch (e) {
       // Offline fallback: Query SQLite cache and filter by hospital unit
@@ -113,6 +123,13 @@ class AssetService {
     try {
       final response = await _client.from('machines').select();
       
+      if (response.isEmpty) {
+        final cached = await DatabaseHelper.instance.getCachedAssets();
+        if (cached.isNotEmpty) {
+          return cached;
+        }
+      }
+
       final assets = response.map<HospitalAsset>((json) {
         final locParts = (json['location'] as String).split(' • ');
         final hospUnit = locParts.isNotEmpty ? locParts[0] : 'MAIN';
@@ -135,8 +152,10 @@ class AssetService {
         );
       }).toList();
 
-      // Cache all fetched assets locally
-      await DatabaseHelper.instance.cacheAssets(assets);
+      // Cache all fetched assets locally if we got non-empty data
+      if (assets.isNotEmpty) {
+        await DatabaseHelper.instance.cacheAssets(assets);
+      }
       return assets;
     } catch (e) {
       // Offline fallback

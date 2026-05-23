@@ -22,7 +22,6 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
   final TextEditingController _searchCtrl = TextEditingController();
 
   final List<Map<String, dynamic>> _chats = [];
-  final List<Map<String, dynamic>> _calls = [];
   final List<Map<String, dynamic>> _meetings = [];
 
   List<Map<String, dynamic>> _contacts = [];
@@ -252,7 +251,7 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center, 
               children: [
-                Icon(Icons.chat_bubble_outline, size: 64, color: AppTheme.neutral.withOpacity(0.4)), 
+                Icon(Icons.chat_bubble_outline, size: 64, color: AppTheme.neutral.withValues(alpha: 0.4)), 
                 const SizedBox(height: 16), 
                 const Text("No Active Conversations", style: TextStyle(color: AppTheme.textSecondary, fontSize: 16, fontWeight: FontWeight.w500)),
               ]
@@ -269,7 +268,7 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                 contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 leading: CircleAvatar(
                   radius: 28,
-                  backgroundColor: AppTheme.primary.withOpacity(0.1), 
+                  backgroundColor: AppTheme.primary.withValues(alpha: 0.1), 
                   child: Text(chat['name'].substring(0, 1), style: const TextStyle(color: AppTheme.primary, fontSize: 20, fontWeight: FontWeight.bold))
                 ),
                 title: Text(chat['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
@@ -299,7 +298,7 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center, 
             children: [
-              Icon(Icons.phone_outlined, size: 64, color: AppTheme.neutral.withOpacity(0.4)), 
+              Icon(Icons.phone_outlined, size: 64, color: AppTheme.neutral.withValues(alpha: 0.4)), 
               const SizedBox(height: 16), 
               const Text("No Recent Calls", style: TextStyle(color: AppTheme.textSecondary, fontSize: 16, fontWeight: FontWeight.w500))
             ]
@@ -349,11 +348,11 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
           children: [
             _buildMeetGeneratorCard(),
             const SizedBox(height: 24),
-            Row(
+            const Row(
               children: [
-                const Icon(Icons.calendar_month_outlined, size: 18, color: AppTheme.primary),
-                const SizedBox(width: 8),
-                const Text(
+                Icon(Icons.calendar_month_outlined, size: 18, color: AppTheme.primary),
+                SizedBox(width: 8),
+                Text(
                   "Scheduled Consultations",
                   style: TextStyle(
                     fontSize: 16,
@@ -376,7 +375,7 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.video_camera_back_outlined, size: 48, color: AppTheme.neutral.withOpacity(0.3)),
+                    Icon(Icons.video_camera_back_outlined, size: 48, color: AppTheme.neutral.withValues(alpha: 0.3)),
                     const SizedBox(height: 12),
                     const Text(
                       "No Upcoming Consultations",
@@ -391,7 +390,7 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                 ),
               ).animate().fadeIn()
             else
-              ..._meetings.map((m) => _buildMeetingCard(m)).toList(),
+              ..._meetings.map((m) => _buildMeetingCard(m)),
             const SizedBox(height: 100), // padding at bottom so FAB doesn't cover content
           ],
         ),
@@ -484,7 +483,7 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.primary.withOpacity(0.2),
+            color: AppTheme.primary.withValues(alpha: 0.2),
             blurRadius: 12,
             offset: const Offset(0, 6),
           )
@@ -502,7 +501,7 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                 height: 120,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppTheme.iceBlue.withOpacity(0.06),
+                  color: AppTheme.iceBlue.withValues(alpha: 0.06),
                 ),
               ),
             ),
@@ -514,7 +513,7 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                 height: 150,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppTheme.iceBlue.withOpacity(0.04),
+                  color: AppTheme.iceBlue.withValues(alpha: 0.04),
                 ),
               ),
             ),
@@ -531,7 +530,7 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: AppTheme.iceBlue.withOpacity(0.12),
+                            color: AppTheme.iceBlue.withValues(alpha: 0.12),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
@@ -644,7 +643,7 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                         decoration: BoxDecoration(
                           color: Colors.black26,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppTheme.iceBlue.withOpacity(0.2)),
+                          border: Border.all(color: AppTheme.iceBlue.withValues(alpha: 0.2)),
                         ),
                         child: Row(
                           children: [
@@ -671,11 +670,11 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                                     behavior: SnackBarBehavior.floating,
                                     backgroundColor: AppTheme.midnightBlue,
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    content: Row(
+                                    content: const Row(
                                       children: [
-                                        const Icon(Icons.check_circle, color: AppTheme.iceBlue, size: 20),
-                                        const SizedBox(width: 10),
-                                        const Text(
+                                        Icon(Icons.check_circle, color: AppTheme.iceBlue, size: 20),
+                                        SizedBox(width: 10),
+                                        Text(
                                           "Meet link copied to clipboard!",
                                           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Outfit'),
                                         ),

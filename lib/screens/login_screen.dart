@@ -81,7 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           
           // 2. Translucent dark overlay to ensure high contrast
-          Container(color: AppTheme.midnightBlue.withOpacity(0.4)),
+          Container(color: AppTheme.midnightBlue.withValues(alpha: 0.4)),
           
           // 3. Main UI elements
           SafeArea(
@@ -95,12 +95,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppTheme.midnightBlue.withOpacity(0.6),
+                        color: AppTheme.midnightBlue.withValues(alpha: 0.6),
                         shape: BoxShape.circle,
-                        border: Border.all(color: AppTheme.iceBlue.withOpacity(0.3), width: 1.5),
+                        border: Border.all(color: AppTheme.iceBlue.withValues(alpha: 0.3), width: 1.5),
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.iceBlue.withOpacity(0.1),
+                            color: AppTheme.iceBlue.withValues(alpha: 0.1),
                             blurRadius: 20,
                             spreadRadius: 2,
                           )
@@ -146,10 +146,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 28.0),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.08),
+                            color: Colors.white.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(
-                              color: AppTheme.iceBlue.withOpacity(0.2), 
+                              color: AppTheme.iceBlue.withValues(alpha: 0.2), 
                               width: 1.5,
                             ),
                           ),
@@ -176,7 +176,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   labelText: "Email Address",
                                   labelStyle: const TextStyle(color: AppTheme.softBlue),
                                   prefixIcon: const Icon(Icons.email_outlined, color: AppTheme.softBlue),
-                                  fillColor: AppTheme.midnightBlue.withOpacity(0.3),
+                                  fillColor: AppTheme.midnightBlue.withValues(alpha: 0.3),
                                   filled: true,
                                 ),
                               ),
@@ -191,7 +191,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   labelText: "Security Password",
                                   labelStyle: const TextStyle(color: AppTheme.softBlue),
                                   prefixIcon: const Icon(Icons.lock_outline, color: AppTheme.softBlue),
-                                  fillColor: AppTheme.midnightBlue.withOpacity(0.3),
+                                  fillColor: AppTheme.midnightBlue.withValues(alpha: 0.3),
                                   filled: true,
                                 ),
                               ),
@@ -229,7 +229,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: TextStyle(
                             fontSize: 10, 
                             fontWeight: FontWeight.bold, 
-                            color: Colors.white.withOpacity(0.4),
+                            color: Colors.white.withValues(alpha: 0.4),
                             letterSpacing: 2,
                           ),
                         ),
@@ -247,7 +247,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         onPressed: _isLoading ? null : _handleGoogleSignIn,
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.white,
-                          side: BorderSide(color: Colors.white.withOpacity(0.3), width: 1.5),
+                          side: BorderSide(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         ),
                         icon: Image.asset(
@@ -270,7 +270,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         onPressed: _handleBypass,
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppTheme.iceBlue,
-                          side: BorderSide(color: AppTheme.iceBlue.withOpacity(0.4), width: 1.5),
+                          side: BorderSide(color: AppTheme.iceBlue.withValues(alpha: 0.4), width: 1.5),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         ),
                         icon: const Icon(Icons.terminal, color: AppTheme.iceBlue, size: 18),
@@ -286,7 +286,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         Text(
                           "New clinical engineer? ", 
-                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontFamily: 'Outfit'),
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontFamily: 'Outfit'),
                         ),
                         GestureDetector(
                           onTap: () {
