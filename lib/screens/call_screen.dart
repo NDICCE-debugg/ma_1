@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:ma_1/theme/app_theme.dart';
 
 class CallScreen extends StatefulWidget {
@@ -27,7 +28,7 @@ class _CallScreenState extends State<CallScreen> {
   void initState() {
     super.initState();
     if (!widget.isIncoming) {
-      // Simulate connection delay for UI
+      // Simulate professional connection delay
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) setState(() => _isConnected = true);
       });
@@ -36,74 +37,134 @@ class _CallScreenState extends State<CallScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Medical apps use clean backgrounds for audio, dark/focused for video
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: widget.isVideoCall ? Colors.black : AppTheme.background,
       body: Stack(
         children: [
-          // VIDEO FEED PLACEHOLDER (Agora Remote View goes here)
+          // VIDEO FEED AREA
           if (widget.isVideoCall && _isConnected)
-            Container(color: const Color(0xFF1A1A2E)), 
+            Container(color: const Color(0xFF0F172A)), // Placeholder for Remote View
             
-          // PIP LOCAL CAMERA (Agora Local View goes here)
+          // PIP LOCAL CAMERA
           if (widget.isVideoCall && _isConnected && _isCameraOn)
             Positioned(
-              bottom: 120, right: 20,
+              top: 60, right: 20,
               child: Container(
-                width: 100, height: 150,
-                decoration: BoxDecoration(color: Colors.grey.shade900, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppTheme.primary, width: 2)),
-                child: const Center(child: Text("You", style: TextStyle(color: Colors.white, fontSize: 10))),
+                width: 90, height: 130,
+                decoration: BoxDecoration(
+                  color: Colors.black, 
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white24, width: 1)
+                ),
+                child: const Center(child: Icon(Icons.person, color: Colors.white24)),
               ),
             ),
 
-          // INCOMING / CONNECTING UI
-          if (widget.isIncoming || !_isConnected)
-            Center(
+          // AUDIO CALL BACKGROUND (Medical Gradient)
+          if (!widget.isVideoCall)
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.white, AppTheme.background],
+                ),
+              ),
+            ),
+
+          // MAIN CALL INFO
+          SafeArea(
+            child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircleAvatar(radius: 50, backgroundColor: AppTheme.primary.withOpacity(0.2), child: Text(widget.contactName.substring(0, 1), style: const TextStyle(fontSize: 40, color: AppTheme.primary, fontFamily: 'Orbitron'))).animate(onPlay: (c) => c.repeat(reverse: true)).scale(end: const Offset(1.1, 1.1)),
-                  const SizedBox(height: 30),
-                  Text(widget.contactName, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-                  Text(widget.isIncoming ? "Incoming ${widget.isVideoCall ? 'video' : 'voice'} call" : "Connecting...", style: const TextStyle(color: AppTheme.textGrey, fontSize: 16)),
+                  // Profile Avatar - Clean and non-pulsing
+                  CircleAvatar(
+                    radius: 54, 
+                    backgroundColor: AppTheme.primary.withOpacity(0.1),
+                    child: Text(
+                      widget.contactName.substring(0, 1), 
+                      style: const TextStyle(fontSize: 42, color: AppTheme.primary, fontWeight: FontWeight.bold, fontFamily: 'Inter')
+                    )
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    widget.contactName, 
+                    style: TextStyle(
+                      color: widget.isVideoCall ? Colors.white : AppTheme.textPrimary, 
+                      fontSize: 26, 
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Inter'
+                    )
+                  ),
+                  const SizedBox(height: 8),
+                  
+                  // Status Text
+                  if (widget.isIncoming && !_isConnected)
+                    Text("Incoming ${widget.isVideoCall ? 'Video' : 'Voice'} Call", 
+                      style: const TextStyle(color: AppTheme.textSecondary, fontSize: 15))
+                  else if (!_isConnected)
+                    const Text("Connecting to Technician...", 
+                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 15))
+                  else
+                    // Call Timer using Roboto Mono for data precision
+                    Text("00:14", 
+                      style: GoogleFonts.robotoMono(
+                        color: widget.isVideoCall ? Colors.white70 : AppTheme.primary, 
+                        fontSize: 18, 
+                        fontWeight: FontWeight.w500
+                      )),
                 ],
               ),
             ),
+          ),
 
-          // ACTIVE AUDIO UI
-          if (!widget.isVideoCall && _isConnected)
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircleAvatar(radius: 60, backgroundColor: AppTheme.primary.withOpacity(0.1), child: Text(widget.contactName.substring(0, 1), style: const TextStyle(fontSize: 50, color: AppTheme.primary, fontFamily: 'Orbitron'))),
-                  const SizedBox(height: 30),
-                  Text(widget.contactName, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-                  const Text("00:14", style: TextStyle(color: AppTheme.primary, fontSize: 18, fontFamily: 'Share Tech Mono')), // Timer logic
-                ],
-              ),
-            ),
-
-          // BOTTOM CONTROLS
+          // PROFESSIONAL CONTROL BAR
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
-              padding: const EdgeInsets.only(bottom: 40, top: 20),
+              padding: const EdgeInsets.only(bottom: 50, top: 20),
               decoration: BoxDecoration(
-                gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black.withOpacity(0.9), Colors.transparent]),
+                gradient: widget.isVideoCall ? LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [Colors.black.withOpacity(0.8), Colors.transparent],
+                ) : null,
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  if (widget.isIncoming) ...[
-                    _buildButton(Icons.call_end, Colors.red, "Decline", () => Navigator.pop(context)),
-                    _buildButton(Icons.call, AppTheme.success, "Accept", () => setState(() => _isConnected = true)),
+                  if (widget.isIncoming && !_isConnected) ...[
+                    _buildCallButton(Icons.close, AppTheme.error, "Decline", () => Navigator.pop(context)),
+                    _buildCallButton(Icons.check, AppTheme.success, "Accept", () => setState(() => _isConnected = true)),
                   ] else ...[
-                    if (widget.isVideoCall) _buildButton(_isCameraOn ? Icons.videocam : Icons.videocam_off, Colors.white24, "Video", () => setState(() => _isCameraOn = !_isCameraOn)),
-                    _buildButton(_isMuted ? Icons.mic_off : Icons.mic, Colors.white24, "Mute", () => setState(() => _isMuted = !_isMuted)),
-                    _buildButton(Icons.volume_up, Colors.white24, "Speaker", () {}),
-                    _buildButton(Icons.call_end, Colors.red, "End", () => Navigator.pop(context)),
+                    // Mute Toggle
+                    _buildCallButton(
+                      _isMuted ? Icons.mic_off : Icons.mic_none, 
+                      widget.isVideoCall ? Colors.white.withOpacity(0.2) : Colors.white, 
+                      "Mute", 
+                      () => setState(() => _isMuted = !_isMuted),
+                      iconColor: widget.isVideoCall ? Colors.white : AppTheme.textPrimary
+                    ),
+                    // Video Toggle (Only for Video Calls)
+                    if (widget.isVideoCall)
+                      _buildCallButton(
+                        _isCameraOn ? Icons.videocam_outlined : Icons.videocam_off_outlined, 
+                        Colors.white.withOpacity(0.2), 
+                        "Camera", 
+                        () => setState(() => _isCameraOn = !_isCameraOn)
+                      ),
+                    // Speaker Toggle
+                    _buildCallButton(
+                      Icons.volume_up_outlined, 
+                      widget.isVideoCall ? Colors.white.withOpacity(0.2) : Colors.white, 
+                      "Speaker", 
+                      () {},
+                      iconColor: widget.isVideoCall ? Colors.white : AppTheme.textPrimary
+                    ),
+                    // End Call
+                    _buildCallButton(Icons.call_end, AppTheme.error, "End", () => Navigator.pop(context)),
                   ],
                 ],
               ),
@@ -114,20 +175,32 @@ class _CallScreenState extends State<CallScreen> {
     );
   }
 
-  Widget _buildButton(IconData icon, Color bgColor, String label, VoidCallback onTap) {
+  Widget _buildCallButton(IconData icon, Color bgColor, String label, VoidCallback onTap, {Color iconColor = Colors.white}) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         GestureDetector(
           onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(shape: BoxShape.circle, color: bgColor),
-            child: Icon(icon, color: Colors.white, size: 28),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle, 
+              color: bgColor,
+              boxShadow: bgColor == Colors.white ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)] : null,
+            ),
+            child: Icon(icon, color: iconColor, size: 28),
           ),
+        ).animate().scale(begin: const Offset(0.8, 0.8), end: const Offset(1, 1), duration: 200.ms),
+        const SizedBox(height: 10),
+        Text(
+          label, 
+          style: TextStyle(
+            color: widget.isVideoCall ? Colors.white70 : AppTheme.textSecondary, 
+            fontSize: 12, 
+            fontFamily: 'Inter',
+            fontWeight: FontWeight.w500
+          )
         ),
-        const SizedBox(height: 8),
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
       ],
     );
   }
