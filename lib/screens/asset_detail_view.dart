@@ -115,15 +115,13 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
                   onPressed: () async {
-                    final db = await DatabaseHelper.instance.database;
-                    await db.insert('fault_log', {
-                      'asset_id': widget.assetData['id'] ?? widget.assetData['asset_id'],
-                      'fault_description': descCtrl.text,
-                      'severity': severity,
-                      'logged_by': 'Technician-User',
-                      'logged_date': DateTime.now().toIso8601String(),
-                      'is_synced': 0
-                    });
+                    final int assetId = widget.assetData['id'] ?? widget.assetData['asset_id'] ?? 1;
+                    await DatabaseHelper.instance.logFault(
+                      assetId: assetId,
+                      description: descCtrl.text,
+                      severity: severity,
+                    );
+                    if (!mounted) return;
                     Navigator.pop(ctx);
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(backgroundColor: AppTheme.error, content: Text("Issue logged successfully"))

@@ -1,10 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ApiClient {
   static final ApiClient instance = ApiClient._init();
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
   
   // Set your Flask server IP here
   static const String baseUrl = 'http://10.160.120.215:5000/api'; 
@@ -12,7 +11,8 @@ class ApiClient {
   ApiClient._init();
 
   Future<Map<String, String>> _getHeaders() async {
-    final token = await _storage.read(key: 'access_token');
+    final session = Supabase.instance.client.auth.currentSession;
+    final token = session?.accessToken;
     return {
       'Content-Type': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
@@ -24,7 +24,7 @@ class ApiClient {
     var response = await http.post(Uri.parse('$baseUrl$endpoint'), headers: headers, body: jsonEncode(body));
 
     if (response.statusCode == 401) {
-      bool refreshed = await _refreshToken();
+      bool refreshed = await _refreshSession();
       if (refreshed) {
         headers = await _getHeaders(); // Get the new token
         response = await http.post(Uri.parse('$baseUrl$endpoint'), headers: headers, body: jsonEncode(body));
@@ -38,7 +38,7 @@ class ApiClient {
     var response = await http.get(Uri.parse('$baseUrl$endpoint'), headers: headers);
 
     if (response.statusCode == 401) {
-      bool refreshed = await _refreshToken();
+      bool refreshed = await _refreshSession();
       if (refreshed) {
         headers = await _getHeaders();
         response = await http.get(Uri.parse('$baseUrl$endpoint'), headers: headers);
@@ -47,24 +47,12 @@ class ApiClient {
     return response;
   }
 
-  Future<bool> _refreshToken() async {
-    final refreshToken = await _storage.read(key: 'refresh_token');
-    if (refreshToken == null) return false;
-
+  Future<bool> _refreshSession() async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/auth/refresh'),
-        headers: {'Authorization': 'Bearer $refreshToken'},
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        await _storage.write(key: 'access_token', value: data['access_token']);
-        return true;
-      }
+      final response = await Supabase.instance.client.auth.refreshSession();
+      return response.session != null;
     } catch (e) {
-      // Ignore
+      return false;
     }
-    return false; // Refresh failed, user needs to log in again
   }
 }

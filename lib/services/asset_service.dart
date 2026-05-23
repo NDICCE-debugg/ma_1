@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:ma_1/models/hospital_asset.dart';
+import 'package:ma_1/services/database_helper.dart';
 
 class AssetService {
   static final AssetService instance = AssetService._init();
@@ -8,22 +9,65 @@ class AssetService {
   AssetService._init();
 
   Future<void> registerAsset(HospitalAsset asset) async {
-    // Map HospitalAsset model to 'machines' table in Supabase schema
-    await _client.from('machines').insert({
+    final Map<String, dynamic> payload = {
       'model_name': asset.modelName,
       'serial_number': asset.serialNumber,
       'location': '${asset.hospitalUnit} • ${asset.wardLocation}',
       'status': _mapStatusToSupabase(asset.status),
-    });
+    };
+
+    try {
+      final response = await _client.from('machines').insert(payload).select().single();
+      final insertedId = response['id'] as int;
+      
+      // Update local SQLite cache with remote ID
+      final cachedAsset = HospitalAsset(
+        id: insertedId,
+        assetType: asset.assetType,
+        modelName: asset.modelName,
+        serialNumber: asset.serialNumber,
+        hospitalUnit: asset.hospitalUnit,
+        wardLocation: asset.wardLocation,
+        status: asset.status,
+        dateAcquired: asset.dateAcquired,
+        lastServiceDate: asset.lastServiceDate,
+        serviceInterval: asset.serviceInterval,
+        notes: asset.notes,
+      );
+      await DatabaseHelper.instance.addCachedAsset(cachedAsset);
+    } catch (e) {
+      // Offline fallback: Write to SQLite with mock negative ID or sync ID, then enqueue
+      await DatabaseHelper.instance.addCachedAsset(asset);
+      await DatabaseHelper.instance.enqueueChange(
+        'INSERT',
+        'machines',
+        asset.serialNumber, // Use serial_number as identifier for insert matching
+        payload,
+      );
+    }
   }
 
   Future<void> updateAsset(HospitalAsset asset) async {
-    await _client.from('machines').update({
+    final Map<String, dynamic> payload = {
       'model_name': asset.modelName,
       'serial_number': asset.serialNumber,
       'location': '${asset.hospitalUnit} • ${asset.wardLocation}',
       'status': _mapStatusToSupabase(asset.status),
-    }).eq('id', asset.id);
+    };
+
+    try {
+      await _client.from('machines').update(payload).eq('id', asset.id);
+      await DatabaseHelper.instance.updateCachedAsset(asset);
+    } catch (e) {
+      // Offline fallback: Write to SQLite cache, then enqueue transaction
+      await DatabaseHelper.instance.updateCachedAsset(asset);
+      await DatabaseHelper.instance.enqueueChange(
+        'UPDATE',
+        'machines',
+        asset.id.toString(),
+        payload,
+      );
+    }
   }
 
   Future<List<HospitalAsset>> getAssetsByUnit(String unit) async {
@@ -33,7 +77,7 @@ class AssetService {
           .select()
           .like('location', '$unit%');
       
-      return response.map<HospitalAsset>((json) {
+      final assets = response.map<HospitalAsset>((json) {
         final locParts = (json['location'] as String).split(' • ');
         final hospUnit = locParts.isNotEmpty ? locParts[0] : unit;
         final wardLoc = locParts.length > 1 ? locParts[1] : '';
@@ -54,9 +98,14 @@ class AssetService {
           notes: '',
         );
       }).toList();
+
+      // Bulk update local SQLite cache on successful fetch
+      await DatabaseHelper.instance.cacheAssets(assets);
+      return assets;
     } catch (e) {
-      // Fallback empty list on error (e.g. database not seeded or offline)
-      return [];
+      // Offline fallback: Query SQLite cache and filter by hospital unit
+      final cached = await DatabaseHelper.instance.getCachedAssets();
+      return cached.where((asset) => asset.hospitalUnit.toUpperCase() == unit.toUpperCase()).toList();
     }
   }
 
@@ -64,7 +113,7 @@ class AssetService {
     try {
       final response = await _client.from('machines').select();
       
-      return response.map<HospitalAsset>((json) {
+      final assets = response.map<HospitalAsset>((json) {
         final locParts = (json['location'] as String).split(' • ');
         final hospUnit = locParts.isNotEmpty ? locParts[0] : 'MAIN';
         final wardLoc = locParts.length > 1 ? locParts[1] : '';
@@ -85,8 +134,13 @@ class AssetService {
           notes: '',
         );
       }).toList();
+
+      // Cache all fetched assets locally
+      await DatabaseHelper.instance.cacheAssets(assets);
+      return assets;
     } catch (e) {
-      return [];
+      // Offline fallback
+      return await DatabaseHelper.instance.getCachedAssets();
     }
   }
 

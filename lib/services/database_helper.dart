@@ -23,7 +23,12 @@ class DatabaseHelper {
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
-    return await openDatabase(path, version: 4, onCreate: _createDB);
+    return await openDatabase(
+      path, 
+      version: 5, 
+      onCreate: _createDB,
+      onUpgrade: _upgradeDB,
+    );
   }
 
   Future _createDB(Database db, int version) async {
@@ -91,6 +96,81 @@ class DatabaseHelper {
       payload TEXT NOT NULL,
       created_at TEXT NOT NULL
     )''');
+
+    await db.execute('''
+    CREATE TABLE machines (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asset_type TEXT,
+      model_name TEXT,
+      serial_number TEXT UNIQUE,
+      hospital_unit TEXT,
+      ward_location TEXT,
+      status TEXT,
+      date_acquired TEXT,
+      last_service_date TEXT,
+      service_interval TEXT,
+      notes TEXT
+    )''');
+  }
+
+  Future _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 5) {
+      await db.execute('''
+      CREATE TABLE IF NOT EXISTS machines (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        asset_type TEXT,
+        model_name TEXT,
+        serial_number TEXT UNIQUE,
+        hospital_unit TEXT,
+        ward_location TEXT,
+        status TEXT,
+        date_acquired TEXT,
+        last_service_date TEXT,
+        service_interval TEXT,
+        notes TEXT
+      )''');
+    }
+  }
+
+  // --- MACHINES CACHE CRUD ---
+  Future<List<HospitalAsset>> getCachedAssets() async {
+    final db = await instance.database;
+    final result = await db.query('machines');
+    return result.map((json) => HospitalAsset.fromMap(json)).toList();
+  }
+
+  Future<void> cacheAssets(List<HospitalAsset> assets) async {
+    final db = await instance.database;
+    await db.transaction((txn) async {
+      // Clear out obsolete cache items safely
+      await txn.delete('machines');
+      for (var asset in assets) {
+        await txn.insert(
+          'machines', 
+          asset.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+  }
+
+  Future<int> updateCachedAsset(HospitalAsset asset) async {
+    final db = await instance.database;
+    return await db.update(
+      'machines', 
+      asset.toMap(), 
+      where: 'id = ?', 
+      whereArgs: [asset.id],
+    );
+  }
+
+  Future<int> addCachedAsset(HospitalAsset asset) async {
+    final db = await instance.database;
+    return await db.insert(
+      'machines', 
+      asset.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   // --- SYNC QUEUE CRUD (Local transaction logs) ---
@@ -160,6 +240,7 @@ class DatabaseHelper {
     } catch (e) {
       // Local only write if offline (will be synced later)
       final db = await instance.database;
+      await enqueueChange('UPDATE', 'spare_parts', part.id.toString(), part.toMap());
       return await db.update('spare_parts', part.toMap(), where: 'id = ?', whereArgs: [part.id]);
     }
   }
@@ -182,6 +263,7 @@ class DatabaseHelper {
       return await db.insert('spare_parts', part.toMap());
     } catch (e) {
       final db = await instance.database;
+      await enqueueChange('INSERT', 'spare_parts', part.id.toString(), part.toMap());
       return await db.insert('spare_parts', part.toMap());
     }
   }
@@ -212,6 +294,37 @@ class DatabaseHelper {
       final db = await instance.database;
       final result = await db.query('logs', orderBy: 'timestamp DESC');
       return result.map((json) => ServiceLog.fromMap(json)).toList();
+    }
+  }
+
+  Future<void> logFault({
+    required int assetId,
+    required String description,
+    required String severity,
+  }) async {
+    final Map<String, dynamic> payload = {
+      'machine_id': assetId,
+      'error_code': severity.toUpperCase(),
+      'notes': description,
+      'timestamp': DateTime.now().toUtc().toIso8601String(),
+    };
+
+    try {
+      // 1. Try direct Supabase insertion
+      await _client.from('service_logs').insert(payload);
+    } catch (e) {
+      // 2. Offline fallback: Write to local SQLite logs and enqueue in transaction queue
+      final db = await instance.database;
+      await db.insert('logs', {
+        'machine_model': 'Machine ID: $assetId',
+        'error_code': severity.toUpperCase(),
+        'notes': description,
+        'timestamp': payload['timestamp'],
+        'is_synced': 0,
+      });
+
+      // Centralized sync queue registration
+      await enqueueChange('INSERT', 'service_logs', assetId.toString(), payload);
     }
   }
 

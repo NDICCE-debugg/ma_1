@@ -50,8 +50,10 @@ class SyncService {
           else if (targetTable == 'machines') {
             if (action == 'UPDATE') {
               await _client.from('machines').update({
-                'status': payload['status'],
+                'model_name': payload['model_name'],
+                'serial_number': payload['serial_number'],
                 'location': payload['location'],
+                'status': payload['status'],
               }).eq('id', recordId);
             } else if (action == 'INSERT') {
               await _client.from('machines').insert({
@@ -66,7 +68,12 @@ class SyncService {
           else if (targetTable == 'spare_parts') {
             if (action == 'UPDATE') {
               await _client.from('spare_parts').update({
+                'name': payload['name'],
+                'compatible_model': payload['compatible_model'],
                 'quantity': payload['quantity'],
+                'reorder_threshold': payload['reorder_threshold'],
+                'location': payload['location'],
+                'unit': payload['unit'],
                 'last_restocked': payload['last_restocked'],
                 'notes': payload['notes'],
               }).eq('id', recordId);

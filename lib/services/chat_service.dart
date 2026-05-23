@@ -1,115 +1,166 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
-import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ChatService {
   static final ChatService instance = ChatService._init();
-  late IO.Socket socket;
-  
-  static const String _serverIp = "10.160.120.215"; // Your local IP
-  final String _apiUrl = "http://$_serverIp:5001/api";
+  final _client = Supabase.instance.client;
 
   final ValueNotifier<bool> isConnected = ValueNotifier(false);
   final ValueNotifier<Map<String, dynamic>?> incomingMessage = ValueNotifier(null);
   final ValueNotifier<Map<String, dynamic>?> typingIndicator = ValueNotifier(null);
 
-  // --- NEW: CURRENT USER STATE ---
-  String? currentUserId;
-  String? currentUserName;
+  // Dynamic getters to ensure synchronisation with live Supabase session
+  String? get currentUserId => _client.auth.currentUser?.id;
+  String? get currentUserName {
+    final user = _client.auth.currentUser;
+    if (user == null) return null;
+    return (user.userMetadata?['name'] as String?) ?? user.email;
+  }
+
+  RealtimeChannel? _msgChannel;
+  RealtimeChannel? _typingChannel;
+  RealtimeChannel? _presenceChannel;
 
   ChatService._init();
 
-  // --- NEW: FETCH REAL TECHNICIANS ---
+  // --- GET REGISTERED TECHNICIANS FROM SUPABASE ---
   Future<List<Map<String, dynamic>>> getContacts() async {
     try {
-      final response = await http.get(Uri.parse('$_apiUrl/users'));
-      if (response.statusCode == 200) {
-        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
-      }
+      final response = await _client
+          .from('users')
+          .select('id, name, reg_number, online, last_seen')
+          .order('name');
+      return List<Map<String, dynamic>>.from(response);
     } catch (e) {
-      debugPrint("Error fetching contacts: $e");
+      debugPrint("Error fetching contacts from Supabase: $e");
+      return [];
     }
-    return [];
   }
 
-  // --- NEW: LOGIN EXISTING TECHNICIAN ---
-  Future<bool> loginTechnician(String regNumber) async {
-    try {
-      final users = await getContacts();
-      for (var user in users) {
-        if (user['reg_number'] == regNumber) {
-          currentUserId = user['id'];
-          currentUserName = user['name'];
-          return true; // Successfully found and logged in
-        }
+  // --- CONNECT REALTIME CHANNELS ---
+  void connect(String userId) {
+    if (userId == 'UNKNOWN' || userId.isEmpty) return;
+
+    // Disconnect existing channels if any
+    disconnect();
+
+    isConnected.value = true;
+
+    // 1. Listen to Postgres changes for live messages
+    _msgChannel = _client
+        .channel('public:messages')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'messages',
+          callback: (payload) {
+            final record = payload.newRecord;
+            incomingMessage.value = record;
+            incomingMessage.notifyListeners();
+          },
+        );
+    _msgChannel!.subscribe();
+
+    // 2. Broadcast channel for typing indicators
+    _typingChannel = _client.channel('typing_indicators');
+    _typingChannel!.onBroadcast(
+      event: 'typing',
+      callback: (payload) {
+        typingIndicator.value = payload;
+        typingIndicator.notifyListeners();
+      },
+    );
+    _typingChannel!.subscribe();
+
+    // 3. Presence tracking channel for active statuses
+    _presenceChannel = _client.channel('online_presence');
+    _presenceChannel!.subscribe((status, [error]) async {
+      if (status == RealtimeSubscribeStatus.subscribed) {
+        // Track this technician's online status
+        await _presenceChannel!.track({
+          'user_id': userId,
+          'online': true,
+          'last_seen': DateTime.now().toUtc().toIso8601String(),
+        });
+
+        // Set online status in users profile
+        try {
+          await _client.from('users').update({
+            'online': true,
+            'last_seen': DateTime.now().toUtc().toIso8601String(),
+          }).eq('id', userId);
+        } catch (_) {}
       }
-    } catch (e) {
-      debugPrint("Error logging in: $e");
-    }
-    return false; // User not found
-  }
-
-  // --- NEW: REGISTER TECHNICIAN ---
-  Future<String?> registerTechnician(String name, String regNumber) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_apiUrl/chat/register'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"name": name, "reg_number": regNumber}),
-      );
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        currentUserId = data['user_id'];
-        currentUserName = name;
-        return currentUserId; // Returns the new UUID
-      }
-    } catch (e) {
-      debugPrint("Error registering: $e");
-    }
-    return null;
-  }
-
-  // --- SOCKET CONNECTIONS ---
-  void connect(String currentUserId) {
-    socket = IO.io('http://$_serverIp:5001', <String, dynamic>{
-      'transports': ['websocket'],
-      'autoConnect': false,
-    });
-
-    socket.connect();
-
-    socket.onConnect((_) {
-      isConnected.value = true;
-      socket.emit('user_online', {'user_id': currentUserId});
-    });
-
-    socket.onDisconnect((_) => isConnected.value = false);
-
-    socket.on('receive_message', (data) {
-      incomingMessage.value = data;
-      incomingMessage.notifyListeners(); 
-    });
-
-    socket.on('user_typing', (data) {
-      typingIndicator.value = data;
-      typingIndicator.notifyListeners();
     });
   }
 
   void joinRoom(String conversationId) {
-    socket.emit('join', {'conversation_id': conversationId});
+    // Rooms are handled structurally via conversationId in messages; no explicit Socket.IO join required
+    debugPrint("Joined Supabase conversation room: $conversationId");
   }
 
-  void sendMessage(Map<String, dynamic> payload) {
-    socket.emit('send_message', payload);
+  // --- SEND CHAT MESSAGE ---
+  Future<void> sendMessage(Map<String, dynamic> payload) async {
+    try {
+      final String conversationId = payload['conversation_id'];
+      final String msgText = payload['message_text'];
+
+      // Insert directly into Supabase messages table
+      await _client.from('messages').insert({
+        'conversation_id': conversationId,
+        'sender_id': currentUserId,
+        'message_text': msgText,
+        'message_type': payload['message_type'] ?? 'text',
+        'timestamp': DateTime.now().toUtc().toIso8601String(),
+      });
+
+      // Update conversations catalog metadata
+      await _client.from('conversations').update({
+        'last_message': msgText,
+        'last_message_time': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', conversationId);
+
+    } catch (e) {
+      debugPrint("Error inserting message on Supabase: $e");
+    }
   }
 
+  // --- BROADCAST TYPING STATUS ---
   void sendTyping(String conversationId, String userId) {
-    socket.emit('typing', {'conversation_id': conversationId, 'user_id': userId});
+    if (_typingChannel == null) return;
+    _typingChannel!.sendBroadcast(
+      event: 'typing',
+      payload: {
+        'conversation_id': conversationId,
+        'user_id': userId,
+      },
+    );
   }
 
+  // --- CLEAN TEARDOWN ---
   void disconnect() {
-    socket.disconnect();
+    isConnected.value = false;
+    
+    if (_msgChannel != null) {
+      _client.removeChannel(_msgChannel!);
+      _msgChannel = null;
+    }
+    if (_typingChannel != null) {
+      _client.removeChannel(_typingChannel!);
+      _typingChannel = null;
+    }
+    if (_presenceChannel != null) {
+      // Mark user offline in DB before leaving
+      final userId = currentUserId;
+      if (userId != null) {
+        _client.from('users').update({
+          'online': false,
+          'last_seen': DateTime.now().toUtc().toIso8601String(),
+        }).eq('id', userId).then((_) {}, onError: (_) {});
+      }
+      _client.removeChannel(_presenceChannel!);
+      _presenceChannel = null;
+    }
   }
 }
