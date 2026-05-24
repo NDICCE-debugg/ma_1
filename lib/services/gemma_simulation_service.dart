@@ -180,7 +180,7 @@ CONVERSATION RULES:
           return text.trim();
         }
       } catch (fallbackError) {
-        return 'Network latency error. Let me try sending that again shortly.';
+        return _generateOfflineFallback(contactId, userMessage);
       }
     }
 
@@ -191,6 +191,14 @@ CONVERSATION RULES:
   String _generateOfflineFallback(String contactId, String query) {
     final lower = query.toLowerCase();
     switch (contactId) {
+      case 'kudakwashe-hove':
+        if (lower.contains('buffer') || lower.contains('calibration') || lower.contains('drift') || lower.contains('sensor')) {
+          return 'Excellent, buffers received. Let\'s run the pH 7.0 and 4.0 verification pass. Please make sure to log the slope percentage in the calibration journal, colleague.';
+        }
+        if (lower.contains('done') || lower.contains('finish') || lower.contains('complete') || lower.contains('verified')) {
+          return 'Outstanding work! The blood gas calibration is stable now. I will approve the lab release certificate immediately.';
+        }
+        return 'Laboratory diagnostics are running at capacity today. Let\'s keep the blood gas analyzer (SN-BGA-99) calibrated for emergency surgical runs.';
       case 'dr-chipo-moyo':
         if (lower.contains('alarm') || lower.contains('fault')) {
           return 'Understood. Is the patient safe? Please switch them to manual ventilation if the VG70 continues to drop pressure, colleague. I am headed to the unit now.';

@@ -422,15 +422,27 @@ class _AssetDetailViewState extends State<AssetDetailView> {
 
   @override
   Widget build(BuildContext context) {
-    final String type = (widget.assetData['asset_type'] ?? widget.assetData['assetType'] ?? "Equipment").toString();
-    final String status = (widget.assetData['status'] ?? "Operational").toString();
-    final String model = (widget.assetData['model_name'] ?? widget.assetData['modelName'] ?? "Unknown Model").toString();
-    final String serial = (widget.assetData['serial_number'] ?? widget.assetData['serialNumber'] ?? "N/A").toString();
-    final String unit = (widget.assetData['hospital_unit'] ?? widget.assetData['hospitalUnit'] ?? "N/A").toString();
-    final String ward = (widget.assetData['ward_location'] ?? widget.assetData['wardLocation'] ?? "N/A").toString();
-    final String lastService = (widget.assetData['last_service_date'] ?? widget.assetData['lastServiceDate'] ?? "N/A").toString();
-    final String acquired = (widget.assetData['date_acquired'] ?? widget.assetData['dateAcquired'] ?? "N/A").toString();
-    final String interval = (widget.assetData['service_interval'] ?? widget.assetData['serviceInterval'] ?? "180").toString();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimaryColor = isDark ? Colors.white : AppTheme.textPrimary;
+
+    String cleanVal(dynamic val, String fallback) {
+      if (val == null) return fallback;
+      final s = val.toString().trim();
+      return s.isEmpty ? fallback : s;
+    }
+
+    final String type = cleanVal(widget.assetData['asset_type'] ?? widget.assetData['assetType'], "Equipment");
+    final String status = cleanVal(widget.assetData['status'], "Operational");
+    final String model = cleanVal(widget.assetData['model_name'] ?? widget.assetData['modelName'], "Unknown Model");
+    final String serial = cleanVal(widget.assetData['serial_number'] ?? widget.assetData['serialNumber'], "N/A");
+    final String unit = cleanVal(widget.assetData['hospital_unit'] ?? widget.assetData['hospitalUnit'], "N/A");
+    final String ward = cleanVal(widget.assetData['ward_location'] ?? widget.assetData['wardLocation'], "N/A");
+    final String lastService = cleanVal(widget.assetData['last_service_date'] ?? widget.assetData['lastServiceDate'], "N/A");
+    final String acquired = cleanVal(widget.assetData['date_acquired'] ?? widget.assetData['dateAcquired'], "N/A");
+    final String interval = cleanVal(widget.assetData['service_interval'] ?? widget.assetData['serviceInterval'], "180");
+    final String notes = cleanVal(widget.assetData['notes'], "None logged");
+
+    final String intervalDisplay = interval == "N/A" ? "N/A" : "$interval Days";
 
     final Color statusColor = status.toUpperCase() == 'OPERATIONAL'
         ? AppTheme.success
@@ -444,7 +456,7 @@ class _AssetDetailViewState extends State<AssetDetailView> {
         : null;
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text("Asset Dossier"),
         leading: IconButton(
@@ -455,7 +467,7 @@ class _AssetDetailViewState extends State<AssetDetailView> {
           IconButton(
               tooltip: 'Equipment QR Identity tag',
               onPressed: _showQrDialog,
-              icon: const Icon(Icons.qr_code_2_rounded, color: AppTheme.primary, size: 24)),
+              icon: Icon(Icons.qr_code_2_rounded, color: isDark ? Colors.white : AppTheme.primary, size: 24)),
         ],
       ),
       body: ListView(
@@ -470,13 +482,13 @@ class _AssetDetailViewState extends State<AssetDetailView> {
           const SizedBox(height: 18),
 
           // --- 2. Futuristic Specifications Grid (Dashboard-style specification chips) ---
-          const Text(
+          Text(
             "Hardware Specifications",
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w900,
               fontFamily: 'Outfit',
-              color: AppTheme.primary,
+              color: textPrimaryColor,
             ),
           ),
           const SizedBox(height: 8),
@@ -484,28 +496,28 @@ class _AssetDetailViewState extends State<AssetDetailView> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             crossAxisCount: 2,
-            childAspectRatio: 2.25,
+            childAspectRatio: 2.1,
             mainAxisSpacing: 10,
             crossAxisSpacing: 10,
             children: [
               _buildSpecTile(Icons.business_rounded, "Clinical Unit", unit, const Color(0xFF3B82F6)),
               _buildSpecTile(Icons.location_on_outlined, "Location Room", ward, const Color(0xFF8B5CF6)),
               _buildSpecTile(Icons.history_toggle_off_rounded, "Last Service", lastService, const Color(0xFFF59E0B)),
-              _buildSpecTile(Icons.verified_outlined, "Service Interval", "$interval Days", const Color(0xFF10B981)),
+              _buildSpecTile(Icons.verified_outlined, "Service Interval", intervalDisplay, const Color(0xFF10B981)),
               _buildSpecTile(Icons.shopping_bag_outlined, "Acquisition Date", acquired, const Color(0xFF64748B)),
-              _buildSpecTile(Icons.notes_outlined, "Notes Profile", (widget.assetData['notes'] ?? 'None logged').toString(), const Color(0xFF0F766E)),
+              _buildSpecTile(Icons.notes_outlined, "Notes Profile", notes, const Color(0xFF0F766E)),
             ],
           ).animate().fadeIn(duration: 400.ms, delay: 100.ms),
           const SizedBox(height: 24),
 
           // --- 3. Fault-to-Fix Interactive Holographic Banner ---
-          const Text(
+          Text(
             "Guided Repair Workflows",
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w900,
               fontFamily: 'Outfit',
-              color: AppTheme.primary,
+              color: textPrimaryColor,
             ),
           ),
           const SizedBox(height: 8),
@@ -556,15 +568,30 @@ class _AssetDetailViewState extends State<AssetDetailView> {
     Color statusColor,
     Uint8List? imageBytes,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF0A1518) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF24353A) : const Color(0xFFE2E8F0);
+    final textPrimaryColor = isDark ? Colors.white : AppTheme.textPrimary;
+    final textSecondaryColor = isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary;
+    
+    final headerGradientStart = isDark ? const Color(0xFF111F23) : const Color(0xFFF8FAFC);
+    final headerGradientEnd = isDark ? const Color(0xFF0A1518) : const Color(0xFFE2E8F0);
+    final innerIconContainerBg = isDark ? const Color(0xFF0A1518) : Colors.white.withValues(alpha: 0.8);
+    final iconColor = isDark ? AppTheme.secondary : AppTheme.primary;
+    final typeBadgeBg = isDark ? AppTheme.secondary.withValues(alpha: 0.15) : AppTheme.primary.withValues(alpha: 0.08);
+    final typeBadgeText = isDark ? AppTheme.secondary : AppTheme.primary;
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+        border: Border.all(color: cardBorder, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.015),
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.3)
+                : Colors.black.withValues(alpha: 0.015),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -578,16 +605,16 @@ class _AssetDetailViewState extends State<AssetDetailView> {
             height: 190,
             width: double.infinity,
             padding: const EdgeInsets.all(12),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  Color(0xFFF8FAFC),
-                  Color(0xFFE2E8F0),
+                  headerGradientStart,
+                  headerGradientEnd,
                 ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             ),
             child: imageBytes != null
                 ? Image.memory(
@@ -598,7 +625,7 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                     child: Container(
                       padding: const EdgeInsets.all(22),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.8),
+                        color: innerIconContainerBg,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
@@ -611,7 +638,7 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                         type.toLowerCase() == 'ventilator'
                             ? Icons.air_outlined
                             : Icons.vaccines_outlined,
-                        color: AppTheme.primary,
+                        color: iconColor,
                         size: 48,
                       ),
                     ),
@@ -629,13 +656,13 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: AppTheme.primary.withValues(alpha: 0.08),
+                        color: typeBadgeBg,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         type.toUpperCase(),
-                        style: const TextStyle(
-                          color: AppTheme.primary,
+                        style: TextStyle(
+                          color: typeBadgeText,
                           fontSize: 10,
                           fontWeight: FontWeight.w900,
                           fontFamily: 'Outfit',
@@ -678,8 +705,8 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                 const SizedBox(height: 12),
                 Text(
                   model,
-                  style: const TextStyle(
-                    color: AppTheme.textPrimary,
+                  style: TextStyle(
+                    color: textPrimaryColor,
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
                     fontFamily: 'Outfit',
@@ -689,12 +716,12 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    const Icon(Icons.fingerprint_rounded, size: 14, color: AppTheme.textSecondary),
+                    Icon(Icons.fingerprint_rounded, size: 14, color: textSecondaryColor),
                     const SizedBox(width: 6),
                     Text(
                       'SN: $serial',
-                      style: const TextStyle(
-                        color: AppTheme.textSecondary,
+                      style: TextStyle(
+                        color: textSecondaryColor,
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
                         fontFamily: 'RobotoMono',
@@ -711,30 +738,45 @@ class _AssetDetailViewState extends State<AssetDetailView> {
   }
 
   Widget _buildSpecTile(IconData icon, String label, String value, Color color) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF0A1518) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF24353A) : const Color(0xFFE8EEF1);
+    final textPrimaryColor = isDark ? Colors.white : AppTheme.textPrimary;
+    final textSecondaryColor = isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary;
+
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: cardBorder, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.01),
-            blurRadius: 8,
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.2)
+                : Colors.black.withValues(alpha: 0.015),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(7),
+            width: 36,
+            height: 36,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.08),
+              color: color.withValues(alpha: isDark ? 0.15 : 0.08),
               borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: color.withValues(alpha: isDark ? 0.3 : 0.15),
+                width: 1,
+              ),
             ),
             child: Icon(icon, color: color, size: 18),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -742,23 +784,25 @@ class _AssetDetailViewState extends State<AssetDetailView> {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 9.5,
+                  style: TextStyle(
+                    color: textSecondaryColor,
+                    fontSize: 10,
                     fontWeight: FontWeight.bold,
                     fontFamily: 'Outfit',
+                    letterSpacing: 0.2,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
                   value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
+                  style: TextStyle(
+                    color: textPrimaryColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
                     fontFamily: 'Outfit',
+                    letterSpacing: -0.2,
                   ),
                 ),
               ],
@@ -847,14 +891,21 @@ class _AssetDetailViewState extends State<AssetDetailView> {
     Color color,
     VoidCallback onTap,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF0A1518) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF24353A) : const Color(0xFFE2E8F0);
+    final textSecondaryColor = isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: cardBorder),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.01),
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.2)
+                : Colors.black.withValues(alpha: 0.01),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -873,8 +924,12 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.08),
+                      color: color.withValues(alpha: isDark ? 0.15 : 0.08),
                       borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: color.withValues(alpha: isDark ? 0.3 : 0.15),
+                        width: 1,
+                      ),
                     ),
                     child: Icon(icon, color: color, size: 20),
                   ),
@@ -886,7 +941,7 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                         Text(
                           title,
                           style: TextStyle(
-                            color: color,
+                            color: isDark && color == AppTheme.primary ? Colors.white : color,
                             fontSize: 13.5,
                             fontWeight: FontWeight.w900,
                             fontFamily: 'Outfit',
@@ -895,8 +950,8 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                         const SizedBox(height: 2),
                         Text(
                           subtitle,
-                          style: const TextStyle(
-                            color: AppTheme.textSecondary,
+                          style: TextStyle(
+                            color: textSecondaryColor,
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                             fontFamily: 'Outfit',
@@ -905,7 +960,7 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                       ],
                     ),
                   ),
-                  const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: AppTheme.textSecondary),
+                  Icon(Icons.arrow_forward_ios_rounded, size: 12, color: textSecondaryColor),
                 ],
               ),
             ),

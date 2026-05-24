@@ -5,7 +5,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/services/chat_service.dart';
 import 'package:ma_1/screens/chat_screen.dart';
-import 'package:ma_1/screens/meeting_room_view.dart';
 import 'package:intl/intl.dart';
 import 'package:ma_1/services/google_chat_service.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -161,6 +160,36 @@ class _CollaborationViewState extends State<CollaborationView>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
+  }
+
+  Future<bool> _openGoogleMeet({
+    String? meetingUrl,
+    String topic = 'Instant Google Meet',
+  }) async {
+    final target = (meetingUrl != null && meetingUrl.trim().isNotEmpty)
+        ? meetingUrl.trim()
+        : 'https://meet.google.com/new';
+
+    final bool launched;
+    try {
+      launched = await launchUrl(
+        Uri.parse(target),
+        mode: LaunchMode.externalApplication,
+        webOnlyWindowName: '_blank',
+      );
+    } catch (_) {
+      if (!mounted) return false;
+      _showCallMessage('Could not open Google Meet on this device.');
+      return false;
+    }
+
+    if (!mounted) return launched;
+    _showCallMessage(
+      launched
+          ? 'Opening Google Meet for $topic.'
+          : 'Could not open Google Meet on this device.',
+    );
+    return launched;
   }
 
   void _showNewChatPicker() {
@@ -392,17 +421,17 @@ class _CollaborationViewState extends State<CollaborationView>
                           "topic": topicCtrl.text,
                           "time":
                               "Today, ${DateFormat('HH:mm').format(DateTime.now())}",
-                          "host": "You"
+                          "host": "You",
+                          "join_url": "https://meet.google.com/new",
                         };
                         await ChatService.instance.addMeeting(newMeeting);
 
-                        final meetingCode = _generateRandomMeetingCode();
                         final sentToGoogleChat =
                             await GoogleChatService.instance.sendMeetingCard(
                           topic: topicCtrl.text,
                           time: newMeeting['time']!,
                           host: 'Clinical Coordinator',
-                          joinUrl: 'https://meet.google.com/med-$meetingCode',
+                          joinUrl: newMeeting['join_url']!,
                         );
 
                         if (!ctx.mounted) return;
@@ -864,8 +893,12 @@ class _CollaborationViewState extends State<CollaborationView>
                     style: TextStyle(
                         color: Colors.white, fontWeight: FontWeight.bold)),
                 onPressed: () async {
-                  final meetingCode = _generateRandomMeetingCode();
-                  final joinUrl = 'https://meet.google.com/med-$meetingCode';
+                  const joinUrl = 'https://meet.google.com/new';
+                  final opened = await _openGoogleMeet(
+                    meetingUrl: joinUrl,
+                    topic: 'Instant Technical Consultation',
+                  );
+                  if (!opened) return;
 
                   final sentToGoogleChat =
                       await GoogleChatService.instance.sendMeetingCard(
@@ -882,14 +915,6 @@ class _CollaborationViewState extends State<CollaborationView>
                           ? 'Instant meeting started and sent to Google Chat.'
                           : 'Instant meeting started. Google Chat is not configured.'),
                       behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const MeetingRoomView(
-                          meetingTopic: "Instant Consultation"),
                     ),
                   );
                 },
@@ -941,11 +966,9 @@ class _CollaborationViewState extends State<CollaborationView>
                 backgroundColor: AppTheme.primary,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
               ),
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => MeetingRoomView(meetingTopic: m['topic']),
-                ),
+              onPressed: () => _openGoogleMeet(
+                meetingUrl: m['join_url']?.toString(),
+                topic: m['topic']?.toString() ?? 'Scheduled consultation',
               ),
               child: const Text("Join"),
             ),

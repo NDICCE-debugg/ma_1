@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -52,8 +50,6 @@ class SettingsScreen extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          const _GeminiApiKeySection(),
           const SizedBox(height: 18),
           const _SettingsSection(
             title: 'Security & Privacy',
@@ -274,54 +270,50 @@ class _SettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.72),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.primary.withValues(alpha: 0.05),
-                blurRadius: 18,
-                offset: const Offset(0, 10),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF0A1518) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF24353A) : const Color(0xFFE8EEF1);
+    final textPrimaryColor = isDark ? Colors.white : AppTheme.textPrimary;
+    final textSecondaryColor = isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary;
+
+    return Material(
+      type: MaterialType.card,
+      color: cardBg,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: cardBorder, width: 1.2),
+      ),
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                color: textPrimaryColor,
+                fontFamily: 'Outfit',
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            if (description != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                description!,
+                style: TextStyle(
+                  color: textSecondaryColor,
+                  fontFamily: 'Outfit',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontFamily: 'Outfit',
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                if (description != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    description!,
-                    style: const TextStyle(
-                      color: AppTheme.textSecondary,
-                      fontFamily: 'Outfit',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 12),
-                ...children,
-              ],
-            ),
-          ),
+            const SizedBox(height: 12),
+            ...children,
+          ],
         ),
       ),
     );

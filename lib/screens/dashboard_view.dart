@@ -276,28 +276,28 @@ class _DashboardViewState extends State<DashboardView> {
           _metricGridCard(
             'Total Devices',
             data.totalAssets.toString(),
-            '↗ 12 this month',
+            '12 this month',
             Icons.desktop_windows_outlined,
             const Color(0xFF3B82F6),
           ),
           _metricGridCard(
             'Active Alerts',
             data.offline.toString(),
-            '↗ 2 critical',
+            '2 critical',
             Icons.warning_amber_rounded,
             const Color(0xFFEF4444),
           ),
           _metricGridCard(
             'Maintenance Due',
             data.maintenance.toString(),
-            '↗ 5 this week',
+            '5 this week',
             Icons.calendar_today_rounded,
             const Color(0xFFF59E0B),
           ),
           _metricGridCard(
             'System Uptime',
             '$cap%',
-            '↗ Excellent',
+            'Excellent',
             Icons.verified_user_outlined,
             const Color(0xFF10B981),
           ),
@@ -337,6 +337,13 @@ class _DashboardViewState extends State<DashboardView> {
     final cardBorder = isDark ? const Color(0xFF24353A) : const Color(0xFFE2E8F0);
     final textPrimaryColor = isDark ? Colors.white : AppTheme.textPrimary;
     final textSecondaryColor = isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary;
+
+    IconData getTrendIcon() {
+      if (color == const Color(0xFF3B82F6)) return Icons.trending_up_rounded;
+      if (color == const Color(0xFFEF4444)) return Icons.error_outline_rounded;
+      if (color == const Color(0xFFF59E0B)) return Icons.schedule_rounded;
+      return Icons.verified_user_outlined;
+    }
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -401,21 +408,37 @@ class _DashboardViewState extends State<DashboardView> {
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Icon(Icons.trending_up, color: color, size: 12),
-              const SizedBox(width: 4),
-              Text(
-                trend,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  fontFamily: 'Outfit',
-                ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: isDark ? 0.15 : 0.06),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: color.withValues(alpha: isDark ? 0.25 : 0.12),
+                width: 1,
               ),
-            ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  getTrendIcon(),
+                  color: color,
+                  size: 11,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  trend,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Outfit',
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
