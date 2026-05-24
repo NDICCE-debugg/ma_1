@@ -7,7 +7,9 @@ import 'package:intl/intl.dart';
 import 'package:ma_1/models/hospital_asset.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:ma_1/screens/asset_detail_view.dart';
+import 'package:ma_1/screens/ai_diagnostics_sheet.dart';
 import 'package:ma_1/services/asset_service.dart';
+import 'package:ma_1/services/predictive_maintenance_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:ma_1/models/spare_part.dart';
 import 'package:ma_1/services/database_helper.dart';
@@ -65,6 +67,11 @@ class _AnalyticsViewState extends State<AnalyticsView>
 
   late Future<List<HospitalAsset>> _equipmentFuture;
 
+  // Active filters for Equipment Tab
+  String? _filterType;
+  String? _filterStatus;
+  String? _filterLocation;
+
   // Spare Parts
   late Future<List<SparePart>> _inventoryFuture;
   final TextEditingController _searchCtrl = TextEditingController();
@@ -76,7 +83,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    _tabCtrl = TabController(length: 4, vsync: this);
     _refreshEquipment();
     _refreshInventory();
     _refreshSuppliers();
@@ -114,18 +121,21 @@ class _AnalyticsViewState extends State<AnalyticsView>
   String _assetSectionLabel(int index) => switch (index) {
         1 => 'Spare Parts',
         2 => 'Suppliers',
+        3 => 'AI Prognostics',
         _ => 'Equipment',
       };
 
   String _assetSectionDescription(int index) => switch (index) {
         1 => 'Stock levels, reorder thresholds, and storage bins',
         2 => 'Approved vendors, contacts, and lead times',
+        3 => 'AI diagnostic audits, wear logs, and risk telemetry',
         _ => 'Machine records, service state, and QR intake',
       };
 
   IconData _assetSectionIcon(int index) => switch (index) {
         1 => Icons.inventory_2_outlined,
         2 => Icons.storefront_outlined,
+        3 => Icons.auto_awesome_outlined,
         _ => Icons.monitor_heart_outlined,
       };
 
@@ -575,7 +585,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
     );
   }
 
-  // â”€â”€â”€ HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ——— HELPERS ————————————————————————————————————————————————————————————
 
   void _showStatusMessage(String msg, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -700,7 +710,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
                       ),
                       onSelected: _selectAssetSection,
                       itemBuilder: (context) => List.generate(
-                        3,
+                        4,
                         (itemIndex) => PopupMenuItem<int>(
                           value: itemIndex,
                           child: Row(
@@ -944,6 +954,509 @@ class _AnalyticsViewState extends State<AnalyticsView>
     );
   }
 
+  Widget _buildFilterPill({
+    required String label,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return ActionChip(
+      backgroundColor: isActive ? AppTheme.primary.withValues(alpha: 0.08) : Colors.white,
+      elevation: 0,
+      side: BorderSide(
+        color: isActive ? AppTheme.primary : const Color(0xFFE2E8F0),
+        width: 1,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: isActive ? AppTheme.primary : const Color(0xFF64748B),
+          fontFamily: 'Outfit',
+        ),
+      ),
+      onPressed: onTap,
+    );
+  }
+
+  void _showFilterMenuType() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 16),
+          const Text('Filter by Equipment Type',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Outfit')),
+          const Divider(),
+          ListTile(
+            title: const Text('All Equipment', style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterType == null ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            onTap: () {
+              setState(() => _filterType = null);
+              Navigator.pop(ctx);
+            },
+          ),
+          ListTile(
+            title: const Text('Ventilators', style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterType == 'ventilator' ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            onTap: () {
+              setState(() => _filterType = 'ventilator');
+              Navigator.pop(ctx);
+            },
+          ),
+          ListTile(
+            title: const Text('Anaesthetic Machines', style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterType == 'anaesthetic_machine' ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            onTap: () {
+              setState(() => _filterType = 'anaesthetic_machine');
+              Navigator.pop(ctx);
+            },
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  void _showFilterMenuStatus() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 16),
+          const Text('Filter by Machine Status',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Outfit')),
+          const Divider(),
+          ListTile(
+            title: const Text('All Status', style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterStatus == null ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            onTap: () {
+              setState(() => _filterStatus = null);
+              Navigator.pop(ctx);
+            },
+          ),
+          ListTile(
+            title: const Text('Active (Operational)', style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterStatus == 'OPERATIONAL' ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            onTap: () {
+              setState(() => _filterStatus = 'OPERATIONAL');
+              Navigator.pop(ctx);
+            },
+          ),
+          ListTile(
+            title: const Text('Maintenance Due', style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterStatus == 'MAINTENANCE' ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            onTap: () {
+              setState(() => _filterStatus = 'MAINTENANCE');
+              Navigator.pop(ctx);
+            },
+          ),
+          ListTile(
+            title: const Text('Offline / Faulty', style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterStatus == 'OFFLINE' ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            onTap: () {
+              setState(() => _filterStatus = 'OFFLINE');
+              Navigator.pop(ctx);
+            },
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  void _showFilterMenuLocation() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 16),
+          const Text('Filter by Hospital Department',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Outfit')),
+          const Divider(),
+          ListTile(
+            title: const Text('All Locations', style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterLocation == null ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            onTap: () {
+              setState(() => _filterLocation = null);
+              Navigator.pop(ctx);
+            },
+          ),
+          ListTile(
+            title: const Text('Main Ward (MAIN)', style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterLocation == 'MAIN' ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            onTap: () {
+              setState(() => _filterLocation = 'MAIN');
+              Navigator.pop(ctx);
+            },
+          ),
+          ListTile(
+            title: const Text('Pediatrics (PAEDIATRIC)', style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterLocation == 'PAEDIATRIC' ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            onTap: () {
+              setState(() => _filterLocation = 'PAEDIATRIC');
+              Navigator.pop(ctx);
+            },
+          ),
+          ListTile(
+            title: const Text('Maternity (MATERNITY)', style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterLocation == 'MATERNITY' ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            onTap: () {
+              setState(() => _filterLocation = 'MATERNITY');
+              Navigator.pop(ctx);
+            },
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard({
+    required String title,
+    required String value,
+    required String sub,
+    required IconData icon,
+    required Color iconColor,
+    required Color subColor,
+  }) {
+    return Container(
+      width: 154,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.015),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 16, color: iconColor),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Outfit',
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Color(0xFF0F172A),
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Outfit',
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            sub,
+            style: TextStyle(
+              color: subColor,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Outfit',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterBar() {
+    return Container(
+      height: 44,
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: [
+          _buildFilterPill(
+            label: _filterType == null
+                ? 'All Equipment'
+                : (_filterType == 'ventilator' ? 'Ventilators' : 'Anaesthetic Machines'),
+            isActive: _filterType != null,
+            onTap: () => _showFilterMenuType(),
+          ),
+          const SizedBox(width: 8),
+          _buildFilterPill(
+            label: _filterStatus == null
+                ? 'All Status'
+                : (_filterStatus == 'OPERATIONAL'
+                    ? 'Active'
+                    : (_filterStatus == 'MAINTENANCE' ? 'Maintenance Due' : 'Offline')),
+            isActive: _filterStatus != null,
+            onTap: () => _showFilterMenuStatus(),
+          ),
+          const SizedBox(width: 8),
+          _buildFilterPill(
+            label: _filterLocation == null ? 'All Locations' : _filterLocation!,
+            isActive: _filterLocation != null,
+            onTap: () => _showFilterMenuLocation(),
+          ),
+          const SizedBox(width: 8),
+          if (_filterType != null || _filterStatus != null || _filterLocation != null)
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _filterType = null;
+                  _filterStatus = null;
+                  _filterLocation = null;
+                });
+              },
+              child: const Text(
+                'Clear',
+                style: TextStyle(
+                  color: AppTheme.primary,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Outfit',
+                  fontSize: 13,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaginationBar(int count) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Showing 1-$count of $count machines',
+            style: const TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 12,
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left_rounded, size: 18),
+                onPressed: () {},
+              ),
+              Container(
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppTheme.primary,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  '1',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    fontFamily: 'Outfit',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: const Text(
+                  '2',
+                  style: TextStyle(
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    fontFamily: 'Outfit',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text('...', style: TextStyle(color: Color(0xFF64748B))),
+              IconButton(
+                icon: const Icon(Icons.chevron_right_rounded, size: 18),
+                onPressed: () {},
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConditionDots(String status) {
+    int activeDots = 4;
+    Color dotColor = const Color(0xFF10B981); // Emerald green
+    String conditionLabel = 'Excellent';
+
+    switch (status) {
+      case 'OPERATIONAL':
+        activeDots = 3;
+        dotColor = const Color(0xFF10B981);
+        conditionLabel = 'Good';
+        break;
+      case 'MAINTENANCE':
+        activeDots = 2;
+        dotColor = const Color(0xFFF59E0B); // Amber yellow
+        conditionLabel = 'Fair';
+        break;
+      case 'OFFLINE':
+        activeDots = 1;
+        dotColor = const Color(0xFFEF4444); // Red
+        conditionLabel = 'Critical';
+        break;
+      case 'DECOMMISSIONED':
+        activeDots = 0;
+        dotColor = const Color(0xFF64748B); // Slate grey
+        conditionLabel = 'Retired';
+        break;
+      default:
+        activeDots = 4;
+        dotColor = const Color(0xFF10B981);
+        conditionLabel = 'Excellent';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          'Condition',
+          style: TextStyle(
+            color: Color(0xFF94A3B8),
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'Outfit',
+          ),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(4, (idx) {
+            final isActive = idx < activeDots;
+            return Container(
+              margin: const EdgeInsets.only(right: 3),
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isActive ? dotColor : const Color(0xFFE2E8F0),
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          conditionLabel,
+          style: TextStyle(
+            color: activeDots == 0 ? const Color(0xFF64748B) : dotColor,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'Outfit',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusChip(String status) {
+    String label = 'Active';
+    Color color = const Color(0xFF10B981);
+
+    switch (status) {
+      case 'OPERATIONAL':
+        label = 'Active';
+        color = const Color(0xFF10B981);
+        break;
+      case 'MAINTENANCE':
+        label = 'Maintenance Due';
+        color = const Color(0xFFF59E0B);
+        break;
+      case 'OFFLINE':
+        label = 'Offline';
+        color = const Color(0xFFEF4444);
+        break;
+      case 'DECOMMISSIONED':
+        label = 'Retired';
+        color = const Color(0xFF64748B);
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Outfit',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEquipmentTab() {
     return FutureBuilder<List<HospitalAsset>>(
       future: _equipmentFuture,
@@ -955,45 +1468,34 @@ class _AnalyticsViewState extends State<AnalyticsView>
         }
 
         final all = snapshot.data!;
-        final assets = _searchQuery.isEmpty
-            ? all
-            : all.where((asset) {
-                final query = _searchQuery;
-                return asset.modelName.toLowerCase().contains(query) ||
-                    asset.serialNumber.toLowerCase().contains(query) ||
-                    asset.hospitalUnit.toLowerCase().contains(query) ||
-                    asset.wardLocation.toLowerCase().contains(query) ||
-                    asset.status.toLowerCase().contains(query);
-              }).toList();
+        
+        // Dynamically compute Summary metrics
+        final totalCount = all.length;
+        final activeCount = all.where((a) => a.status == 'OPERATIONAL').length;
+        final inServiceCount = all.where((a) => a.status != 'OFFLINE' && a.status != 'DECOMMISSIONED').length;
+        final maintenanceCount = all.where((a) => a.status == 'MAINTENANCE').length;
 
-        if (assets.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.monitor_heart_outlined,
-                  size: 56,
-                  color: AppTheme.textSecondary.withValues(alpha: 0.4),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  _searchQuery.isNotEmpty
-                      ? 'No equipment matches "$_searchQuery"'
-                      : 'No equipment records available',
-                  style: const TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 15,
-                    fontFamily: 'Outfit',
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
+        final activePct = totalCount > 0 ? (activeCount / totalCount * 100).toStringAsFixed(1) : '0';
+        final inServicePct = totalCount > 0 ? (inServiceCount / totalCount * 100).toStringAsFixed(1) : '0';
+        final maintenancePct = totalCount > 0 ? (maintenanceCount / totalCount * 100).toStringAsFixed(1) : '0';
 
-        final attentionCount =
-            all.where((asset) => asset.status != 'OPERATIONAL').length;
+        final assets = all.where((asset) {
+          if (_searchQuery.isNotEmpty) {
+            final query = _searchQuery;
+            final matchesQuery = asset.modelName.toLowerCase().contains(query) ||
+                asset.serialNumber.toLowerCase().contains(query) ||
+                asset.hospitalUnit.toLowerCase().contains(query) ||
+                asset.wardLocation.toLowerCase().contains(query) ||
+                asset.status.toLowerCase().contains(query);
+            if (!matchesQuery) return false;
+          }
+
+          if (_filterType != null && asset.assetType != _filterType) return false;
+          if (_filterStatus != null && asset.status != _filterStatus) return false;
+          if (_filterLocation != null && asset.hospitalUnit != _filterLocation) return false;
+
+          return true;
+        }).toList();
 
         return RefreshIndicator(
           color: AppTheme.primary,
@@ -1001,95 +1503,236 @@ class _AnalyticsViewState extends State<AnalyticsView>
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
             children: [
-              _buildSearchField('Search equipment by model, serial or unit'),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(14),
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppTheme.primary.withValues(alpha: 0.08),
-                      AppTheme.secondary.withValues(alpha: 0.06),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppTheme.primary.withValues(alpha: 0.15),
-                  ),
-                ),
+              // Beautiful Header Stats Row
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primary,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.monitor_heart_outlined,
-                        color: Colors.white,
-                        size: 18,
-                      ),
+                    _buildSummaryCard(
+                      title: 'Total Machines',
+                      value: '$totalCount',
+                      sub: 'All equipment',
+                      icon: Icons.monitor_heart_outlined,
+                      iconColor: AppTheme.primary,
+                      subColor: const Color(0xFF64748B),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${all.length} machine records',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontFamily: 'Outfit',
-                              fontSize: 14,
-                              color: AppTheme.textPrimary,
-                            ),
-                          ),
-                          Text(
-                            '$attentionCount need attention across active departments',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppTheme.textSecondary,
-                              fontFamily: 'Outfit',
-                            ),
-                          ),
-                        ],
-                      ),
+                    _buildSummaryCard(
+                      title: 'Active',
+                      value: '$activeCount',
+                      sub: '$activePct% of total',
+                      icon: Icons.check_circle_outline,
+                      iconColor: const Color(0xFF10B981),
+                      subColor: const Color(0xFF10B981),
                     ),
-                    IconButton(
-                      tooltip: 'Refresh equipment',
-                      onPressed: _refreshEquipment,
-                      icon: const Icon(
-                        Icons.refresh_rounded,
-                        color: AppTheme.primary,
-                      ),
+                    const SizedBox(width: 12),
+                    _buildSummaryCard(
+                      title: 'In Service',
+                      value: '$inServiceCount',
+                      sub: '$inServicePct% of total',
+                      icon: Icons.build_circle_outlined,
+                      iconColor: AppTheme.secondary,
+                      subColor: AppTheme.secondary,
+                    ),
+                    const SizedBox(width: 12),
+                    _buildSummaryCard(
+                      title: 'Maintenance Due',
+                      value: '$maintenanceCount',
+                      sub: '$maintenancePct% of total',
+                      icon: Icons.warning_amber_rounded,
+                      iconColor: const Color(0xFFF59E0B),
+                      subColor: const Color(0xFFF59E0B),
                     ),
                   ],
                 ),
-              ).animate().fadeIn(duration: 300.ms),
-              if (_searchQuery.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    '${assets.length} result${assets.length == 1 ? '' : 's'} for "$_searchQuery"',
-                    style: const TextStyle(
-                      color: AppTheme.textSecondary,
-                      fontSize: 12,
-                      fontFamily: 'Outfit',
+              ),
+              const SizedBox(height: 20),
+
+              _buildSearchField('Search by machine name, ID, or location...'),
+              const SizedBox(height: 8),
+
+              _buildFilterBar(),
+              const SizedBox(height: 12),
+
+              if (assets.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 48),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.monitor_heart_outlined,
+                          size: 56,
+                          color: AppTheme.textSecondary.withValues(alpha: 0.4),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'No equipment matches this filter selection',
+                          style: TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 15,
+                            fontFamily: 'Outfit',
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ...assets.asMap().entries.map(
-                    (entry) => _buildEquipmentCard(entry.value)
-                        .animate()
-                        .fadeIn(delay: (entry.key * 40).ms)
-                        .slideY(begin: 0.05, end: 0),
-                  ),
+                )
+              else ...[
+                ...assets.asMap().entries.map(
+                      (entry) => _buildEquipmentCard(entry.value)
+                          .animate()
+                          .fadeIn(delay: (entry.key * 30).ms)
+                          .slideY(begin: 0.04, end: 0),
+                    ),
+                _buildPaginationBar(assets.length),
+              ],
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildEquipmentCard(HospitalAsset asset) {
+    final locationText = [
+      asset.hospitalUnit,
+      asset.wardLocation,
+    ].where((value) => value.trim().isNotEmpty).join(' - ');
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Color(0xFFF1F5F9), width: 1.5),
+      ),
+      color: Colors.white,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => AssetDetailView(assetData: asset.toMap()),
+            ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Dynamic Image loading (Bytes or Network curated stock fallbacks)
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: asset.imageBytes != null
+                    ? Image.memory(asset.imageBytes!, fit: BoxFit.cover)
+                    : (asset.imageFileName.isNotEmpty && asset.imageFileName.startsWith('http'))
+                        ? Image.network(
+                            asset.imageFileName,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(
+                              Icons.monitor_heart_outlined,
+                              color: AppTheme.primary,
+                              size: 28,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.monitor_heart_outlined,
+                            color: AppTheme.primary,
+                            size: 28,
+                          ),
+              ),
+              const SizedBox(width: 16),
+
+              // Machine Title & identity details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      asset.modelName,
+                      style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Outfit',
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      locationText.isEmpty ? 'Location pending' : locationText,
+                      style: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Outfit',
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'ID: ${asset.serialNumber.isEmpty ? "Pending" : asset.serialNumber}',
+                      style: const TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'Outfit',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Status chip pill & Last Maintenance
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildStatusChip(asset.status),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.calendar_today_outlined, size: 11, color: Color(0xFF94A3B8)),
+                      const SizedBox(width: 4),
+                      Text(
+                        asset.lastServiceDate.isEmpty ? 'Pending' : asset.lastServiceDate,
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Outfit',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(width: 20),
+
+              // Dynamic Condition dots indicators column
+              _buildConditionDots(asset.status),
+              const SizedBox(width: 12),
+
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Color(0xFF94A3B8),
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1258,156 +1901,6 @@ class _AnalyticsViewState extends State<AnalyticsView>
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildEquipmentCard(HospitalAsset asset) {
-    final (statusLabel, statusColor) = _equipmentStatus(asset.status);
-    final locationText = [
-      asset.hospitalUnit,
-      asset.wardLocation,
-    ].where((value) => value.trim().isNotEmpty).join(' - ');
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 14),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side:
-            BorderSide(color: statusColor.withValues(alpha: 0.20), width: 1.2),
-      ),
-      color: Colors.white,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => AssetDetailView(assetData: asset.toMap()),
-            ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: asset.imageBytes == null
-                        ? Icon(
-                            asset.assetType == 'anaesthetic_machine'
-                                ? Icons.air_rounded
-                                : Icons.monitor_heart_outlined,
-                            color: statusColor,
-                            size: 22,
-                          )
-                        : Image.memory(asset.imageBytes!, fit: BoxFit.cover),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          asset.modelName,
-                          style: const TextStyle(
-                            color: AppTheme.textPrimary,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            fontFamily: 'Outfit',
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          asset.serialNumber.isEmpty
-                              ? 'Serial pending'
-                              : asset.serialNumber,
-                          style: const TextStyle(
-                            color: AppTheme.textSecondary,
-                            fontSize: 12,
-                            fontFamily: 'Outfit',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      statusLabel,
-                      style: TextStyle(
-                        color: statusColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        fontFamily: 'Outfit',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _equipmentMetaChip(
-                      Icons.apartment_rounded, asset.hospitalUnit),
-                  if (asset.wardLocation.trim().isNotEmpty)
-                    _equipmentMetaChip(
-                        Icons.location_on_outlined, asset.wardLocation),
-                  _equipmentMetaChip(
-                    Icons.build_circle_outlined,
-                    asset.assetType == 'anaesthetic_machine'
-                        ? 'Anaesthetic machine'
-                        : 'Ventilator',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _equipmentMetric(
-                        'Last service',
-                        asset.lastServiceDate.isEmpty
-                            ? 'Not recorded'
-                            : asset.lastServiceDate,
-                      ),
-                    ),
-                    Expanded(
-                      child: _equipmentMetric(
-                        'Location',
-                        locationText.isEmpty ? 'Unassigned' : locationText,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -1833,74 +2326,6 @@ class _AnalyticsViewState extends State<AnalyticsView>
     );
   }
 
-  (String, Color) _equipmentStatus(String status) {
-    switch (status) {
-      case 'MAINTENANCE':
-        return ('Maintenance', AppTheme.warning);
-      case 'OFFLINE':
-        return ('Offline', AppTheme.error);
-      case 'DECOMMISSIONED':
-        return ('Retired', AppTheme.textSecondary);
-      default:
-        return ('Operational', AppTheme.success);
-    }
-  }
-
-  Widget _equipmentMetaChip(IconData icon, String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: AppTheme.muted,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppTheme.divider),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: AppTheme.textSecondary),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: const TextStyle(
-              fontSize: 11,
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w700,
-              color: AppTheme.textPrimary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _equipmentMetric(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppTheme.textSecondary,
-            fontSize: 11,
-            fontFamily: 'Outfit',
-          ),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          value,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: AppTheme.textPrimary,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            fontFamily: 'Outfit',
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _contactChip(IconData icon, String text) {
     return Row(
       children: [
@@ -1915,6 +2340,348 @@ class _AnalyticsViewState extends State<AnalyticsView>
               overflow: TextOverflow.ellipsis),
         ),
       ],
+    );
+  }
+
+  Widget _buildPrognosticsTab() {
+    return FutureBuilder<List<HospitalAsset>>(
+      future: _equipmentFuture,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(
+            child: CircularProgressIndicator(color: AppTheme.primary),
+          );
+        }
+
+        final all = snapshot.data!;
+
+        return FutureBuilder<List<Map<String, dynamic>>>(
+          future: Future.wait(all.map((a) => PredictiveMaintenanceService.instance.getPrognostics(a))),
+          builder: (context, progSnapshot) {
+            if (!progSnapshot.hasData) {
+              return const Center(
+                child: CircularProgressIndicator(color: AppTheme.primary),
+              );
+            }
+
+            final progList = progSnapshot.data!;
+
+            // Sort by health score ascending (highest risk first)
+            progList.sort((a, b) => (a['healthScore'] as double).compareTo(b['healthScore'] as double));
+
+            final highCount = progList.where((p) => p['riskLevel'] == 'HIGH').length;
+            final medCount = progList.where((p) => p['riskLevel'] == 'MEDIUM').length;
+            final lowCount = progList.where((p) => p['riskLevel'] == 'LOW').length;
+
+            return RefreshIndicator(
+              color: AppTheme.primary,
+              onRefresh: () async => _refreshEquipment(),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+                children: [
+                  // Beautiful Risk Indicators fleet dashboard
+                  _buildPrognosticOverviewRow(highCount, medCount, lowCount),
+                  const SizedBox(height: 20),
+
+                  if (progList.isEmpty)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 48),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.auto_awesome_outlined,
+                              size: 56,
+                              color: AppTheme.textSecondary.withValues(alpha: 0.4),
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'No dynamic prognostics computed.',
+                              style: TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontSize: 15,
+                                fontFamily: 'Outfit',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else ...[
+                    ...progList.asMap().entries.map(
+                          (entry) => _buildPrognosticCard(entry.value)
+                              .animate()
+                              .fadeIn(delay: (entry.key * 30).ms)
+                              .slideY(begin: 0.04, end: 0),
+                        ),
+                  ],
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildPrognosticOverviewRow(int high, int med, int low) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildPrognosticSummaryCard(
+            title: 'High Risk',
+            value: '$high',
+            color: AppTheme.error,
+            icon: Icons.report_problem_rounded,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _buildPrognosticSummaryCard(
+            title: 'Medium Risk',
+            value: '$med',
+            color: AppTheme.warning,
+            icon: Icons.warning_amber_rounded,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _buildPrognosticSummaryCard(
+            title: 'Stable Fleet',
+            value: '$low',
+            color: AppTheme.success,
+            icon: Icons.check_circle_outline_rounded,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPrognosticSummaryCard({
+    required String title,
+    required String value,
+    required Color color,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF1F5F9), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.015),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Color(0xFF64748B),
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Outfit',
+                ),
+              ),
+              Icon(icon, size: 14, color: color),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Outfit',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPrognosticCard(Map<String, dynamic> prog) {
+    final HospitalAsset asset = prog['asset'] as HospitalAsset;
+    final double healthScore = prog['healthScore'] as double;
+    final String riskLevel = prog['riskLevel'] as String;
+    final String warning = prog['warningMessage'] as String;
+    final int remainingDays = prog['remainingLifeDays'] as int;
+
+    final Color statusColor = riskLevel == 'HIGH'
+        ? AppTheme.error
+        : riskLevel == 'MEDIUM'
+            ? AppTheme.warning
+            : AppTheme.success;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Color(0xFFF1F5F9), width: 1.5),
+      ),
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            // Circular health percentage indicator
+            Container(
+              width: 52,
+              height: 52,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: statusColor.withValues(alpha: 0.08),
+                border: Border.all(color: statusColor.withValues(alpha: 0.18)),
+              ),
+              child: Text(
+                '${healthScore.toStringAsFixed(0)}%',
+                style: TextStyle(
+                  color: statusColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  fontFamily: 'Outfit',
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+
+            // Device details & Prognosis alert
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    asset.modelName,
+                    style: const TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Outfit',
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'SN: ${asset.serialNumber}',
+                    style: const TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'Outfit',
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, size: 12, color: statusColor),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          warning,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Outfit',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // Remaining life projection & AI button
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  asset.status == 'OFFLINE' ? 'Failed' : '$remainingDays Days',
+                  style: const TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Outfit',
+                  ),
+                ),
+                const Text(
+                  'Est. Lifetime',
+                  style: TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Outfit',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 28,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onPressed: () async {
+                      // Get compatible parts for this model
+                      final parts = await PredictiveMaintenanceService.instance.getMatchingParts(asset.modelName);
+                      if (!mounted) return;
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (_) => AiDiagnosticsSheet(
+                          prog: prog,
+                          compatibleParts: parts,
+                          onStateChanged: () {
+                            _refreshEquipment();
+                          },
+                        ),
+                      );
+                    },
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.auto_awesome_rounded, size: 11),
+                        SizedBox(width: 4),
+                        Text(
+                          'Audit',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Outfit',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

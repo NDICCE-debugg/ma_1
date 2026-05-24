@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/services.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
@@ -20,6 +21,15 @@ class DatabaseHelper {
     _database = await _initDB('biomed_offline_v4.db');
     await checkAndSeedLocalData(_database!);
     return _database!;
+  }
+
+  Future<Uint8List?> _loadAssetBytes(String path) async {
+    try {
+      final data = await rootBundle.load(path);
+      return data.buffer.asUint8List();
+    } catch (e) {
+      return null;
+    }
   }
 
   Future<void> checkAndSeedLocalData(Database db) async {
@@ -83,6 +93,11 @@ class DatabaseHelper {
             await db.rawQuery('SELECT COUNT(*) FROM machines')) ??
         0;
     if (countMachines == 0) {
+      final vg70Bytes = await _loadAssetBytes('assets/aeonmed_vg70.png');
+      final evitaBytes = await _loadAssetBytes('assets/drager_evita.png');
+      final mindrayBytes = await _loadAssetBytes('assets/mindray_a5.png');
+      final watoBytes = await _loadAssetBytes('assets/wato_ex35.png');
+
       await db.insert(
           'machines',
           {
@@ -95,7 +110,9 @@ class DatabaseHelper {
             'date_acquired': '2024-01-01',
             'last_service_date': '2024-04-01',
             'service_interval': '6 Months',
-            'notes': 'Operational'
+            'notes': 'Operational',
+            'image_file_name': 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=500&auto=format&fit=crop&q=60',
+            'image_bytes': vg70Bytes,
           },
           conflictAlgorithm: ConflictAlgorithm.ignore);
       await db.insert(
@@ -110,7 +127,9 @@ class DatabaseHelper {
             'date_acquired': '2024-01-01',
             'last_service_date': '2024-04-01',
             'service_interval': '6 Months',
-            'notes': 'Needs Maintenance'
+            'notes': 'Needs Maintenance',
+            'image_file_name': 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=500&auto=format&fit=crop&q=60',
+            'image_bytes': vg70Bytes,
           },
           conflictAlgorithm: ConflictAlgorithm.ignore);
       await db.insert(
@@ -125,7 +144,9 @@ class DatabaseHelper {
             'date_acquired': '2024-01-01',
             'last_service_date': '2024-04-01',
             'service_interval': '6 Months',
-            'notes': 'Operational'
+            'notes': 'Operational',
+            'image_file_name': 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=500&auto=format&fit=crop&q=60',
+            'image_bytes': evitaBytes,
           },
           conflictAlgorithm: ConflictAlgorithm.ignore);
       await db.insert(
@@ -140,7 +161,9 @@ class DatabaseHelper {
             'date_acquired': '2024-01-01',
             'last_service_date': '2024-04-01',
             'service_interval': '6 Months',
-            'notes': 'Operational'
+            'notes': 'Operational',
+            'image_file_name': 'https://images.unsplash.com/photo-1516613975432-f22787d55f07?w=500&auto=format&fit=crop&q=60',
+            'image_bytes': mindrayBytes,
           },
           conflictAlgorithm: ConflictAlgorithm.ignore);
       await db.insert(
@@ -155,9 +178,39 @@ class DatabaseHelper {
             'date_acquired': '2024-01-01',
             'last_service_date': '2024-04-01',
             'service_interval': '6 Months',
-            'notes': 'Needs Maintenance'
+            'notes': 'Needs Maintenance',
+            'image_file_name': 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=500&auto=format&fit=crop&q=60',
+            'image_bytes': watoBytes,
           },
           conflictAlgorithm: ConflictAlgorithm.ignore);
+    }
+
+    // Self-healing / Dynamic Upgrade: Populate generated asset images into the SQLite BLOB column for any matching serial numbers in existing databases
+    final existingList = await db.query('machines');
+    for (var row in existingList) {
+      final serial = row['serial_number'] as String?;
+      final currentBytes = row['image_bytes'] as Uint8List?;
+      if (serial != null && (currentBytes == null || currentBytes.isEmpty)) {
+        Uint8List? bytes;
+        if (serial == 'SN-VG70-441' || serial == 'SN-VG70-442') {
+          bytes = await _loadAssetBytes('assets/aeonmed_vg70.png');
+        } else if (serial == 'SN-DR-092') {
+          bytes = await _loadAssetBytes('assets/drager_evita.png');
+        } else if (serial == 'SN-MA5-998') {
+          bytes = await _loadAssetBytes('assets/mindray_a5.png');
+        } else if (serial == 'SN-W35-102') {
+          bytes = await _loadAssetBytes('assets/wato_ex35.png');
+        }
+
+        if (bytes != null) {
+          await db.update(
+            'machines',
+            {'image_bytes': bytes},
+            where: 'serial_number = ?',
+            whereArgs: [serial],
+          );
+        }
+      }
     }
   }
 

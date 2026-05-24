@@ -1,4 +1,4 @@
-﻿name: ma_1
+name: ma_1
 description: "Pulse: Clinical Equipment & Maintenance Assistant"
 publish_to: 'none'
 version: 1.0.0+1
@@ -83,6 +83,10 @@ flutter:
     - assets/icon.png
     - assets/pulse_logo.png
     - assets/clinical_bg.png
+    - assets/aeonmed_vg70.png
+    - assets/drager_evita.png
+    - assets/mindray_a5.png
+    - assets/wato_ex35.png
     # - assets/sounds/nav_subtle_click.mp3
     # - assets/sounds/clinical_ready.mp3
     # - assets/sounds/success_ping.mp3

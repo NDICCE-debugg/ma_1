@@ -519,6 +519,21 @@ class _EquipmentEntryFormState extends State<_EquipmentEntryForm> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () async {
+                String finalImageFileName = _imageFileName;
+                if (finalImageFileName.isEmpty && _imageBytes == null) {
+                  final model = _modelCtrl.text.toLowerCase();
+                  final isAnaesthetic = widget.assetType == 'anaesthetic_machine' ||
+                      model.contains('anaesthetic') ||
+                      model.contains('wato') ||
+                      model.contains('a5') ||
+                      model.contains('theatre');
+                  if (isAnaesthetic) {
+                    finalImageFileName = 'https://images.unsplash.com/photo-1516613975432-f22787d55f07?w=500&auto=format&fit=crop&q=60';
+                  } else {
+                    finalImageFileName = 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=500&auto=format&fit=crop&q=60';
+                  }
+                }
+
                 final asset = HospitalAsset(
                   id: widget.existingAsset?.id,
                   assetType: widget.assetType,
@@ -532,7 +547,7 @@ class _EquipmentEntryFormState extends State<_EquipmentEntryForm> {
                   lastServiceDate: _svcCtrl.text,
                   serviceInterval: _intCtrl.text,
                   notes: '',
-                  imageFileName: _imageFileName,
+                  imageFileName: finalImageFileName,
                   imageBytes: _imageBytes,
                 );
                 if (widget.existingAsset == null) {
