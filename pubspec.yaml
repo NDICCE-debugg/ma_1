@@ -1,5 +1,5 @@
 name: ma_1
-description: "BioMed Assistant: Clinical Equipment & Maintenance Assistant"
+description: "Pulse: Clinical Equipment & Maintenance Assistant"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -61,6 +61,8 @@ dependencies:
   supabase_flutter: ^2.12.4
   sqflite_common_ffi_web: ^1.0.2
   local_auth: ^2.2.0
+  file_picker: ^11.0.2
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:
@@ -78,6 +80,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icon.png
+    - assets/pulse_logo.png
     - assets/clinical_bg.png
     # - assets/sounds/nav_subtle_click.mp3
     # - assets/sounds/clinical_ready.mp3

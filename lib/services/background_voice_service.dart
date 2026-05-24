@@ -45,7 +45,7 @@ class BackgroundVoiceService {
     // Create the Notification Channel (Required for Android Foreground Service)
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       'biomed_voice_channel', // id
-      'BioMed Voice Service', // title
+      'Pulse Voice Service', // title
       description: 'Listening for voice commands...',
       importance: Importance.low, 
     );
@@ -65,8 +65,8 @@ class BackgroundVoiceService {
         autoStart: false, // We want the user to toggle it manually
         isForegroundMode: true,
         notificationChannelId: 'biomed_voice_channel',
-        initialNotificationTitle: 'BioMed Assistant',
-        initialNotificationContent: 'Listening for "Hey BioMed"...',
+        initialNotificationTitle: 'Pulse',
+        initialNotificationContent: 'Listening for "Hey Pulse"...',
         foregroundServiceNotificationId: 888,
       ),
       iosConfiguration: IosConfiguration(

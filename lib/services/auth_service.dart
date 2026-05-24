@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -9,7 +11,8 @@ class AuthService {
 
   AuthService._init();
 
-  Future<bool> checkSession() async => _mockUser != null || _client.auth.currentSession != null;
+  Future<bool> checkSession() async =>
+      _mockUser != null || _client.auth.currentSession != null;
 
   User? get currentUser => _mockUser ?? _client.auth.currentUser;
 
@@ -29,54 +32,119 @@ class AuthService {
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
-      final response = await _client.auth.signInWithPassword(
-        email: email,
+      final normalizedEmail = email.trim().toLowerCase();
+      final response = await _client.auth
+          .signInWithPassword(
+        email: normalizedEmail,
         password: password,
-      );
-      if (response.user != null) {
-        return {'success': true};
+      )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.user != null && response.session != null) {
+        await _syncUserProfile(response.user!, email: normalizedEmail);
+        return {'success': true, 'message': 'Signed in successfully.'};
       }
-      return {'success': false, 'message': 'Authentication failed.'};
+
+      return {
+        'success': false,
+        'message':
+            'Sign in could not create a secure session. Please verify your email and try again.',
+      };
+    } on TimeoutException {
+      return {
+        'success': false,
+        'message':
+            'The auth server took too long to respond. Check your connection and try again.',
+      };
     } on AuthException catch (e) {
-      return {'success': false, 'message': e.message};
+      return {'success': false, 'message': _friendlyAuthMessage(e.message)};
     } catch (e) {
-      return {'success': false, 'message': e.toString()};
+      debugPrint('Email login exception: $e');
+      return {
+        'success': false,
+        'message': 'Unable to sign in right now. Please try again.',
+      };
     }
   }
 
   Future<Map<String, dynamic>> register(
       String name, String email, String password, String reg) async {
     try {
-      final response = await _client.auth.signUp(
-        email: email,
+      final normalizedEmail = email.trim().toLowerCase();
+      final response = await _client.auth
+          .signUp(
+        email: normalizedEmail,
         password: password,
         data: {
-          'name': name,
-          'reg_number': reg,
+          'name': name.trim(),
+          'reg_number': reg.trim(),
         },
-      );
+      )
+          .timeout(const Duration(seconds: 20));
 
       if (response.user != null) {
-        // Explicitly write profile record into public.users table to ensure immediate indexing
-        try {
-          await _client.from('users').upsert({
-            'id': response.user!.id,
-            'name': name,
-            'email': email,
-            'reg_number': reg,
-            'role': 'technician',
-            'online': true,
-          });
-        } catch (e) {
-          debugPrint("Supabase User Profile Sync Exception: $e");
-        }
-        return {'success': true};
+        await _syncUserProfile(
+          response.user!,
+          name: name.trim(),
+          email: normalizedEmail,
+          regNumber: reg.trim(),
+          online: response.session != null,
+        );
+
+        return {
+          'success': true,
+          'sessionActive': response.session != null,
+          'message': response.session != null
+              ? 'Account created and signed in.'
+              : 'Account created. Please verify your email before signing in.',
+        };
       }
+
       return {'success': false, 'message': 'Account creation failed.'};
+    } on TimeoutException {
+      return {
+        'success': false,
+        'message':
+            'The auth server took too long to respond. Check your connection and try again.',
+      };
     } on AuthException catch (e) {
-      return {'success': false, 'message': e.message};
+      return {'success': false, 'message': _friendlyAuthMessage(e.message)};
     } catch (e) {
-      return {'success': false, 'message': e.toString()};
+      debugPrint('Email registration exception: $e');
+      return {
+        'success': false,
+        'message': 'Unable to create the account right now. Please try again.',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> sendPasswordReset(String email) async {
+    try {
+      final normalizedEmail = email.trim().toLowerCase();
+      await _client.auth
+          .resetPasswordForEmail(
+            normalizedEmail,
+            redirectTo: kIsWeb ? Uri.base.origin : null,
+          )
+          .timeout(const Duration(seconds: 20));
+      return {
+        'success': true,
+        'message': 'Password reset link sent to $normalizedEmail.',
+      };
+    } on TimeoutException {
+      return {
+        'success': false,
+        'message':
+            'The auth server took too long to respond. Check your connection and try again.',
+      };
+    } on AuthException catch (e) {
+      return {'success': false, 'message': _friendlyAuthMessage(e.message)};
+    } catch (e) {
+      debugPrint('Password reset exception: $e');
+      return {
+        'success': false,
+        'message': 'Unable to send a reset link right now. Please try again.',
+      };
     }
   }
 
@@ -155,5 +223,46 @@ class AuthService {
       }
     } catch (_) {}
     await _client.auth.signOut();
+  }
+
+  Future<void> _syncUserProfile(
+    User user, {
+    String? name,
+    String? email,
+    String? regNumber,
+    bool online = true,
+  }) async {
+    try {
+      final metadata = user.userMetadata ?? {};
+      await _client.from('users').upsert({
+        'id': user.id,
+        'name': name ?? metadata['name'] ?? 'Biomedical Technician',
+        'email': email ?? user.email,
+        'reg_number': regNumber ?? metadata['reg_number'] ?? '',
+        'role': metadata['role'] ?? 'technician',
+        'online': online,
+        'last_seen': DateTime.now().toUtc().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('Supabase user profile sync exception: $e');
+    }
+  }
+
+  String _friendlyAuthMessage(String message) {
+    final normalized = message.toLowerCase();
+    if (normalized.contains('invalid login credentials')) {
+      return 'Incorrect email or password.';
+    }
+    if (normalized.contains('email not confirmed')) {
+      return 'Please verify your email before signing in.';
+    }
+    if (normalized.contains('already registered') ||
+        normalized.contains('user already registered')) {
+      return 'An account already exists for this email.';
+    }
+    if (normalized.contains('password')) {
+      return message;
+    }
+    return message.isEmpty ? 'Authentication failed. Please try again.' : message;
   }
 }

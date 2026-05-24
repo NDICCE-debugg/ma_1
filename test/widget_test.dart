@@ -11,8 +11,7 @@ import 'package:ma_1/utils/supabase_config.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('shows the BioMed Assistant login screen',
-      (WidgetTester tester) async {
+  testWidgets('shows the Pulse login screen', (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({});
     await Supabase.initialize(
       url: SupabaseConfig.url,
@@ -28,9 +27,9 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 500));
 
-    expect(find.text('BioMed Assistant'), findsOneWidget);
-    expect(find.text('Clinical Fleet Maintenance System'), findsOneWidget);
-    expect(find.byIcon(Icons.health_and_safety), findsOneWidget);
+    expect(find.text('Pulse'), findsOneWidget);
+    expect(find.text('Clinical Equipment Intelligence'), findsOneWidget);
+    expect(find.byType(Image), findsWidgets);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();

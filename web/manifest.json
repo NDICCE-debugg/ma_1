@@ -1,11 +1,11 @@
 {
-    "name": "ma_1",
-    "short_name": "ma_1",
+    "name": "Pulse",
+    "short_name": "Pulse",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#071013",
+    "theme_color": "#071013",
+    "description": "Pulse clinical equipment intelligence.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

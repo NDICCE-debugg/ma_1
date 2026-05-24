@@ -2,13 +2,17 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:ma_1/models/hospital_asset.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:ma_1/screens/asset_detail_view.dart';
+import 'package:ma_1/services/asset_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/models/spare_part.dart';
 import 'package:ma_1/services/database_helper.dart';
 import 'package:ma_1/services/notification_service.dart';
+import 'package:ma_1/theme/app_theme.dart';
 
 // ─── Supplier model ─────────────────────────────────────────────────────────
 
@@ -59,6 +63,8 @@ class _AnalyticsViewState extends State<AnalyticsView>
     with SingleTickerProviderStateMixin {
   TabController? _tabCtrl;
 
+  late Future<List<HospitalAsset>> _equipmentFuture;
+
   // Spare Parts
   late Future<List<SparePart>> _inventoryFuture;
   final TextEditingController _searchCtrl = TextEditingController();
@@ -70,7 +76,8 @@ class _AnalyticsViewState extends State<AnalyticsView>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 2, vsync: this);
+    _tabCtrl = TabController(length: 3, vsync: this);
+    _refreshEquipment();
     _refreshInventory();
     _refreshSuppliers();
     _searchCtrl.addListener(
@@ -89,6 +96,12 @@ class _AnalyticsViewState extends State<AnalyticsView>
   void _refreshInventory() {
     setState(() {
       _inventoryFuture = DatabaseHelper.instance.getInventory();
+    });
+  }
+
+  void _refreshEquipment() {
+    setState(() {
+      _equipmentFuture = AssetService.instance.getAllAssets();
     });
   }
 
@@ -201,7 +214,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
     } catch (_) {}
 
     if (qrData != null) {
-      _showEditPartSheet(context,
+      _showEditPartDialog(context,
           prefill: SparePart(
             name: qrData['name'] as String? ?? '',
             compatibleModel: qrData['model'] as String? ?? '',
@@ -232,7 +245,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
       _showStatusMessage(
           'Found ${matches.length} match(es) for "$raw"', AppTheme.success);
     } else {
-      _showEditPartSheet(context,
+      _showEditPartDialog(context,
           prefill: SparePart(
             name: raw,
             compatibleModel: '',
@@ -247,6 +260,30 @@ class _AnalyticsViewState extends State<AnalyticsView>
 
   // ─── ADD/EDIT PART SHEET ─────────────────────────────────────────────────────
 
+  Future<void> _showEditPartDialog(BuildContext context,
+      {SparePart? existingPart, SparePart? prefill}) async {
+    final part = await showDialog<SparePart>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _PartEditorDialog(
+        existingPart: existingPart,
+        prefill: prefill,
+      ),
+    );
+
+    if (part == null) return;
+    if (existingPart == null) {
+      await DatabaseHelper.instance.addSparePart(part);
+    } else {
+      await DatabaseHelper.instance.updateSparePart(part);
+    }
+    await NotificationService.checkInventoryAlerts();
+    if (!mounted) return;
+    _refreshInventory();
+    _showStatusMessage('Record saved successfully', AppTheme.success);
+  }
+
+  // ignore: unused_element
   void _showEditPartSheet(BuildContext context,
       {SparePart? existingPart, SparePart? prefill}) {
     final src = existingPart ?? prefill;
@@ -478,6 +515,8 @@ class _AnalyticsViewState extends State<AnalyticsView>
                       unit: part.unit,
                       lastRestocked: dateCtrl.text,
                       notes: part.notes,
+                      imageFileName: part.imageFileName,
+                      imageBytes: part.imageBytes,
                     ));
                     await NotificationService.checkInventoryAlerts();
                     if (!ctx.mounted) return;
@@ -539,19 +578,19 @@ class _AnalyticsViewState extends State<AnalyticsView>
   Widget build(BuildContext context) {
     // Lazily initialize _tabCtrl so hot-reload (which reuses the State object
     // without calling initState again) never crashes on LateInitializationError.
-    _tabCtrl ??= TabController(length: 2, vsync: this);
+    _tabCtrl ??= TabController(length: 3, vsync: this);
     final tabCtrl = _tabCtrl!;
     return Scaffold(
       backgroundColor: AppTheme.background,
       // FAB only on Spare Parts tab
       floatingActionButton: ListenableBuilder(
         listenable: tabCtrl,
-        builder: (_, __) => tabCtrl.index == 0
+        builder: (_, __) => tabCtrl.index == 1
             ? FloatingActionButton(
                 backgroundColor: AppTheme.primary,
                 elevation: 4,
                 tooltip: 'Add new spare part',
-                onPressed: () => _showEditPartSheet(context),
+                onPressed: () => _showEditPartDialog(context),
                 child: const Icon(Icons.add, color: Colors.white),
               )
             : const SizedBox.shrink(),
@@ -561,47 +600,100 @@ class _AnalyticsViewState extends State<AnalyticsView>
         children: [
           // ── Header row ──
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text('Assets',
-                      style: Theme.of(context).textTheme.displayLarge),
-                ),
-                // QR button — only visible on Spare Parts tab
-                ListenableBuilder(
-                  listenable: tabCtrl,
-                  builder: (_, __) => tabCtrl.index == 0
-                      ? Tooltip(
-                          message: kIsWeb
-                              ? 'QR scanning available on mobile'
-                              : 'Scan QR code',
-                          child: InkWell(
-                            onTap: _openQrScanner,
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: AppTheme.primary,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppTheme.primary
-                                        .withValues(alpha: 0.25),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
-                                  )
-                                ],
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppTheme.surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppTheme.divider),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.025),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppTheme.muted,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppTheme.divider),
+                    ),
+                    child: const Icon(
+                      Icons.precision_manufacturing_rounded,
+                      color: AppTheme.secondary,
+                      size: 23,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Asset Control',
+                          style: TextStyle(
+                            color: AppTheme.textPrimary,
+                            fontFamily: 'Outfit',
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          'Equipment registry, spare parts, suppliers, and QR intake',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontFamily: 'Outfit',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ListenableBuilder(
+                    listenable: tabCtrl,
+                    builder: (_, __) => tabCtrl.index == 0
+                        ? Tooltip(
+                            message: kIsWeb
+                                ? 'QR scanning available on mobile'
+                                : 'Scan asset QR code',
+                            child: FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppTheme.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 13),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(9),
+                                ),
                               ),
-                              child: const Icon(Icons.qr_code_scanner,
-                                  color: Colors.white, size: 22),
-                            ),
-                          ).animate().scale(
-                              duration: 400.ms, curve: Curves.easeOutBack),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ],
+                              onPressed: _openQrScanner,
+                              icon:
+                                  const Icon(Icons.qr_code_2_rounded, size: 18),
+                              label: const Text(
+                                'Scan',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ).animate().scale(
+                                duration: 320.ms, curve: Curves.easeOutBack),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -636,6 +728,16 @@ class _AnalyticsViewState extends State<AnalyticsView>
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
+                      Icon(Icons.monitor_heart_outlined, size: 16),
+                      SizedBox(width: 6),
+                      Text('Equipment'),
+                    ],
+                  ),
+                ),
+                Tab(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
                       Icon(Icons.inventory_2_outlined, size: 16),
                       SizedBox(width: 6),
                       Text('Spare Parts'),
@@ -663,6 +765,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
             child: TabBarView(
               controller: tabCtrl,
               children: [
+                _buildEquipmentTab(),
                 _buildSparePartsTab(),
                 _buildSuppliersTab(),
               ],
@@ -676,6 +779,205 @@ class _AnalyticsViewState extends State<AnalyticsView>
   // ══════════════════════════════════════════
   //  TAB 1 — SPARE PARTS
   // ══════════════════════════════════════════
+
+  Widget _buildSearchField(String hintText) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: TextField(
+        controller: _searchCtrl,
+        style: const TextStyle(
+          fontSize: 14,
+          fontFamily: 'Outfit',
+          color: Color(0xFF0F172A),
+        ),
+        decoration: InputDecoration(
+          hintText: hintText,
+          hintStyle: const TextStyle(
+            color: Color(0xFF94A3B8),
+            fontSize: 13,
+            fontFamily: 'Outfit',
+          ),
+          prefixIcon:
+              const Icon(Icons.search, color: Color(0xFF64748B), size: 20),
+          suffixIcon: _searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.close,
+                      color: Color(0xFF64748B), size: 18),
+                  onPressed: () {
+                    _searchCtrl.clear();
+                    setState(() => _searchQuery = '');
+                  },
+                )
+              : null,
+          fillColor: Colors.white,
+          filled: true,
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: AppTheme.primary, width: 1.5),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEquipmentTab() {
+    return FutureBuilder<List<HospitalAsset>>(
+      future: _equipmentFuture,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(
+            child: CircularProgressIndicator(color: AppTheme.primary),
+          );
+        }
+
+        final all = snapshot.data!;
+        final assets = _searchQuery.isEmpty
+            ? all
+            : all.where((asset) {
+                final query = _searchQuery;
+                return asset.modelName.toLowerCase().contains(query) ||
+                    asset.serialNumber.toLowerCase().contains(query) ||
+                    asset.hospitalUnit.toLowerCase().contains(query) ||
+                    asset.wardLocation.toLowerCase().contains(query) ||
+                    asset.status.toLowerCase().contains(query);
+              }).toList();
+
+        if (assets.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.monitor_heart_outlined,
+                  size: 56,
+                  color: AppTheme.textSecondary.withValues(alpha: 0.4),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _searchQuery.isNotEmpty
+                      ? 'No equipment matches "$_searchQuery"'
+                      : 'No equipment records available',
+                  style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 15,
+                    fontFamily: 'Outfit',
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final attentionCount =
+            all.where((asset) => asset.status != 'OPERATIONAL').length;
+
+        return RefreshIndicator(
+          color: AppTheme.primary,
+          onRefresh: () async => _refreshEquipment(),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+            children: [
+              _buildSearchField('Search equipment by model, serial or unit'),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(14),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppTheme.primary.withValues(alpha: 0.08),
+                      AppTheme.secondary.withValues(alpha: 0.06),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppTheme.primary.withValues(alpha: 0.15),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.monitor_heart_outlined,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${all.length} machine records',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'Outfit',
+                              fontSize: 14,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                          Text(
+                            '$attentionCount need attention across active departments',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.textSecondary,
+                              fontFamily: 'Outfit',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Refresh equipment',
+                      onPressed: _refreshEquipment,
+                      icon: const Icon(
+                        Icons.refresh_rounded,
+                        color: AppTheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ).animate().fadeIn(duration: 300.ms),
+              if (_searchQuery.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    '${assets.length} result${assets.length == 1 ? '' : 's'} for "$_searchQuery"',
+                    style: const TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 12,
+                      fontFamily: 'Outfit',
+                    ),
+                  ),
+                ),
+              ...assets.asMap().entries.map(
+                    (entry) => _buildEquipmentCard(entry.value)
+                        .animate()
+                        .fadeIn(delay: (entry.key * 40).ms)
+                        .slideY(begin: 0.05, end: 0),
+                  ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   Widget _buildSparePartsTab() {
     return Column(
@@ -770,7 +1072,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
                       if (_searchQuery.isNotEmpty) ...[
                         const SizedBox(height: 12),
                         TextButton.icon(
-                          onPressed: () => _showEditPartSheet(context,
+                          onPressed: () => _showEditPartDialog(context,
                               prefill: SparePart(
                                 name: _searchQuery,
                                 compatibleModel: '',
@@ -845,6 +1147,156 @@ class _AnalyticsViewState extends State<AnalyticsView>
     );
   }
 
+  Widget _buildEquipmentCard(HospitalAsset asset) {
+    final (statusLabel, statusColor) = _equipmentStatus(asset.status);
+    final locationText = [
+      asset.hospitalUnit,
+      asset.wardLocation,
+    ].where((value) => value.trim().isNotEmpty).join(' • ');
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side:
+            BorderSide(color: statusColor.withValues(alpha: 0.20), width: 1.2),
+      ),
+      color: Colors.white,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => AssetDetailView(assetData: asset.toMap()),
+            ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: asset.imageBytes == null
+                        ? Icon(
+                            asset.assetType == 'anaesthetic_machine'
+                                ? Icons.air_rounded
+                                : Icons.monitor_heart_outlined,
+                            color: statusColor,
+                            size: 22,
+                          )
+                        : Image.memory(asset.imageBytes!, fit: BoxFit.cover),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          asset.modelName,
+                          style: const TextStyle(
+                            color: AppTheme.textPrimary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Outfit',
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          asset.serialNumber.isEmpty
+                              ? 'Serial pending'
+                              : asset.serialNumber,
+                          style: const TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 12,
+                            fontFamily: 'Outfit',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      statusLabel,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Outfit',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _equipmentMetaChip(
+                      Icons.apartment_rounded, asset.hospitalUnit),
+                  if (asset.wardLocation.trim().isNotEmpty)
+                    _equipmentMetaChip(
+                        Icons.location_on_outlined, asset.wardLocation),
+                  _equipmentMetaChip(
+                    Icons.build_circle_outlined,
+                    asset.assetType == 'anaesthetic_machine'
+                        ? 'Anaesthetic machine'
+                        : 'Ventilator',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _equipmentMetric(
+                        'Last service',
+                        asset.lastServiceDate.isEmpty
+                            ? 'Not recorded'
+                            : asset.lastServiceDate,
+                      ),
+                    ),
+                    Expanded(
+                      child: _equipmentMetric(
+                        'Location',
+                        locationText.isEmpty ? 'Unassigned' : locationText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildInventoryCard(SparePart part) {
     final isCritical = part.quantity <= part.reorderThreshold;
     final isWarning =
@@ -879,6 +1331,21 @@ class _AnalyticsViewState extends State<AnalyticsView>
             children: [
               Row(
                 children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    margin: const EdgeInsets.only(right: 12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.muted,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppTheme.divider),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: part.imageBytes == null
+                        ? const Icon(Icons.inventory_2_outlined,
+                            color: AppTheme.textSecondary, size: 22)
+                        : Image.memory(part.imageBytes!, fit: BoxFit.cover),
+                  ),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -957,7 +1424,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
                     children: [
                       TextButton(
                         onPressed: () =>
-                            _showEditPartSheet(context, existingPart: part),
+                            _showEditPartDialog(context, existingPart: part),
                         style: TextButton.styleFrom(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 10, vertical: 4)),
@@ -1252,6 +1719,74 @@ class _AnalyticsViewState extends State<AnalyticsView>
     );
   }
 
+  (String, Color) _equipmentStatus(String status) {
+    switch (status) {
+      case 'MAINTENANCE':
+        return ('Maintenance', AppTheme.warning);
+      case 'OFFLINE':
+        return ('Offline', AppTheme.error);
+      case 'DECOMMISSIONED':
+        return ('Retired', AppTheme.textSecondary);
+      default:
+        return ('Operational', AppTheme.success);
+    }
+  }
+
+  Widget _equipmentMetaChip(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: AppTheme.muted,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppTheme.divider),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: AppTheme.textSecondary),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 11,
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _equipmentMetric(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppTheme.textSecondary,
+            fontSize: 11,
+            fontFamily: 'Outfit',
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: AppTheme.textPrimary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            fontFamily: 'Outfit',
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _contactChip(IconData icon, String text) {
     return Row(
       children: [
@@ -1271,6 +1806,269 @@ class _AnalyticsViewState extends State<AnalyticsView>
 }
 
 // ─── QR SCANNER SHEET ────────────────────────────────────────────────────────
+
+class _PartEditorDialog extends StatefulWidget {
+  final SparePart? existingPart;
+  final SparePart? prefill;
+
+  const _PartEditorDialog({this.existingPart, this.prefill});
+
+  @override
+  State<_PartEditorDialog> createState() => _PartEditorDialogState();
+}
+
+class _PartEditorDialogState extends State<_PartEditorDialog> {
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _modelCtrl;
+  late final TextEditingController _qtyCtrl;
+  late final TextEditingController _minCtrl;
+  late final TextEditingController _unitCtrl;
+  late final TextEditingController _locationCtrl;
+  late final TextEditingController _lastRestockCtrl;
+  late final TextEditingController _notesCtrl;
+  Uint8List? _imageBytes;
+  String _imageFileName = '';
+
+  @override
+  void initState() {
+    super.initState();
+    final src = widget.existingPart ?? widget.prefill;
+    _nameCtrl = TextEditingController(text: src?.name ?? '');
+    _modelCtrl = TextEditingController(text: src?.compatibleModel ?? '');
+    _qtyCtrl = TextEditingController(text: src?.quantity.toString() ?? '');
+    _minCtrl =
+        TextEditingController(text: src?.reorderThreshold.toString() ?? '');
+    _unitCtrl = TextEditingController(text: src?.unit ?? 'pcs');
+    _locationCtrl =
+        TextEditingController(text: src?.location ?? 'General Store');
+    _lastRestockCtrl = TextEditingController(
+      text: widget.existingPart?.lastRestocked ??
+          DateFormat('yyyy-MM-dd').format(DateTime.now()),
+    );
+    _notesCtrl = TextEditingController(text: src?.notes ?? '');
+    _imageBytes = src?.imageBytes;
+    _imageFileName = src?.imageFileName ?? '';
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _modelCtrl.dispose();
+    _qtyCtrl.dispose();
+    _minCtrl.dispose();
+    _unitCtrl.dispose();
+    _locationCtrl.dispose();
+    _lastRestockCtrl.dispose();
+    _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.image,
+      withData: true,
+    );
+    final file = result?.files.single;
+    if (file == null || file.bytes == null) return;
+    setState(() {
+      _imageBytes = file.bytes;
+      _imageFileName = file.name;
+    });
+  }
+
+  void _save() {
+    if (_nameCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Part name is required')),
+      );
+      return;
+    }
+
+    Navigator.pop(
+      context,
+      SparePart(
+        id: widget.existingPart?.id,
+        name: _nameCtrl.text.trim(),
+        compatibleModel: _modelCtrl.text.trim(),
+        quantity: int.tryParse(_qtyCtrl.text) ?? 0,
+        reorderThreshold: int.tryParse(_minCtrl.text) ?? 1,
+        location: _locationCtrl.text.trim().isEmpty
+            ? 'General Store'
+            : _locationCtrl.text.trim(),
+        unit: _unitCtrl.text.trim().isEmpty ? 'pcs' : _unitCtrl.text.trim(),
+        lastRestocked: _lastRestockCtrl.text.trim(),
+        notes: _notesCtrl.text.trim(),
+        imageFileName: _imageFileName,
+        imageBytes: _imageBytes,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEditing = widget.existingPart != null;
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 720,
+          maxHeight: MediaQuery.of(context).size.height * 0.88,
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(9),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      isEditing
+                          ? Icons.inventory_2_outlined
+                          : Icons.add_box_outlined,
+                      color: AppTheme.primary,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      isEditing ? 'Edit inventory item' : 'Add inventory item',
+                      style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'Outfit',
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              InkWell(
+                onTap: _pickImage,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  height: 150,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: AppTheme.muted,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppTheme.divider),
+                  ),
+                  child: _imageBytes == null
+                      ? const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_photo_alternate_outlined,
+                                color: AppTheme.textSecondary, size: 30),
+                            SizedBox(height: 8),
+                            Text(
+                              'Add item image',
+                              style: TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        )
+                      : ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.memory(_imageBytes!, fit: BoxFit.cover),
+                        ),
+                ),
+              ),
+              if (_imageBytes != null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _imageFileName.isEmpty
+                            ? 'Image attached'
+                            : _imageFileName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 12,
+                          fontFamily: 'Outfit',
+                        ),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => setState(() {
+                        _imageBytes = null;
+                        _imageFileName = '';
+                      }),
+                      icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                      label: const Text('Remove'),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 18),
+              _input('Part Name / Identifier', _nameCtrl),
+              _input('Compatible Machine Model', _modelCtrl),
+              Row(
+                children: [
+                  Expanded(child: _input('Quantity', _qtyCtrl, isNumber: true)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                      child:
+                          _input('Min. Threshold', _minCtrl, isNumber: true)),
+                ],
+              ),
+              Row(
+                children: [
+                  Expanded(child: _input('Unit', _unitCtrl)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _input('Storage Location', _locationCtrl)),
+                ],
+              ),
+              _input('Last Restocked', _lastRestockCtrl),
+              _input('Internal Notes', _notesCtrl),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton.icon(
+                  onPressed: _save,
+                  icon: const Icon(Icons.save_outlined, size: 18),
+                  label: Text(isEditing ? 'Save changes' : 'Add to inventory'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _input(String label, TextEditingController controller,
+      {bool isNumber = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: TextField(
+        controller: controller,
+        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+        decoration: InputDecoration(labelText: label),
+      ),
+    );
+  }
+}
 
 class _QrScannerSheet extends StatefulWidget {
   const _QrScannerSheet();

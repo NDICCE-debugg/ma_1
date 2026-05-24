@@ -16,17 +16,19 @@ class CollaborationView extends StatefulWidget {
   State<CollaborationView> createState() => _CollaborationViewState();
 }
 
-class _CollaborationViewState extends State<CollaborationView> with SingleTickerProviderStateMixin {
+class _CollaborationViewState extends State<CollaborationView>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  
+
   bool _isSearching = false;
   final TextEditingController _searchCtrl = TextEditingController();
 
-  final List<Map<String, dynamic>> _chats = [
+  List<Map<String, dynamic>> _chats = [
     {
       "id": "dr-chipo-moyo",
       "name": "Dr. Chipo Moyo",
-      "last_msg": "Urgent: ICU Aeonmed VG70 Ventilator has a constant 'Low O2 Pressure' fault alarm. Purity cell reading at 88%.",
+      "last_msg":
+          "Urgent: ICU Aeonmed VG70 Ventilator has a constant 'Low O2 Pressure' fault alarm. Purity cell reading at 88%.",
       "time": "10:45 AM",
       "unread": 2,
       "online": true
@@ -34,7 +36,8 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
     {
       "id": "farai-gumbo",
       "name": "Farai Gumbo",
-      "last_msg": "Evita V500 PEEP valve calibration test complete. Volume leakage check passed, ready to redeploy.",
+      "last_msg":
+          "Evita V500 PEEP valve calibration test complete. Volume leakage check passed, ready to redeploy.",
       "time": "Yesterday",
       "unread": 0,
       "online": false
@@ -42,7 +45,8 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
     {
       "id": "tendai-chidi",
       "name": "Tendai Chidi",
-      "last_msg": "Central oxygen plant manifold pressure dropping below 4.2 bar. Manually routing to reserve cylinder banks.",
+      "last_msg":
+          "Central oxygen plant manifold pressure dropping below 4.2 bar. Manually routing to reserve cylinder banks.",
       "time": "May 22",
       "unread": 1,
       "online": true
@@ -52,10 +56,11 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
   final List<Map<String, dynamic>> _calls = [
     {
       "name": "Dr. Chipo Moyo",
-      "type": "voice", 
-      "direction": "incoming", 
+      "type": "voice",
+      "direction": "incoming",
       "time": "Today, 10:45 AM",
       "status": "Low O2 Alarm Fault (12m 4s)",
+      "phone": "+263772123456",
       "online": true,
     },
     {
@@ -64,6 +69,7 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
       "direction": "outgoing",
       "time": "Yesterday, 15:30",
       "status": "PEEP Valve Calibrated (8m 15s)",
+      "phone": "+263773456789",
       "online": false,
     },
     {
@@ -72,6 +78,7 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
       "direction": "missed",
       "time": "Yesterday, 09:15",
       "status": "Manifold Pressure Drop",
+      "phone": "+263774567890",
       "online": true,
     },
   ];
@@ -91,6 +98,7 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
 
   List<Map<String, dynamic>> _contacts = [];
   bool _isLoadingContacts = false;
+  bool _isLoadingConversations = false;
 
   bool _isGenerating = false;
   String? _generatedMeetLink;
@@ -99,15 +107,35 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    
+
     // Connect with current credentials
-    ChatService.instance.connect(ChatService.instance.currentUserId ?? 'UNKNOWN'); 
-    _loadRealContacts();
+    ChatService.instance
+        .connect(ChatService.instance.currentUserId ?? 'UNKNOWN');
+    _loadCommsData();
+  }
+
+  Future<void> _loadCommsData() async {
+    setState(() {
+      _isLoadingContacts = true;
+      _isLoadingConversations = true;
+    });
+    final results = await Future.wait([
+      ChatService.instance.getContacts(),
+      ChatService.instance.getConversations(),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _contacts = results[0];
+      _chats = results[1];
+      _isLoadingContacts = false;
+      _isLoadingConversations = false;
+    });
   }
 
   void _loadRealContacts() async {
     setState(() => _isLoadingContacts = true);
     final contacts = await ChatService.instance.getContacts();
+    if (!mounted) return;
     setState(() {
       _contacts = contacts;
       _isLoadingContacts = false;
@@ -127,22 +155,35 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
         _chats.insert(0, {
           "id": contact['id'],
           "name": contact['name'],
-          "last_msg": "Conversation started",
-          "time": DateFormat('HH:mm').format(DateTime.now()),
+          "last_message": "Conversation started",
+          "last_message_time": DateTime.now().toUtc().toIso8601String(),
           "unread": 0,
-          "online": contact['online'] == 1 || contact['online'] == true
+          "online": contact['online'] == 1 || contact['online'] == true,
+          "role": contact['role'] ?? contact['reg_number'] ?? "Technician",
         });
       });
     }
     Navigator.push(
-      context, 
+        context,
+        MaterialPageRoute(
+            builder: (_) => ChatScreen(
+                  conversationId: contact['id'],
+                  contactName: contact['name'],
+                  phoneNumber: contact['phone']?.toString(),
+                  isOnline: contact['online'] == 1 || contact['online'] == true,
+                )));
+  }
+
+  void _startCall(Map<String, dynamic> contact, {required bool isVideo}) {
+    Navigator.push(
+      context,
       MaterialPageRoute(
-        builder: (_) => ChatScreen(
-          conversationId: contact['id'], 
+        builder: (_) => CallScreen(
           contactName: contact['name'],
-          isOnline: contact['online'] == 1 || contact['online'] == true,
-        )
-      )
+          phoneNumber: contact['phone']?.toString(),
+          isVideoCall: isVideo,
+        ),
+      ),
     );
   }
 
@@ -152,33 +193,51 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("New Message", style: TextStyle(color: AppTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
+            const Text("New Message",
+                style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             ListTile(
-              leading: const CircleAvatar(backgroundColor: AppTheme.primary, child: Icon(Icons.group_outlined, color: Colors.white)),
-              title: const Text("Create Group Chat", style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w600)),
+              leading: const CircleAvatar(
+                  backgroundColor: AppTheme.primary,
+                  child: Icon(Icons.groups_2_outlined, color: Colors.white)),
+              title: const Text("Create Group Chat",
+                  style: TextStyle(
+                      color: AppTheme.primary, fontWeight: FontWeight.w600)),
               onTap: () {
                 Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Group feature pending update.")));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text("Group feature pending update.")));
               },
             ),
             const Divider(height: 32),
-            
-            const Text("CONTACTS", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.textSecondary, letterSpacing: 1)),
+            const Text("CONTACTS",
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textSecondary,
+                    letterSpacing: 1)),
             const SizedBox(height: 12),
             if (_isLoadingContacts)
-              const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
+              const Center(
+                  child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: CircularProgressIndicator()))
             else if (_contacts.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 20),
-                child: Text("No registered technicians found.", style: TextStyle(color: AppTheme.textSecondary)),
+                child: Text("No registered technicians found.",
+                    style: TextStyle(color: AppTheme.textSecondary)),
               )
             else
               Expanded(
@@ -188,17 +247,128 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: CircleAvatar(
-                        backgroundColor: AppTheme.background, 
-                        child: Text(c['name'].toString().substring(0, 1).toUpperCase(), 
-                          style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold))
-                      ),
-                      title: Text(c['name'], style: const TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: Text(isOnline ? "Active now" : "Offline", 
-                        style: TextStyle(color: isOnline ? AppTheme.success : AppTheme.textSecondary, fontSize: 12)),
+                          backgroundColor: AppTheme.background,
+                          child: Text(
+                              c['name']
+                                  .toString()
+                                  .substring(0, 1)
+                                  .toUpperCase(),
+                              style: const TextStyle(
+                                  color: AppTheme.primary,
+                                  fontWeight: FontWeight.bold))),
+                      title: Text(c['name'],
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text(
+                          [
+                            c['role'] ?? c['reg_number'],
+                            c['phone'],
+                            isOnline ? 'Active now' : 'Offline',
+                          ]
+                              .where((value) =>
+                                  value != null &&
+                                  value.toString().trim().isNotEmpty)
+                              .join(' • '),
+                          style: TextStyle(
+                              color: isOnline
+                                  ? AppTheme.success
+                                  : AppTheme.textSecondary,
+                              fontSize: 12)),
                       onTap: () {
                         Navigator.pop(ctx);
                         _startNewChat(c);
                       },
+                    );
+                  }).toList(),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showNewCallPicker() {
+    _loadRealContacts();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Start Call",
+                style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            if (_isLoadingContacts)
+              const Center(
+                  child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: CircularProgressIndicator()))
+            else
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: _contacts.map((c) {
+                    final isOnline = c['online'] == 1 || c['online'] == true;
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        backgroundColor:
+                            AppTheme.primary.withValues(alpha: 0.08),
+                        child: Text(
+                            c['name'].toString().substring(0, 1).toUpperCase(),
+                            style: const TextStyle(
+                                color: AppTheme.primary,
+                                fontWeight: FontWeight.bold)),
+                      ),
+                      title: Text(c['name'],
+                          style: const TextStyle(fontWeight: FontWeight.w700)),
+                      subtitle: Text(
+                          [
+                            c['phone'],
+                            isOnline
+                                ? "Available now"
+                                : "Offline - call can still be placed",
+                          ]
+                              .where((value) =>
+                                  value != null &&
+                                  value.toString().trim().isNotEmpty)
+                              .join(' • '),
+                          style: TextStyle(
+                              color: isOnline
+                                  ? AppTheme.success
+                                  : AppTheme.textSecondary,
+                              fontSize: 12)),
+                      trailing: Wrap(
+                        spacing: 8,
+                        children: [
+                          IconButton(
+                            tooltip: "Voice call",
+                            icon: const Icon(Icons.call_rounded,
+                                color: AppTheme.primary),
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              _startCall(c, isVideo: false);
+                            },
+                          ),
+                          IconButton(
+                            tooltip: "Video call",
+                            icon: const Icon(Icons.video_camera_front_outlined,
+                                color: AppTheme.secondary),
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              _startCall(c, isVideo: true);
+                            },
+                          ),
+                        ],
+                      ),
                     );
                   }).toList(),
                 ),
@@ -215,43 +385,59 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, left: 24, right: 24, top: 24),
+        padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            left: 24,
+            right: 24,
+            top: 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("Schedule Clinical Meeting", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const Text("Schedule Clinical Meeting",
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 24),
             TextField(
-              controller: topicCtrl, 
-              decoration: const InputDecoration(labelText: "Meeting Agenda / Topic")
-            ),
+                controller: topicCtrl,
+                decoration:
+                    const InputDecoration(labelText: "Meeting Agenda / Topic")),
             const SizedBox(height: 20),
             Row(
               children: [
-                Expanded(child: OutlinedButton.icon(onPressed: (){}, icon: const Icon(Icons.calendar_today, size: 16), label: const Text("Select Date"))),
+                Expanded(
+                    child: OutlinedButton.icon(
+                        onPressed: () {},
+                        icon: const Icon(Icons.calendar_today, size: 16),
+                        label: const Text("Select Date"))),
                 const SizedBox(width: 12),
-                Expanded(child: OutlinedButton.icon(onPressed: (){}, icon: const Icon(Icons.access_time, size: 16), label: const Text("Set Time"))),
+                Expanded(
+                    child: OutlinedButton.icon(
+                        onPressed: () {},
+                        icon: const Icon(Icons.access_time, size: 16),
+                        label: const Text("Set Time"))),
               ],
             ),
             const SizedBox(height: 32),
             SizedBox(
-              width: double.infinity, 
-              height: 50, 
-              child: ElevatedButton(
-                onPressed: () { 
-                  if (topicCtrl.text.isNotEmpty) { 
-                    setState(() { 
-                      _meetings.add({"topic": topicCtrl.text, "time": "Today, 14:00", "host": "You"}); 
-                    }); 
-                    Navigator.pop(ctx); 
-                  } 
-                }, 
-                child: const Text("Schedule Meeting")
-              )
-            ),
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                    onPressed: () {
+                      if (topicCtrl.text.isNotEmpty) {
+                        setState(() {
+                          _meetings.add({
+                            "topic": topicCtrl.text,
+                            "time": "Today, 14:00",
+                            "host": "You"
+                          });
+                        });
+                        Navigator.pop(ctx);
+                      }
+                    },
+                    child: const Text("Schedule Meeting"))),
             const SizedBox(height: 32),
           ],
         ),
@@ -275,85 +461,207 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       if (_isSearching)
-                        Expanded(child: TextField(controller: _searchCtrl, autofocus: true, decoration: const InputDecoration(hintText: "Search contacts...", border: InputBorder.none, filled: false)))
+                        Expanded(
+                            child: TextField(
+                                controller: _searchCtrl,
+                                autofocus: true,
+                                onChanged: (_) => setState(() {}),
+                                decoration: const InputDecoration(
+                                    hintText:
+                                        "Search contacts, calls, meetings...",
+                                    border: InputBorder.none,
+                                    filled: false)))
                       else
-                        const Text("Team Communication", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.primaryDark)),
+                        const Expanded(
+                            child: Text("Team Communication",
+                                style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.primaryDark))),
                       Row(
                         children: [
-                          IconButton(icon: Icon(_isSearching ? Icons.close : Icons.search, color: AppTheme.primary), onPressed: () => setState(() { _isSearching = !_isSearching; if (!_isSearching) _searchCtrl.clear(); })),
+                          IconButton(
+                              icon: Icon(
+                                  _isSearching ? Icons.close : Icons.search,
+                                  color: AppTheme.primary),
+                              onPressed: () => setState(() {
+                                    _isSearching = !_isSearching;
+                                    if (!_isSearching) _searchCtrl.clear();
+                                  })),
+                          IconButton(
+                              icon: const Icon(Icons.refresh_rounded,
+                                  color: AppTheme.primary),
+                              onPressed: _loadCommsData),
                         ],
                       )
                     ],
                   ),
                 ),
                 TabBar(
-                  controller: _tabController, 
-                  indicatorColor: AppTheme.primary, 
-                  labelColor: AppTheme.primary, 
-                  unselectedLabelColor: AppTheme.textSecondary, 
-                  labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  tabs: const [Tab(text: "CHATS"), Tab(text: "CALLS"), Tab(text: "MEETINGS")],
+                  controller: _tabController,
+                  indicatorColor: AppTheme.primary,
+                  labelColor: AppTheme.primary,
+                  unselectedLabelColor: AppTheme.textSecondary,
+                  labelStyle: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 13),
+                  tabs: const [
+                    Tab(text: "CHATS"),
+                    Tab(text: "CALLS"),
+                    Tab(text: "MEETINGS")
+                  ],
                 ),
               ],
             ),
           ),
           Expanded(
-            child: TabBarView(
-              controller: _tabController, 
-              children: [_buildChatList(), _buildCallHistory(), _buildMeetingsList()]
-            )
-          ),
+              child: TabBarView(controller: _tabController, children: [
+            _buildChatList(),
+            _buildCallHistory(),
+            _buildMeetingsList()
+          ])),
         ],
       ),
     );
   }
 
   Widget _buildChatList() {
+    final query = _searchCtrl.text.trim().toLowerCase();
+    final chats = query.isEmpty
+        ? _chats
+        : _chats.where((chat) {
+            return chat['name'].toString().toLowerCase().contains(query) ||
+                (chat['last_message'] ?? chat['last_msg'] ?? '')
+                    .toString()
+                    .toLowerCase()
+                    .contains(query);
+          }).toList();
+
     return Stack(
       children: [
-        if (_chats.isEmpty)
+        if (_isLoadingConversations)
+          const Center(child: CircularProgressIndicator())
+        else if (chats.isEmpty)
           Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center, 
-              children: [
-                Icon(Icons.chat_bubble_outline, size: 64, color: AppTheme.neutral.withValues(alpha: 0.4)), 
-                const SizedBox(height: 16), 
-                const Text("No Active Conversations", style: TextStyle(color: AppTheme.textSecondary, fontSize: 16, fontWeight: FontWeight.w500)),
-              ]
-            ).animate().fadeIn()
-          )
+              child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                Icon(Icons.forum_outlined,
+                    size: 64, color: AppTheme.neutral.withValues(alpha: 0.4)),
+                const SizedBox(height: 16),
+                const Text("No Active Conversations",
+                    style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500)),
+              ]).animate().fadeIn())
         else
           ListView.separated(
-            itemCount: _chats.length,
-            separatorBuilder: (context, index) => const Divider(height: 1, indent: 80, color: AppTheme.divider),
+            padding: const EdgeInsets.only(top: 8, bottom: 88),
+            itemCount: chats.length,
+            separatorBuilder: (context, index) =>
+                const Divider(height: 1, indent: 80, color: AppTheme.divider),
             itemBuilder: (ctx, i) {
-              final chat = _chats[i];
+              final chat = chats[i];
+              final unread = chat['unread'] as int? ?? 0;
+              final lastMessage =
+                  chat['last_message'] ?? chat['last_msg'] ?? '';
+              final lastTime = _formatConversationTime(
+                  chat['last_message_time'] ?? chat['time']);
               return ListTile(
                 tileColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 leading: CircleAvatar(
-                  radius: 28,
-                  backgroundColor: AppTheme.primary.withValues(alpha: 0.1), 
-                  child: Text(chat['name'].substring(0, 1), style: const TextStyle(color: AppTheme.primary, fontSize: 20, fontWeight: FontWeight.bold))
+                    radius: 28,
+                    backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
+                    child: Text(chat['name'].substring(0, 1),
+                        style: const TextStyle(
+                            color: AppTheme.primary,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold))),
+                title: Row(
+                  children: [
+                    Expanded(
+                        child: Text(chat['name'],
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 16))),
+                    if (chat['online'] == true)
+                      Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                              color: AppTheme.success, shape: BoxShape.circle)),
+                  ],
                 ),
-                title: Text(chat['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                subtitle: Text(chat['last_msg'], style: const TextStyle(color: AppTheme.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
-                trailing: Text(chat['time'], style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
-                onTap: () { Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(conversationId: chat['id'], contactName: chat['name'], isOnline: chat['online']))); },
+                subtitle: Text(lastMessage.toString(),
+                    style: const TextStyle(color: AppTheme.textSecondary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+                trailing: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(lastTime,
+                        style: const TextStyle(
+                            color: AppTheme.textSecondary, fontSize: 12)),
+                    if (unread > 0) ...[
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                            color: AppTheme.primary,
+                            borderRadius: BorderRadius.circular(12)),
+                        child: Text('$unread',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ],
+                ),
+                onTap: () {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => ChatScreen(
+                              conversationId: chat['id'],
+                              contactName: chat['name'],
+                              phoneNumber: chat['phone']?.toString(),
+                              isOnline: chat['online'])));
+                },
               );
             },
           ),
         Positioned(
-          bottom: 24, right: 20, 
-          child: FloatingActionButton(
-            heroTag: "new_chat", 
-            backgroundColor: AppTheme.primary, 
-            onPressed: _showNewChatPicker, 
-            child: const Icon(Icons.chat_outlined, color: Colors.white)
-          ).animate().scale(duration: 300.ms, curve: Curves.easeOutBack)
-        ),
+            bottom: 24,
+            right: 20,
+            child: FloatingActionButton(
+                    heroTag: "new_chat",
+                    backgroundColor: AppTheme.primary,
+                    onPressed: _showNewChatPicker,
+                    child: const Icon(Icons.edit_square, color: Colors.white))
+                .animate()
+                .scale(duration: 300.ms, curve: Curves.easeOutBack)),
       ],
     );
+  }
+
+  String _formatConversationTime(dynamic value) {
+    if (value == null) return '';
+    final raw = value.toString();
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return raw;
+    final local = parsed.toLocal();
+    final now = DateTime.now();
+    if (DateUtils.isSameDay(local, now)) {
+      return DateFormat('HH:mm').format(local);
+    }
+    if (DateUtils.isSameDay(local, now.subtract(const Duration(days: 1)))) {
+      return 'Yesterday';
+    }
+    return DateFormat('MMM d').format(local);
   }
 
   Widget _buildCallHistory() {
@@ -361,26 +669,30 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
       children: [
         if (_calls.isEmpty)
           Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center, 
-              children: [
-                Icon(Icons.phone_outlined, size: 64, color: AppTheme.neutral.withValues(alpha: 0.4)), 
-                const SizedBox(height: 16), 
-                const Text("No Recent Calls", style: TextStyle(color: AppTheme.textSecondary, fontSize: 16, fontWeight: FontWeight.w500))
-              ]
-            ).animate().fadeIn()
-          )
+              child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                Icon(Icons.call_rounded,
+                    size: 64, color: AppTheme.neutral.withValues(alpha: 0.4)),
+                const SizedBox(height: 16),
+                const Text("No Recent Calls",
+                    style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500))
+              ]).animate().fadeIn())
         else
           ListView.separated(
             padding: const EdgeInsets.only(top: 8, bottom: 80),
             itemCount: _calls.length,
-            separatorBuilder: (context, index) => const Divider(height: 1, indent: 80, color: AppTheme.divider),
+            separatorBuilder: (context, index) =>
+                const Divider(height: 1, indent: 80, color: AppTheme.divider),
             itemBuilder: (ctx, i) {
               final call = _calls[i];
               final isVideo = call['type'] == 'video';
               final isMissed = call['direction'] == 'missed';
               final isIncoming = call['direction'] == 'incoming';
-              
+
               IconData directionIcon;
               Color directionColor;
               if (isMissed) {
@@ -396,40 +708,44 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
 
               return ListTile(
                 tileColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 leading: CircleAvatar(
-                  radius: 28,
-                  backgroundColor: AppTheme.primary.withValues(alpha: 0.1), 
-                  child: Text(
-                    call['name'].substring(0, 1), 
-                    style: const TextStyle(color: AppTheme.primary, fontSize: 20, fontWeight: FontWeight.bold)
-                  )
-                ),
-                title: Text(call['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    radius: 28,
+                    backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
+                    child: Text(call['name'].substring(0, 1),
+                        style: const TextStyle(
+                            color: AppTheme.primary,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold))),
+                title: Text(call['name'],
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 16)),
                 subtitle: Padding(
                   padding: const EdgeInsets.only(top: 4.0),
                   child: Row(
                     children: [
                       Icon(directionIcon, size: 14, color: directionColor),
                       const SizedBox(width: 6),
-                      Text(
-                        "${call['status']} • ${call['time']}", 
-                        style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)
-                      ),
+                      Text("${call['status']} • ${call['time']}",
+                          style: const TextStyle(
+                              color: AppTheme.textSecondary, fontSize: 12)),
                     ],
                   ),
                 ),
                 trailing: IconButton(
                   icon: Icon(
-                    isVideo ? Icons.videocam_outlined : Icons.phone_outlined, 
-                    color: AppTheme.secondary
-                  ),
+                      isVideo
+                          ? Icons.video_camera_front_outlined
+                          : Icons.call_rounded,
+                      color: AppTheme.secondary),
                   onPressed: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (_) => CallScreen(
                           contactName: call['name'],
+                          phoneNumber: call['phone']?.toString(),
                           isVideoCall: isVideo,
                         ),
                       ),
@@ -440,14 +756,14 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
             },
           ),
         Positioned(
-          bottom: 24, right: 20, 
-          child: FloatingActionButton(
-            heroTag: "new_call", 
-            backgroundColor: AppTheme.secondary, 
-            onPressed: _showNewChatPicker, 
-            child: const Icon(Icons.add_call, color: Colors.white)
-          )
-        ),
+            bottom: 24,
+            right: 20,
+            child: FloatingActionButton(
+                heroTag: "new_call",
+                backgroundColor: AppTheme.secondary,
+                onPressed: _showNewCallPicker,
+                child: const Icon(Icons.add_ic_call_rounded,
+                    color: Colors.white))),
       ],
     );
   }
@@ -455,9 +771,12 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
   String _generateRandomMeetingCode() {
     final rand = math.Random();
     const chars = 'abcdefghijklmnopqrstuvwxyz';
-    String part1 = List.generate(3, (index) => chars[rand.nextInt(chars.length)]).join();
-    String part2 = List.generate(4, (index) => chars[rand.nextInt(chars.length)]).join();
-    String part3 = List.generate(3, (index) => chars[rand.nextInt(chars.length)]).join();
+    String part1 =
+        List.generate(3, (index) => chars[rand.nextInt(chars.length)]).join();
+    String part2 =
+        List.generate(4, (index) => chars[rand.nextInt(chars.length)]).join();
+    String part3 =
+        List.generate(3, (index) => chars[rand.nextInt(chars.length)]).join();
     return "$part1-$part2-$part3";
   }
 
@@ -485,7 +804,8 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
             const SizedBox(height: 24),
             const Row(
               children: [
-                Icon(Icons.calendar_month_outlined, size: 18, color: AppTheme.primary),
+                Icon(Icons.event_note_rounded,
+                    size: 18, color: AppTheme.primary),
                 SizedBox(width: 8),
                 Text(
                   "Scheduled Consultations",
@@ -510,11 +830,16 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.video_camera_back_outlined, size: 48, color: AppTheme.neutral.withValues(alpha: 0.3)),
+                    Icon(Icons.video_chat_outlined,
+                        size: 48,
+                        color: AppTheme.neutral.withValues(alpha: 0.3)),
                     const SizedBox(height: 12),
                     const Text(
                       "No Upcoming Consultations",
-                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 14, fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500),
                     ),
                     const SizedBox(height: 4),
                     const Text(
@@ -526,7 +851,8 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
               ).animate().fadeIn()
             else
               ..._meetings.map((m) => _buildMeetingCard(m)),
-            const SizedBox(height: 100), // padding at bottom so FAB doesn't cover content
+            const SizedBox(
+                height: 100), // padding at bottom so FAB doesn't cover content
           ],
         ),
         Positioned(
@@ -538,20 +864,27 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
               FloatingActionButton.extended(
                 heroTag: "schedule",
                 backgroundColor: Colors.white,
-                icon: const Icon(Icons.calendar_today_outlined, color: AppTheme.primary, size: 18),
-                label: const Text("Schedule", style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+                icon: const Icon(Icons.edit_calendar_rounded,
+                    color: AppTheme.primary, size: 18),
+                label: const Text("Schedule",
+                    style: TextStyle(
+                        color: AppTheme.primary, fontWeight: FontWeight.bold)),
                 onPressed: _showScheduleMeetingSheet,
               ),
               const SizedBox(height: 16),
               FloatingActionButton.extended(
                 heroTag: "start",
                 backgroundColor: AppTheme.primary,
-                icon: const Icon(Icons.video_call, color: Colors.white),
-                label: const Text("Start Now", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                icon: const Icon(Icons.video_camera_front_rounded,
+                    color: Colors.white),
+                label: const Text("Start Now",
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold)),
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const MeetingRoomView(meetingTopic: "Instant Consultation"),
+                    builder: (_) => const MeetingRoomView(
+                        meetingTopic: "Instant Consultation"),
                   ),
                 ),
               ),
@@ -575,16 +908,25 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                 color: AppTheme.background,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.videocam_outlined, color: AppTheme.primary),
+              child: const Icon(Icons.video_camera_front_outlined,
+                  color: AppTheme.primary),
             ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(m['topic'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, fontFamily: 'Outfit')),
+                  Text(m['topic'],
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          fontFamily: 'Outfit')),
                   const SizedBox(height: 4),
-                  Text("Scheduled: ${m['time']}", style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12, fontFamily: 'Outfit')),
+                  Text("Scheduled: ${m['time']}",
+                      style: const TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 12,
+                          fontFamily: 'Outfit')),
                 ],
               ),
             ),
@@ -669,7 +1011,7 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
-                            Icons.video_camera_front_outlined,
+                            Icons.personal_video_outlined,
                             color: AppTheme.iceBlue,
                             size: 24,
                           ),
@@ -725,7 +1067,7 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                             ),
                           ),
                           onPressed: _generateClinicalMeetLink,
-                          icon: const Icon(Icons.bolt_rounded, size: 20),
+                          icon: const Icon(Icons.flash_on_rounded, size: 20),
                           label: const Text(
                             "Generate Instant Meeting Link",
                             style: TextStyle(
@@ -747,7 +1089,8 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                                 height: 16,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(AppTheme.iceBlue),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      AppTheme.iceBlue),
                                 ),
                               ),
                               SizedBox(width: 12),
@@ -774,15 +1117,18 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                       ),
                     ] else if (_generatedMeetLink != null) ...[
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
                         decoration: BoxDecoration(
                           color: Colors.black26,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppTheme.iceBlue.withValues(alpha: 0.2)),
+                          border: Border.all(
+                              color: AppTheme.iceBlue.withValues(alpha: 0.2)),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.lock_outline_rounded, color: AppTheme.success, size: 16),
+                            const Icon(Icons.lock_outline_rounded,
+                                color: AppTheme.success, size: 16),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -799,19 +1145,26 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                             const SizedBox(width: 8),
                             GestureDetector(
                               onTap: () {
-                                Clipboard.setData(ClipboardData(text: _generatedMeetLink!));
+                                Clipboard.setData(
+                                    ClipboardData(text: _generatedMeetLink!));
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     behavior: SnackBarBehavior.floating,
                                     backgroundColor: AppTheme.midnightBlue,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(12)),
                                     content: const Row(
                                       children: [
-                                        Icon(Icons.check_circle, color: AppTheme.iceBlue, size: 20),
+                                        Icon(Icons.check_circle,
+                                            color: AppTheme.iceBlue, size: 20),
                                         SizedBox(width: 10),
                                         Text(
                                           "Meet link copied to clipboard!",
-                                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Outfit'),
+                                          style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontFamily: 'Outfit'),
                                         ),
                                       ],
                                     ),
@@ -835,7 +1188,8 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.white,
                                 side: const BorderSide(color: Colors.white30),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
@@ -862,7 +1216,8 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppTheme.success,
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
@@ -877,7 +1232,8 @@ class _CollaborationViewState extends State<CollaborationView> with SingleTicker
                                   ),
                                 );
                               },
-                              icon: const Icon(Icons.video_call_rounded, size: 18),
+                              icon: const Icon(Icons.video_call_rounded,
+                                  size: 18),
                               label: const Text(
                                 "Launch Meet",
                                 style: TextStyle(

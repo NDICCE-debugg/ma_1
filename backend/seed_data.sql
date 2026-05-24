@@ -77,7 +77,132 @@ VALUES
   ((SELECT id FROM public.spare_parts WHERE name = 'Sodalime Canister' LIMIT 1),           (SELECT id FROM public.suppliers WHERE name = 'Harare Surgical & Diagnostics' LIMIT 1))
 ON CONFLICT (part_id, supplier_id) DO NOTHING;
 
--- 5. Seed 'service_logs' Table
+-- 5. Ensure communication tables support real on-call contacts
+CREATE TABLE IF NOT EXISTS public.users (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  email       TEXT UNIQUE,
+  reg_number  TEXT UNIQUE,
+  role        TEXT DEFAULT 'Technician',
+  phone       TEXT DEFAULT '',
+  online      BOOLEAN DEFAULT false,
+  last_seen   TIMESTAMPTZ DEFAULT NOW(),
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS phone TEXT DEFAULT '';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'Technician';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS online BOOLEAN DEFAULT false;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMPTZ DEFAULT NOW();
+
+CREATE TABLE IF NOT EXISTS public.conversations (
+  id                 TEXT PRIMARY KEY,
+  group_name         TEXT,
+  last_message       TEXT DEFAULT '',
+  last_message_time  TIMESTAMPTZ DEFAULT NOW(),
+  is_group           BOOLEAN DEFAULT false,
+  created_at         TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.messages (
+  id               BIGSERIAL PRIMARY KEY,
+  conversation_id  TEXT REFERENCES public.conversations(id) ON DELETE CASCADE,
+  sender_id        TEXT,
+  message_text     TEXT NOT NULL,
+  message_type     TEXT DEFAULT 'text',
+  timestamp        TIMESTAMPTZ DEFAULT NOW()
+);
+
+DO $$ BEGIN
+  EXECUTE 'ALTER TABLE public.users ENABLE ROW LEVEL SECURITY';
+  EXECUTE 'ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY';
+  EXECUTE 'ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY';
+EXCEPTION WHEN others THEN
+  NULL;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'users' AND policyname = 'Allow read users for authenticated users'
+  ) THEN
+    CREATE POLICY "Allow read users for authenticated users"
+      ON public.users FOR SELECT TO authenticated USING (true);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'conversations' AND policyname = 'Allow read conversations for authenticated users'
+  ) THEN
+    CREATE POLICY "Allow read conversations for authenticated users"
+      ON public.conversations FOR SELECT TO authenticated USING (true);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'messages' AND policyname = 'Allow read messages for authenticated users'
+  ) THEN
+    CREATE POLICY "Allow read messages for authenticated users"
+      ON public.messages FOR SELECT TO authenticated USING (true);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'messages' AND policyname = 'Allow insert messages for authenticated users'
+  ) THEN
+    CREATE POLICY "Allow insert messages for authenticated users"
+      ON public.messages FOR INSERT TO authenticated WITH CHECK (true);
+  END IF;
+END $$;
+
+INSERT INTO public.users (id, name, email, reg_number, role, phone, online, last_seen)
+VALUES
+  ('dr-chipo-moyo',    'Dr. Chipo Moyo',    'chipo.moyo@parirenyatwa.co.zw',     'CONSULT-ICU', 'ICU Consultant',            '+263772123456', true,  NOW()),
+  ('farai-gumbo',     'Farai Gumbo',        'farai.gumbo@parirenyatwa.co.zw',    'TECH-VENT',   'Ventilator Technician',     '+263773456789', false, NOW() - INTERVAL '3 hours'),
+  ('tendai-chidi',    'Tendai Chidi',       'tendai.chidi@parirenyatwa.co.zw',   'PLANT-OXY',   'Medical Gas Technician',    '+263774567890', true,  NOW()),
+  ('rudo-nyathi',     'Rudo Nyathi',        'rudo.nyathi@parirenyatwa.co.zw',    'THEATRE-BME', 'Theatre Biomedical Lead',   '+263775678901', true,  NOW()),
+  ('nqobile-dube',    'Nqobile Dube',       'nqobile.dube@parirenyatwa.co.zw',   'IMAGING-BME', 'Imaging Equipment Engineer','+263776789012', false, NOW() - INTERVAL '1 day')
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  email = EXCLUDED.email,
+  reg_number = EXCLUDED.reg_number,
+  role = EXCLUDED.role,
+  phone = EXCLUDED.phone,
+  online = EXCLUDED.online,
+  last_seen = EXCLUDED.last_seen;
+
+INSERT INTO public.conversations (id, group_name, last_message, last_message_time, is_group)
+VALUES
+  ('dr-chipo-moyo', 'Dr. Chipo Moyo', 'Urgent: ICU Aeonmed VG70 has a constant Low O2 Pressure fault alarm.', NOW() - INTERVAL '11 minutes', false),
+  ('farai-gumbo', 'Farai Gumbo', 'Evita V500 PEEP valve calibration test complete. Ready to redeploy.', NOW() - INTERVAL '1 day 2 hours', false),
+  ('tendai-chidi', 'Tendai Chidi', 'Central oxygen plant manifold pressure is dropping below 4.2 bar.', NOW() - INTERVAL '1 day 7 hours', false),
+  ('rudo-nyathi', 'Rudo Nyathi', 'Theatre 2 anaesthetic workstation needs leak-test confirmation.', NOW() - INTERVAL '2 days', false),
+  ('nqobile-dube', 'Nqobile Dube', 'Portable ultrasound probe cable failure logged for review.', NOW() - INTERVAL '3 days', false)
+ON CONFLICT (id) DO UPDATE SET
+  group_name = EXCLUDED.group_name,
+  last_message = EXCLUDED.last_message,
+  last_message_time = EXCLUDED.last_message_time,
+  is_group = EXCLUDED.is_group;
+
+INSERT INTO public.messages (conversation_id, sender_id, message_text, message_type, timestamp)
+SELECT 'dr-chipo-moyo', 'dr-chipo-moyo', 'ICU has an Aeonmed VG70 showing persistent Low O2 Pressure. Please confirm whether we isolate or attempt calibration first.', 'text', NOW() - INTERVAL '18 minutes'
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.messages WHERE conversation_id = 'dr-chipo-moyo' AND sender_id = 'dr-chipo-moyo'
+);
+
+INSERT INTO public.messages (conversation_id, sender_id, message_text, message_type, timestamp)
+SELECT 'farai-gumbo', 'farai-gumbo', 'PEEP valve calibration passed on the Evita V500. I can stay available by phone if the alarm returns.', 'text', NOW() - INTERVAL '1 day 2 hours'
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.messages WHERE conversation_id = 'farai-gumbo' AND sender_id = 'farai-gumbo'
+);
+
+INSERT INTO public.messages (conversation_id, sender_id, message_text, message_type, timestamp)
+SELECT 'tendai-chidi', 'tendai-chidi', 'Oxygen manifold pressure is unstable. Reserve cylinders are online while I inspect the regulator bank.', 'text', NOW() - INTERVAL '1 day 7 hours'
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.messages WHERE conversation_id = 'tendai-chidi' AND sender_id = 'tendai-chidi'
+);
+
+-- 6. Seed 'service_logs' Table
 INSERT INTO public.service_logs (machine_id, error_code, notes)
 VALUES
   ((SELECT id FROM public.machines WHERE serial_number = 'SN-VG70-442' LIMIT 1), 'ERR-TURB-09',  'O2 turbine depletion alert triggered. Ordered replacement turbine from Aeonmed Co. Ltd.'),

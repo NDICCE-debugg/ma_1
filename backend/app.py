@@ -42,7 +42,7 @@ def verify_supabase_token(request):
     
     return False, None
 
-# --- GEMINI 1.5 FLASH AI ENGINE ---
+# --- GEMINI 2.5 FLASH AI ENGINE ---
 def run_gemini_query(query_text):
     # Try finding GEMINI_API_KEY, fallback to OPENAI_API_KEY if configured
     gemini_key = os.environ.get("GEMINI_API_KEY", OPENAI_API_KEY)
@@ -51,13 +51,13 @@ def run_gemini_query(query_text):
         return f"GEMINI UPLINK SECURED. RAG Pipeline online. (Awaiting GEMINI_API_KEY in backend/.env to analyze: '{query_text}')"
         
     try:
-        # Google Gemini 1.5 Flash HTTP API endpoint
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+        # Google Gemini 2.5 Flash HTTP API endpoint
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_key}"
         headers = {"Content-Type": "application/json"}
         
         # Expert clinical engineering system instructions combined with user query
         system_instruction = (
-            "You are BioAssist, an industry-standard AI clinical equipment assistant. "
+            "You are Pulse, an industry-standard AI clinical equipment assistant. "
             "Provide extremely precise, technical, and safe guidelines for repairing or servicing medical machinery."
         )
         
@@ -169,7 +169,7 @@ def predict_health():
 
 if __name__ == '__main__':
     print("--------------------------------------------------")
-    print("BioMed Assistant AI & Predictive Microservice running")
+    print("Pulse AI & Predictive Microservice running")
     print("Port: 5000 | Host: 0.0.0.0")
     print("--------------------------------------------------")
     app.run(debug=True, host='0.0.0.0', port=5000)

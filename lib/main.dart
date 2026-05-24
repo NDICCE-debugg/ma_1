@@ -50,7 +50,7 @@ class MyApp extends StatelessWidget {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'BioMed Assistant',
+      title: 'Pulse',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,

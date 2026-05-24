@@ -17,9 +17,9 @@
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
     <application
-        android:label="ma_1"
+        android:label="Pulse"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/launcher_icon"
         android:usesCleartextTraffic="true"> <!-- ADDED THIS LINE -->
         
         <meta-data android:name="flutterEmbedding" android:value="2" />

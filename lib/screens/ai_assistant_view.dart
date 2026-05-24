@@ -1,14 +1,18 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
 
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/services/auth_service.dart';
+import 'package:ma_1/services/database_helper.dart';
 import 'package:ma_1/services/gemini_service.dart';
+import 'package:ma_1/services/manual_rag_service.dart';
+import 'package:ma_1/widgets/pulse_logo.dart';
 
 // ─── Chat message model ──────────────────────────────────────────────────────
 
@@ -18,14 +22,24 @@ class _ChatMessage {
   final _Role role;
   String text;
   bool isStreaming;
+  final List<GeminiAttachment> attachments;
   final DateTime timestamp;
 
   _ChatMessage({
     required this.role,
     required this.text,
     this.isStreaming = false,
+    this.attachments = const [],
     DateTime? timestamp,
   }) : timestamp = timestamp ?? DateTime.now();
+}
+
+class _PromptMode {
+  final String label;
+  final IconData icon;
+  final String instruction;
+
+  const _PromptMode(this.label, this.icon, this.instruction);
 }
 
 // ─── Suggestion chips ────────────────────────────────────────────────────────
@@ -39,6 +53,33 @@ const List<String> _kSuggestions = [
   'Mindray A5 sodalime canister change',
   'Flow sensor TSI calibration steps',
   'Ventilator PM schedule intervals',
+];
+
+const List<_PromptMode> _kPromptModes = [
+  _PromptMode(
+    'Triage',
+    Icons.manage_search_outlined,
+    'Answer as a fault triage workflow. Start with immediate safety checks, '
+        'then likely causes, tests, and escalation criteria.',
+  ),
+  _PromptMode(
+    'Procedure',
+    Icons.format_list_numbered_outlined,
+    'Answer as a controlled maintenance procedure with tools, prerequisites, '
+        'steps, verification, and documentation notes.',
+  ),
+  _PromptMode(
+    'Parts',
+    Icons.inventory_2_outlined,
+    'Focus on spare parts, compatibility checks, supplier notes, lead-time '
+        'risk, and substitution warnings.',
+  ),
+  _PromptMode(
+    'Explain',
+    Icons.school_outlined,
+    'Teach the concept clearly for a biomedical technician. Keep it concise '
+        'and include what to check on the machine.',
+  ),
 ];
 
 // ─── Main Widget ─────────────────────────────────────────────────────────────
@@ -56,9 +97,16 @@ class _AIAssistantViewState extends State<AIAssistantView> {
   final FocusNode _focusNode = FocusNode();
 
   final List<_ChatMessage> _messages = [];
+  final List<GeminiAttachment> _attachments = [];
+  int _selectedModeIndex = 0;
   bool _isProcessing = false;
   bool _isListening = false;
+  bool _cancelRequested = false;
+  bool _isLoadingHistory = false;
   String _listeningText = '';
+  int? _activeConversationId;
+  String? _activeConversationTitle;
+  List<Map<String, dynamic>> _conversationHistory = [];
 
   late stt.SpeechToText _speech;
   late FlutterTts _tts;
@@ -68,13 +116,16 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     super.initState();
     _speech = stt.SpeechToText();
     _tts = FlutterTts();
+    _focusNode.addListener(_handleComposerFocusChange);
     _initTts();
+    _loadConversationHistory();
   }
 
   @override
   void dispose() {
     _textCtrl.dispose();
     _scrollCtrl.dispose();
+    _focusNode.removeListener(_handleComposerFocusChange);
     _focusNode.dispose();
     _tts.stop();
     super.dispose();
@@ -85,6 +136,8 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     await _tts.setPitch(1.0);
     await _tts.setSpeechRate(0.45);
   }
+
+  void _handleComposerFocusChange() => setState(() {});
 
   void _scrollToBottom({bool instant = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -106,15 +159,53 @@ class _AIAssistantViewState extends State<AIAssistantView> {
 
   Future<void> _sendMessage(String text) async {
     text = text.trim();
-    if (text.isEmpty || _isProcessing) return;
+    if ((text.isEmpty && _attachments.isEmpty) || _isProcessing) return;
+
+    final mode = _kPromptModes[_selectedModeIndex];
+    final files = List<GeminiAttachment>.from(_attachments);
+    final attachmentInstruction = files.isEmpty
+        ? ''
+        : '\n\nAttached clinical media: ${files.map((f) => '${f.name} (${f.mimeType})').join(', ')}. '
+            'Inspect the attachment(s) and connect observations to the technician question.';
+    final technicianQuestion = text.isEmpty
+        ? 'Analyze the attached machine media and provide a safe biomedical engineering assessment.'
+        : text;
+    final ragContext =
+        await ManualRagService.instance.buildContext(technicianQuestion);
+    final priorContext = _buildPriorConversationContext();
+    final ragInstruction = ragContext.hasContext
+        ? '\n\n${ragContext.promptBlock}\n\nRAG ANSWER RULES:\n'
+            '- Use uploaded manual context first.\n'
+            '- Include a short "Manual sources used" section.\n'
+            '- If the manual does not contain a requested limit or procedure, say so.\n'
+        : '\n\nNo uploaded manual context matched this question. Answer from general biomedical engineering knowledge and recommend checking the manufacturer manual.';
+    final prompt =
+        '${mode.instruction}$attachmentInstruction$priorContext$ragInstruction\n\nTechnician question: $technicianQuestion';
+    final modelAttachments = [
+      ...files,
+      ...ragContext.attachments,
+    ];
+
+    await _ensureActiveConversation(technicianQuestion);
 
     _textCtrl.clear();
     _focusNode.requestFocus();
 
     setState(() {
-      _messages.add(_ChatMessage(role: _Role.user, text: text));
+      _messages.add(_ChatMessage(
+        role: _Role.user,
+        text: technicianQuestion,
+        attachments: files,
+      ));
+      _attachments.clear();
       _isProcessing = true;
+      _cancelRequested = false;
     });
+    await _persistAiMessage(
+      role: _Role.user,
+      text: technicianQuestion,
+      attachments: files,
+    );
     _scrollToBottom();
 
     // Add an empty streaming assistant message
@@ -126,21 +217,29 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     setState(() => _messages.add(assistantMsg));
 
     try {
-      final stream = GeminiService.instance.streamMessage(text);
+      final stream = GeminiService.instance
+          .streamMessage(prompt, attachments: modelAttachments);
       await for (final chunk in stream) {
+        if (_cancelRequested) break;
         assistantMsg.text += chunk;
         setState(() {});
         _scrollToBottom();
       }
+      if (_cancelRequested && assistantMsg.text.trim().isEmpty) {
+        assistantMsg.text = 'Response stopped.';
+      }
       assistantMsg.isStreaming = false;
-      setState(() => _isProcessing = false);
+      setState(() {
+        _isProcessing = false;
+        _cancelRequested = false;
+      });
+      await _persistAiMessage(role: _Role.assistant, text: assistantMsg.text);
 
       // Speak if voice was used
       if (_isListening) {
         await _tts.speak(assistantMsg.text);
       }
     } on GeminiException catch (e) {
-      assistantMsg.role == _Role.error;
       final errMsg = _ChatMessage(
         role: _Role.error,
         text: e.message,
@@ -149,7 +248,9 @@ class _AIAssistantViewState extends State<AIAssistantView> {
         _messages.removeLast(); // remove the empty assistant bubble
         _messages.add(errMsg);
         _isProcessing = false;
+        _cancelRequested = false;
       });
+      await _persistAiMessage(role: _Role.error, text: e.message);
     } catch (e) {
       final errMsg = _ChatMessage(
         role: _Role.error,
@@ -159,7 +260,9 @@ class _AIAssistantViewState extends State<AIAssistantView> {
         _messages.removeLast();
         _messages.add(errMsg);
         _isProcessing = false;
+        _cancelRequested = false;
       });
+      await _persistAiMessage(role: _Role.error, text: 'Unexpected error: $e');
     }
 
     _scrollToBottom();
@@ -168,10 +271,6 @@ class _AIAssistantViewState extends State<AIAssistantView> {
   // ─── Voice ─────────────────────────────────────────────────────────────────
 
   void _toggleVoice() async {
-    if (kIsWeb) {
-      _showSnack('Voice input requires the mobile app.');
-      return;
-    }
     if (_isListening) {
       _speech.stop();
       setState(() {
@@ -184,6 +283,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     final available = await _speech.initialize(
       onStatus: (s) {
         if (s == 'done' || s == 'notListening') {
+          if (!mounted) return;
           setState(() => _isListening = false);
         }
       },
@@ -196,6 +296,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     setState(() => _isListening = true);
     _speech.listen(
       onResult: (val) {
+        if (!mounted) return;
         setState(() => _listeningText = val.recognizedWords);
         if (val.finalResult && val.recognizedWords.isNotEmpty) {
           setState(() {
@@ -214,9 +315,226 @@ class _AIAssistantViewState extends State<AIAssistantView> {
 
   // ─── New chat ───────────────────────────────────────────────────────────────
 
+  Future<void> _loadConversationHistory() async {
+    setState(() => _isLoadingHistory = true);
+    try {
+      final history = await DatabaseHelper.instance.getAiConversations();
+      if (!mounted) return;
+      setState(() => _conversationHistory = history);
+    } catch (e) {
+      if (mounted) _showSnack('Could not load AI history: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingHistory = false);
+    }
+  }
+
+  Future<void> _ensureActiveConversation(String firstPrompt) async {
+    if (_activeConversationId != null) return;
+    final title = _conversationTitle(firstPrompt);
+    final id = await DatabaseHelper.instance.createAiConversation(
+      title: title,
+      preview: _conversationPreview(firstPrompt),
+    );
+    if (!mounted) return;
+    setState(() {
+      _activeConversationId = id;
+      _activeConversationTitle = title;
+    });
+    await _loadConversationHistory();
+  }
+
+  Future<void> _persistAiMessage({
+    required _Role role,
+    required String text,
+    List<GeminiAttachment> attachments = const [],
+  }) async {
+    final conversationId = _activeConversationId;
+    if (conversationId == null || text.trim().isEmpty) return;
+
+    final attachmentSummary = attachments
+        .map((a) => {
+              'name': a.name,
+              'mimeType': a.mimeType,
+            })
+        .toList();
+    await DatabaseHelper.instance.addAiConversationMessage(
+      conversationId: conversationId,
+      role: _roleKey(role),
+      text: text,
+      attachmentsJson:
+          attachmentSummary.isEmpty ? null : jsonEncode(attachmentSummary),
+    );
+    await DatabaseHelper.instance.updateAiConversation(
+      id: conversationId,
+      title: _activeConversationTitle ?? _conversationTitle(text),
+      preview: _conversationPreview(text),
+    );
+    await _loadConversationHistory();
+  }
+
+  Future<void> _openConversation(Map<String, dynamic> conversation) async {
+    if (_isProcessing) {
+      _showSnack('Stop the current response before opening history.');
+      return;
+    }
+
+    final id = conversation['id'] as int?;
+    if (id == null) return;
+
+    final rows = await DatabaseHelper.instance.getAiConversationMessages(id);
+    GeminiService.instance.newChat();
+    if (!mounted) return;
+    setState(() {
+      _activeConversationId = id;
+      _activeConversationTitle =
+          conversation['title']?.toString() ?? 'Pulse conversation';
+      _attachments.clear();
+      _messages
+        ..clear()
+        ..addAll(rows.map((row) => _messageFromHistory(row)));
+      _isProcessing = false;
+      _cancelRequested = false;
+    });
+    _scrollToBottom(instant: true);
+  }
+
+  _ChatMessage _messageFromHistory(Map<String, dynamic> row) {
+    return _ChatMessage(
+      role: _roleFromKey(row['role']?.toString()),
+      text: row['text']?.toString() ?? '',
+      timestamp: DateTime.tryParse(row['timestamp']?.toString() ?? '') ??
+          DateTime.now(),
+    );
+  }
+
+  String _buildPriorConversationContext() {
+    if (_messages.isEmpty) return '';
+    final recent = _messages
+        .where((message) => message.text.trim().isNotEmpty)
+        .toList()
+        .reversed
+        .take(8)
+        .toList()
+        .reversed;
+    final lines = recent.map((message) {
+      final speaker = switch (message.role) {
+        _Role.user => 'Technician',
+        _Role.assistant => 'Pulse AI',
+        _Role.error => 'System error',
+      };
+      return '$speaker: ${_compactForPrompt(message.text)}';
+    }).join('\n');
+    return '\n\nPrevious conversation context:\n$lines';
+  }
+
+  String _roleKey(_Role role) {
+    return switch (role) {
+      _Role.user => 'user',
+      _Role.assistant => 'assistant',
+      _Role.error => 'error',
+    };
+  }
+
+  _Role _roleFromKey(String? role) {
+    return switch (role) {
+      'user' => _Role.user,
+      'assistant' => _Role.assistant,
+      'error' => _Role.error,
+      _ => _Role.assistant,
+    };
+  }
+
+  String _conversationTitle(String text) {
+    final clean = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (clean.isEmpty) return 'Machine media review';
+    return clean.length <= 44 ? clean : '${clean.substring(0, 41)}...';
+  }
+
+  String _conversationPreview(String text) {
+    final clean = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (clean.isEmpty) return 'No preview available';
+    return clean.length <= 84 ? clean : '${clean.substring(0, 81)}...';
+  }
+
+  String _compactForPrompt(String text) {
+    final clean = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return clean.length <= 420 ? clean : '${clean.substring(0, 417)}...';
+  }
+
   void _newChat() {
     GeminiService.instance.newChat();
-    setState(() => _messages.clear());
+    setState(() {
+      _activeConversationId = null;
+      _activeConversationTitle = null;
+      _messages.clear();
+      _attachments.clear();
+      _isProcessing = false;
+      _cancelRequested = true;
+    });
+  }
+
+  void _stopGenerating() {
+    if (!_isProcessing) return;
+    setState(() => _cancelRequested = true);
+  }
+
+  Future<void> _pickImageAttachment() async {
+    await _pickAttachment(
+      typeLabel: 'image',
+      extensions: const ['jpg', 'jpeg', 'png', 'webp', 'heic'],
+      fallbackMimeType: 'image/jpeg',
+    );
+  }
+
+  Future<void> _pickAttachment({
+    required String typeLabel,
+    required List<String> extensions,
+    required String fallbackMimeType,
+  }) async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: extensions,
+        allowMultiple: false,
+        withData: true,
+      );
+
+      final file = result?.files.single;
+      final bytes = file?.bytes;
+      if (file == null || bytes == null) return;
+
+      if (bytes.length > 18 * 1024 * 1024) {
+        _showSnack('The $typeLabel file is too large. Use a file under 18 MB.');
+        return;
+      }
+
+      setState(() {
+        _attachments.add(GeminiAttachment(
+          name: file.name,
+          mimeType: _mimeTypeFor(file.name, fallbackMimeType),
+          bytes: bytes,
+        ));
+      });
+    } catch (e) {
+      _showSnack('Could not attach $typeLabel: $e');
+    }
+  }
+
+  String _mimeTypeFor(String fileName, String fallback) {
+    final ext = fileName.split('.').last.toLowerCase();
+    return switch (ext) {
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      'heic' => 'image/heic',
+      'mp3' => 'audio/mpeg',
+      'wav' => 'audio/wav',
+      'm4a' => 'audio/mp4',
+      'aac' => 'audio/aac',
+      'ogg' => 'audio/ogg',
+      'webm' => 'audio/webm',
+      _ => fallback,
+    };
   }
 
   // ─── Helper ─────────────────────────────────────────────────────────────────
@@ -246,6 +564,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
             child: Column(
               children: [
                 _buildTopBar(isWide),
+                _buildSafetyBanner(),
                 // API key warning banner
                 if (!GeminiService.instance.isConfigured) _buildKeyBanner(),
                 // Processing indicator
@@ -273,6 +592,36 @@ class _AIAssistantViewState extends State<AIAssistantView> {
   }
 
   // ─── API KEY BANNER ─────────────────────────────────────────────────────────
+
+  Widget _buildSafetyBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+      decoration: BoxDecoration(
+        color: AppTheme.iceBlue.withValues(alpha: 0.18),
+        border: const Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.verified_user_outlined, color: AppTheme.primary, size: 16),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Clinical safety mode: verify against the service manual, isolate power/gas sources, and escalate patient-facing decisions.',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 12,
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildKeyBanner() {
     return Container(
@@ -362,10 +711,10 @@ class _AIAssistantViewState extends State<AIAssistantView> {
           // Logo
           const Row(
             children: [
-              Icon(Icons.auto_awesome, color: AppTheme.primary, size: 20),
+              PulseLogo(size: 24, borderRadius: 6),
               SizedBox(width: 8),
               Text(
-                'BioMed AI',
+                'Pulse AI',
                 style: TextStyle(
                     color: Color(0xFF0F172A),
                     fontWeight: FontWeight.bold,
@@ -430,20 +779,42 @@ class _AIAssistantViewState extends State<AIAssistantView> {
 
           const Divider(height: 32, color: Color(0xFFE2E8F0)),
 
-          const Text('RECENT',
-              style: TextStyle(
-                  color: Color(0xFF94A3B8),
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.8,
-                  fontFamily: 'Outfit')),
+          Row(
+            children: [
+              const Expanded(
+                child: Text('HISTORY',
+                    style: TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.8,
+                        fontFamily: 'Outfit')),
+              ),
+              IconButton(
+                tooltip: 'Refresh history',
+                visualDensity: VisualDensity.compact,
+                onPressed: _loadConversationHistory,
+                icon: const Icon(Icons.refresh_rounded,
+                    size: 15, color: Color(0xFF64748B)),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
-          _buildSidebarItem(
-              Icons.chat_bubble_outline_rounded, 'VG70 O2 Calibration'),
-          _buildSidebarItem(
-              Icons.chat_bubble_outline_rounded, 'PEEP Valve Service'),
-          _buildSidebarItem(
-              Icons.chat_bubble_outline_rounded, 'ERR-TURB-09 Fix'),
+          if (_isLoadingHistory)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: LinearProgressIndicator(minHeight: 2),
+            )
+          else if (_conversationHistory.isEmpty)
+            const Text(
+              'No saved AI conversations yet.',
+              style: TextStyle(
+                  color: Color(0xFF64748B), fontSize: 12, fontFamily: 'Outfit'),
+            )
+          else
+            ..._conversationHistory
+                .take(7)
+                .map((conversation) => _buildHistoryItem(conversation)),
 
           const Spacer(),
 
@@ -518,7 +889,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                             fontFamily: 'Outfit'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
-                    const Text('BioMed Technician',
+                    const Text('Pulse Technician',
                         style: TextStyle(
                             color: AppTheme.primary,
                             fontSize: 11,
@@ -564,6 +935,170 @@ class _AIAssistantViewState extends State<AIAssistantView> {
 
   // ─── TOP BAR ─────────────────────────────────────────────────────────────────
 
+  Widget _buildHistoryItem(Map<String, dynamic> conversation) {
+    final id = conversation['id'] as int?;
+    final selected = id != null && id == _activeConversationId;
+    final title = conversation['title']?.toString() ?? 'Pulse conversation';
+    final preview = conversation['preview']?.toString() ?? '';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: InkWell(
+        onTap: () => _openConversation(conversation),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            color: selected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: selected
+                ? Border.all(color: AppTheme.primary.withValues(alpha: 0.14))
+                : null,
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.history_rounded,
+                color: selected ? AppTheme.primary : const Color(0xFF64748B),
+                size: 16,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: selected
+                            ? AppTheme.primary
+                            : const Color(0xFF0F172A),
+                        fontSize: 12,
+                        fontWeight:
+                            selected ? FontWeight.bold : FontWeight.w600,
+                        fontFamily: 'Outfit',
+                      ),
+                    ),
+                    if (preview.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        preview,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 10,
+                          fontFamily: 'Outfit',
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showHistoryDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520, maxHeight: 620),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'AI conversation history',
+                        style: TextStyle(
+                          color: AppTheme.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Outfit',
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (_isLoadingHistory)
+                  const LinearProgressIndicator(minHeight: 2)
+                else if (_conversationHistory.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Text(
+                      'No saved AI conversations yet.',
+                      style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontFamily: 'Outfit',
+                      ),
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: _conversationHistory.length,
+                      separatorBuilder: (_, __) =>
+                          const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                      itemBuilder: (context, index) {
+                        final conversation = _conversationHistory[index];
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.history_rounded,
+                              color: AppTheme.primary),
+                          title: Text(
+                            conversation['title']?.toString() ??
+                                'Pulse conversation',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppTheme.textPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'Outfit',
+                            ),
+                          ),
+                          subtitle: Text(
+                            conversation['preview']?.toString() ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontFamily: 'Outfit'),
+                          ),
+                          onTap: () {
+                            Navigator.of(dialogContext).pop();
+                            _openConversation(conversation);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildTopBar(bool isWide) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -572,9 +1107,9 @@ class _AIAssistantViewState extends State<AIAssistantView> {
       child: Row(
         children: [
           if (!isWide) ...[
-            const Icon(Icons.auto_awesome, color: AppTheme.primary, size: 18),
+            const PulseLogo(size: 22, borderRadius: 6),
             const SizedBox(width: 8),
-            const Text('BioMed AI',
+            const Text('Pulse AI',
                 style: TextStyle(
                     color: Color(0xFF0F172A),
                     fontSize: 16,
@@ -582,6 +1117,30 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                     fontFamily: 'Outfit')),
           ],
           const Spacer(),
+          IconButton(
+            tooltip: 'Conversation history',
+            icon: const Icon(Icons.history_rounded,
+                size: 18, color: Color(0xFF475569)),
+            onPressed: _showHistoryDialog,
+          ),
+          const SizedBox(width: 4),
+          if (_isProcessing)
+            TextButton.icon(
+              onPressed: _stopGenerating,
+              icon: const Icon(Icons.stop_circle_outlined, size: 16),
+              label: const Text('Stop'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.error,
+                textStyle: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          const SizedBox(width: 8),
+          if (MediaQuery.of(context).size.width > 560) _buildModeSelector(),
+          const SizedBox(width: 10),
           // Model label
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -595,7 +1154,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
               children: [
                 Icon(Icons.auto_awesome, color: AppTheme.primary, size: 12),
                 SizedBox(width: 5),
-                Text('Gemini 1.5 Flash',
+                Text('Gemini 2.5 Flash',
                     style: TextStyle(
                         color: AppTheme.primary,
                         fontSize: 11,
@@ -619,6 +1178,71 @@ class _AIAssistantViewState extends State<AIAssistantView> {
   }
 
   // ─── GREETING ────────────────────────────────────────────────────────────────
+
+  Widget _buildModeSelector() {
+    final selected = _kPromptModes[_selectedModeIndex];
+    return PopupMenuButton<int>(
+      tooltip: 'Response mode',
+      onSelected: (index) => setState(() => _selectedModeIndex = index),
+      itemBuilder: (context) => [
+        for (int i = 0; i < _kPromptModes.length; i++)
+          PopupMenuItem<int>(
+            value: i,
+            child: Row(
+              children: [
+                Icon(
+                  _kPromptModes[i].icon,
+                  color: i == _selectedModeIndex
+                      ? AppTheme.primary
+                      : AppTheme.textSecondary,
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  _kPromptModes[i].label,
+                  style: TextStyle(
+                    color: i == _selectedModeIndex
+                        ? AppTheme.primary
+                        : AppTheme.textPrimary,
+                    fontFamily: 'Outfit',
+                    fontWeight: i == _selectedModeIndex
+                        ? FontWeight.bold
+                        : FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(selected.icon, color: AppTheme.textSecondary, size: 14),
+            const SizedBox(width: 6),
+            Text(
+              selected.label,
+              style: const TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Outfit',
+              ),
+            ),
+            const SizedBox(width: 3),
+            const Icon(Icons.keyboard_arrow_down,
+                color: AppTheme.textSecondary, size: 14),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildGreeting(String name) {
     return ListView(
@@ -654,10 +1278,102 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                     fontFamily: 'Outfit',
                     height: 1.5),
               ).animate().fadeIn(delay: 200.ms),
+              const SizedBox(height: 18),
+              Container(
+                constraints: const BoxConstraints(maxWidth: 760),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppTheme.warning.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                      color: AppTheme.warning.withValues(alpha: 0.2)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.health_and_safety_outlined,
+                        color: AppTheme.warning, size: 18),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Use AI for technician decision support, not as a replacement for manufacturer manuals, hospital SOPs, or clinical judgement.',
+                        style: TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 12,
+                          height: 1.35,
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ).animate().fadeIn(delay: 280.ms),
             ],
           ),
         ),
-        const SizedBox(height: 40),
+        const SizedBox(height: 32),
+
+        if (MediaQuery.of(context).size.width <= 560) ...[
+          const Text('Response mode',
+              style: TextStyle(
+                  color: Color(0xFF94A3B8),
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                  fontFamily: 'Outfit')),
+          const SizedBox(height: 10),
+          _buildModeChips(),
+          const SizedBox(height: 24),
+        ],
+
+        const Text('Clinical workflows',
+            style: TextStyle(
+                color: Color(0xFF94A3B8),
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+                fontFamily: 'Outfit')),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 720;
+            final cards = [
+              _buildWorkflowCard(
+                Icons.manage_search_outlined,
+                'Fault triage',
+                'Safety checks, likely causes, tests, escalation.',
+                'Triage ERR-TURB-09 on an Aeonmed VG70 with safety-first steps',
+              ),
+              _buildWorkflowCard(
+                Icons.fact_check_outlined,
+                'Service procedure',
+                'Tools, steps, verification, service log notes.',
+                'Create a preventive maintenance checklist for a Mindray A5',
+              ),
+              _buildWorkflowCard(
+                Icons.inventory_2_outlined,
+                'Parts planning',
+                'Part IDs, compatibility, stock risk, suppliers.',
+                'What spare parts should we keep for VG70 oxygen sensor faults?',
+              ),
+            ];
+            return compact
+                ? Column(children: cards)
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: cards
+                        .map((card) => Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.only(right: 10),
+                                child: card,
+                              ),
+                            ))
+                        .toList(),
+                  );
+          },
+        ),
+        const SizedBox(height: 32),
 
         // Suggestion chips grid
         const Text('Suggested questions',
@@ -679,6 +1395,87 @@ class _AIAssistantViewState extends State<AIAssistantView> {
               .toList(),
         ),
       ],
+    );
+  }
+
+  Widget _buildModeChips() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (int i = 0; i < _kPromptModes.length; i++)
+          ChoiceChip(
+            selected: i == _selectedModeIndex,
+            avatar: Icon(_kPromptModes[i].icon, size: 15),
+            label: Text(_kPromptModes[i].label),
+            onSelected: (_) => setState(() => _selectedModeIndex = i),
+            labelStyle: TextStyle(
+              color:
+                  i == _selectedModeIndex ? Colors.white : AppTheme.textPrimary,
+              fontSize: 12,
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.bold,
+            ),
+            selectedColor: AppTheme.primary,
+            backgroundColor: Colors.white,
+            side: const BorderSide(color: Color(0xFFE2E8F0)),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildWorkflowCard(
+    IconData icon,
+    String title,
+    String description,
+    String prompt,
+  ) {
+    return InkWell(
+      onTap: () => _sendMessage(prompt),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            )
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: AppTheme.primary, size: 20),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: const TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Outfit',
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              description,
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 12,
+                height: 1.35,
+                fontFamily: 'Outfit',
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -790,6 +1587,24 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Text(
+                          isUser
+                              ? _formatTime(msg.timestamp)
+                              : 'Pulse AI • ${_formatTime(msg.timestamp)}',
+                          style: TextStyle(
+                            color: isUser
+                                ? AppTheme.textSecondary
+                                : AppTheme.primary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Outfit',
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        if (msg.attachments.isNotEmpty) ...[
+                          _buildAttachmentList(msg.attachments, compact: true),
+                          const SizedBox(height: 8),
+                        ],
                         _buildFormattedText(msg.text, isError: isError),
                         if (msg.isStreaming) ...[
                           const SizedBox(height: 8),
@@ -807,7 +1622,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Text(
-                            'BioMed AI • Gemini 1.5 Flash',
+                            'Pulse AI • Gemini 2.5 Flash',
                             style: TextStyle(
                                 fontSize: 10,
                                 color: Color(0xFF94A3B8),
@@ -846,6 +1661,64 @@ class _AIAssistantViewState extends State<AIAssistantView> {
         ),
       ),
     ).animate().fadeIn(duration: 250.ms).slideY(begin: 0.04, end: 0);
+  }
+
+  String _formatTime(DateTime time) {
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  Widget _buildAttachmentList(
+    List<GeminiAttachment> attachments, {
+    bool compact = false,
+  }) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final attachment in attachments)
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 9 : 11,
+              vertical: compact ? 6 : 8,
+            ),
+            decoration: BoxDecoration(
+              color: AppTheme.iceBlue.withValues(alpha: compact ? 0.18 : 0.26),
+              borderRadius: BorderRadius.circular(12),
+              border:
+                  Border.all(color: AppTheme.primary.withValues(alpha: 0.16)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  attachment.isImage
+                      ? Icons.image_outlined
+                      : Icons.graphic_eq_outlined,
+                  color: AppTheme.primary,
+                  size: compact ? 14 : 16,
+                ),
+                const SizedBox(width: 7),
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: compact ? 180 : 260),
+                  child: Text(
+                    attachment.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppTheme.primary,
+                      fontSize: compact ? 11 : 12,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Outfit',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
   }
 
   // Minimal structured text renderer (bold + bullets)
@@ -967,7 +1840,79 @@ class _AIAssistantViewState extends State<AIAssistantView> {
 
   // ─── INPUT AREA ─────────────────────────────────────────────────────────────
 
+  Widget _buildComposerIconButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: _isProcessing ? null : onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: AppTheme.iceBlue.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.primary.withValues(alpha: 0.12)),
+          ),
+          child: Icon(icon, color: AppTheme.primary, size: 18),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPendingAttachmentSummary() {
+    return Tooltip(
+      message: _attachments.map((a) => a.name).join('\n'),
+      child: InkWell(
+        onTap: () => setState(() => _attachments.clear()),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 34,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: AppTheme.success.withValues(alpha: 0.09),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.success.withValues(alpha: 0.22)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                _attachments.any((a) => a.isImage)
+                    ? Icons.image_outlined
+                    : Icons.graphic_eq_outlined,
+                color: AppTheme.success,
+                size: 16,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '${_attachments.length}',
+                style: const TextStyle(
+                  color: AppTheme.success,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Outfit',
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.close, color: AppTheme.success, size: 13),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildInputArea() {
+    final canSend =
+        (_textCtrl.text.trim().isNotEmpty || _attachments.isNotEmpty) &&
+            !_isProcessing;
+    final hasFocus = _focusNode.hasFocus;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
       child: SafeArea(
@@ -977,19 +1922,45 @@ class _AIAssistantViewState extends State<AIAssistantView> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(30),
+              borderRadius: BorderRadius.circular(22),
               border: Border.all(color: const Color(0xFFCBD5E1), width: 1.2),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 12,
+                  color: hasFocus
+                      ? AppTheme.primary.withValues(alpha: 0.12)
+                      : Colors.black.withValues(alpha: 0.05),
+                  blurRadius: hasFocus ? 18 : 12,
                   offset: const Offset(0, 4),
                 ),
               ],
+              gradient: hasFocus
+                  ? LinearGradient(
+                      colors: [
+                        AppTheme.iceBlue.withValues(alpha: 0.22),
+                        Colors.white,
+                      ],
+                    )
+                  : null,
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
+                _buildComposerIconButton(
+                  icon: Icons.image_outlined,
+                  tooltip: 'Attach machine image',
+                  onTap: _pickImageAttachment,
+                ),
+                const SizedBox(width: 4),
+                _buildComposerIconButton(
+                  icon: _isListening ? Icons.mic_rounded : Icons.mic_none,
+                  tooltip: _isListening ? 'Stop recording' : 'Record prompt',
+                  onTap: _toggleVoice,
+                ),
+                const SizedBox(width: 10),
+                if (_attachments.isNotEmpty) ...[
+                  _buildPendingAttachmentSummary(),
+                  const SizedBox(width: 10),
+                ],
                 // Text field
                 Expanded(
                   child: TextField(
@@ -1004,7 +1975,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                         color: Color(0xFF0F172A),
                         fontFamily: 'Outfit'),
                     decoration: const InputDecoration(
-                      hintText: 'Ask about faults, maintenance, alarms…',
+                      hintText: 'Ask, record a prompt, or attach an image...',
                       hintStyle: TextStyle(
                           color: Color(0xFF94A3B8),
                           fontSize: 13,
@@ -1015,29 +1986,12 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                       filled: false,
                       contentPadding: EdgeInsets.symmetric(vertical: 8),
                     ),
+                    onChanged: (_) => setState(() {}),
                     onSubmitted: (_) {
-                      if (!_isProcessing) _sendMessage(_textCtrl.text);
+                      if (canSend) _sendMessage(_textCtrl.text);
                     },
                   ),
                 ),
-
-                const SizedBox(width: 8),
-
-                // Voice button
-                if (!kIsWeb)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: GestureDetector(
-                      onTap: _toggleVoice,
-                      child: Icon(
-                        _isListening ? Icons.mic : Icons.mic_none_outlined,
-                        color: _isListening
-                            ? AppTheme.error
-                            : const Color(0xFF94A3B8),
-                        size: 22,
-                      ),
-                    ),
-                  ),
 
                 const SizedBox(width: 8),
 
@@ -1046,19 +2000,25 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                   padding: const EdgeInsets.only(bottom: 2),
                   child: GestureDetector(
                     onTap: _isProcessing
-                        ? null
-                        : () => _sendMessage(_textCtrl.text),
+                        ? _stopGenerating
+                        : canSend
+                            ? () => _sendMessage(_textCtrl.text)
+                            : null,
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: _isProcessing
-                            ? AppTheme.primary.withValues(alpha: 0.4)
-                            : AppTheme.primary,
+                            ? AppTheme.error
+                            : canSend
+                                ? AppTheme.primary
+                                : AppTheme.border,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.arrow_upward,
-                          color: Colors.white, size: 16),
+                      child: Icon(
+                          _isProcessing ? Icons.stop : Icons.arrow_upward,
+                          color: Colors.white,
+                          size: 16),
                     ),
                   ),
                 ),

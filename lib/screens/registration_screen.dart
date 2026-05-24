@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/services/auth_service.dart';
 import 'package:ma_1/screens/home_screen.dart';
+import 'package:ma_1/widgets/pulse_logo.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -30,11 +31,29 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   }
 
   void _handleRegister() async {
-    if (_nameCtrl.text.trim().isEmpty || 
-        _emailCtrl.text.trim().isEmpty || 
-        _passCtrl.text.trim().isEmpty || 
-        _regCtrl.text.trim().isEmpty) {
+    final name = _nameCtrl.text.trim();
+    final email = _emailCtrl.text.trim().toLowerCase();
+    final password = _passCtrl.text.trim();
+    final regNumber = _regCtrl.text.trim();
+
+    if (name.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty ||
+        regNumber.isEmpty) {
       _showStatusMessage("Please complete all required fields", AppTheme.error);
+      return;
+    }
+
+    if (!_isValidEmail(email)) {
+      _showStatusMessage("Enter a valid email address", AppTheme.error);
+      return;
+    }
+
+    if (password.length < 8) {
+      _showStatusMessage(
+        "Use at least 8 characters for the password",
+        AppTheme.error,
+      );
       return;
     }
 
@@ -42,24 +61,33 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
     try {
       final res = await AuthService.instance.register(
-        _nameCtrl.text.trim(),
-        _emailCtrl.text.trim(),
-        _passCtrl.text.trim(),
-        _regCtrl.text.trim(),
+        name,
+        email,
+        password,
+        regNumber,
       );
 
       if (res['success'] == true) {
         if (!mounted) return;
-        _showStatusMessage(
-          "Account created successfully! If email verification is enabled on your Supabase, check your inbox to confirm before signing in.",
-          AppTheme.success,
-        );
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+        if (res['sessionActive'] == true) {
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => const HomeScreen()));
+        } else {
+          setState(() => _isLoading = false);
+          _passCtrl.clear();
+          _showStatusMessage(
+            res['message'] ??
+                "Account created. Verify your email before signing in.",
+            AppTheme.success,
+          );
+        }
       } else {
+        if (!mounted) return;
         setState(() => _isLoading = false);
         _showStatusMessage(res['message'] ?? "Registration failed", AppTheme.error);
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
       _showStatusMessage("Connection error: Unable to reach auth server", AppTheme.error);
     }
@@ -68,10 +96,17 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   void _handleGoogleSignIn() async {
     setState(() => _isLoading = true);
     final user = await AuthService.instance.signInWithGoogle();
+    if (!mounted) return;
     setState(() => _isLoading = false);
     if (user != null && mounted) {
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+    } else {
+      _showStatusMessage("Google registration was not completed", AppTheme.error);
     }
+  }
+
+  bool _isValidEmail(String email) {
+    return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email);
   }
 
   void _showStatusMessage(String msg, Color color) {
@@ -124,32 +159,14 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       children: [
                         const SizedBox(height: 20),
                         
-                        // BioAssist Clinical Logo Header (Clean clinical design, matches Login)
-                        Container(
-                          padding: const EdgeInsets.all(18),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AppTheme.primary.withValues(alpha: 0.15), width: 2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppTheme.primary.withValues(alpha: 0.05),
-                                blurRadius: 15,
-                                offset: const Offset(0, 5),
-                              )
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.health_and_safety, 
-                            size: 55, 
-                            color: AppTheme.primary,
-                          ),
-                        ).animate().scale(duration: 400.ms, curve: Curves.easeOutBack),
+                        const PulseLogo(size: 88, borderRadius: 22)
+                            .animate()
+                            .scale(duration: 400.ms, curve: Curves.easeOutBack),
                         
                         const SizedBox(height: 16),
                         
                         const Text(
-                          "BioMed Assistant", 
+                          "Pulse", 
                           style: TextStyle(
                             fontSize: 26, 
                             fontWeight: FontWeight.bold, 
@@ -160,7 +177,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         ).animate().fadeIn(delay: 100.ms).slideY(begin: 0.2, end: 0),
                         
                         const Text(
-                          "Clinical Fleet Registration", 
+                          "Clinical Equipment Registration", 
                           style: TextStyle(
                             color: Color(0xFF475569), 
                             fontSize: 13,

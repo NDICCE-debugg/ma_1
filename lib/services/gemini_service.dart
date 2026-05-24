@@ -1,5 +1,22 @@
+import 'dart:typed_data';
+
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:ma_1/utils/app_config.dart';
+
+class GeminiAttachment {
+  final String name;
+  final String mimeType;
+  final Uint8List bytes;
+
+  const GeminiAttachment({
+    required this.name,
+    required this.mimeType,
+    required this.bytes,
+  });
+
+  bool get isImage => mimeType.startsWith('image/');
+  bool get isAudio => mimeType.startsWith('audio/');
+}
 
 /// Clinical Gemini Service
 /// Wraps google_generative_ai with a biomedical technician system prompt,
@@ -13,7 +30,7 @@ class GeminiService {
 
   // System instruction tuned for biomedical equipment technicians
   static const String _systemPrompt = '''
-You are BioMed AI, an expert clinical engineering assistant embedded in a hospital
+You are Pulse AI, an expert clinical engineering assistant embedded in a hospital
 biomedical equipment management system. You assist qualified biomedical equipment
 technicians (BMETs) and clinical engineers with:
 
@@ -33,6 +50,9 @@ RULES:
 - If unsure, say so — never hallucinate specifications or part numbers
 - Keep responses concise unless the user explicitly asks for detail
 - When giving maintenance steps, always include safety warnings first
+- When manual context is provided, ground the answer in that context and cite the
+  uploaded manual source titles. If the manual context is insufficient, state the
+  gap clearly instead of inventing values, limits, or part numbers.
 ''';
 
   bool get isConfigured =>
@@ -43,7 +63,7 @@ RULES:
   void _ensureInitialized() {
     if (_model != null) return;
     _model = GenerativeModel(
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.5-flash',
       apiKey: AppConfig.geminiApiKey,
       systemInstruction: Content.system(_systemPrompt),
       generationConfig: GenerationConfig(
@@ -62,7 +82,10 @@ RULES:
 
   /// Sends a message and returns the full response text.
   /// Throws [GeminiException] on API errors.
-  Future<String> sendMessage(String userMessage) async {
+  Future<String> sendMessage(
+    String userMessage, {
+    List<GeminiAttachment> attachments = const [],
+  }) async {
     if (!isConfigured) {
       throw GeminiException(
         'Gemini API key not configured. '
@@ -73,7 +96,7 @@ RULES:
 
     try {
       final response = await _chat!.sendMessage(
-        Content.text(userMessage),
+        _buildUserContent(userMessage, attachments),
       );
       final text = response.text;
       if (text == null || text.trim().isEmpty) {
@@ -88,7 +111,10 @@ RULES:
   }
 
   /// Streams the response token-by-token.
-  Stream<String> streamMessage(String userMessage) async* {
+  Stream<String> streamMessage(
+    String userMessage, {
+    List<GeminiAttachment> attachments = const [],
+  }) async* {
     if (!isConfigured) {
       throw GeminiException(
         'Gemini API key not configured. '
@@ -98,7 +124,8 @@ RULES:
     _ensureInitialized();
 
     try {
-      final stream = _chat!.sendMessageStream(Content.text(userMessage));
+      final stream =
+          _chat!.sendMessageStream(_buildUserContent(userMessage, attachments));
       await for (final chunk in stream) {
         final text = chunk.text;
         if (text != null && text.isNotEmpty) yield text;
@@ -108,6 +135,19 @@ RULES:
     } catch (e) {
       throw GeminiException('Unexpected error: $e');
     }
+  }
+
+  Content _buildUserContent(
+    String userMessage,
+    List<GeminiAttachment> attachments,
+  ) {
+    if (attachments.isEmpty) return Content.text(userMessage);
+
+    return Content.multi([
+      TextPart(userMessage),
+      for (final attachment in attachments)
+        DataPart(attachment.mimeType, attachment.bytes),
+    ]);
   }
 }
 

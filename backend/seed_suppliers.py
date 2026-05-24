@@ -85,7 +85,7 @@ SUPPLIERS = [
 
 def seed():
     print("=" * 55)
-    print("  Supabase Supplier Seeder — BioMed Assistant")
+    print("  Supabase Supplier Seeder — Pulse")
     print("=" * 55)
     url = f"{SUPABASE_URL}/rest/v1/suppliers"
 

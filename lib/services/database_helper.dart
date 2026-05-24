@@ -23,7 +23,9 @@ class DatabaseHelper {
   }
 
   Future<void> checkAndSeedLocalData(Database db) async {
-    final countParts = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM spare_parts')) ?? 0;
+    final countParts = Sqflite.firstIntValue(
+            await db.rawQuery('SELECT COUNT(*) FROM spare_parts')) ??
+        0;
     if (countParts == 0) {
       await db.insert('spare_parts', {
         'name': 'Turbine (210003677)',
@@ -77,68 +79,85 @@ class DatabaseHelper {
       });
     }
 
-    final countMachines = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM machines')) ?? 0;
+    final countMachines = Sqflite.firstIntValue(
+            await db.rawQuery('SELECT COUNT(*) FROM machines')) ??
+        0;
     if (countMachines == 0) {
-      await db.insert('machines', {
-        'asset_type': 'ventilator',
-        'model_name': 'Aeonmed VG70',
-        'serial_number': 'SN-VG70-441',
-        'hospital_unit': 'MAIN • ICU 1',
-        'ward_location': 'Bed 1',
-        'status': 'OPERATIONAL',
-        'date_acquired': '2024-01-01',
-        'last_service_date': '2024-04-01',
-        'service_interval': '6 Months',
-        'notes': 'Operational'
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-      await db.insert('machines', {
-        'asset_type': 'ventilator',
-        'model_name': 'Aeonmed VG70',
-        'serial_number': 'SN-VG70-442',
-        'hospital_unit': 'MAIN • ICU 2',
-        'ward_location': 'Bed 2',
-        'status': 'MAINTENANCE',
-        'date_acquired': '2024-01-01',
-        'last_service_date': '2024-04-01',
-        'service_interval': '6 Months',
-        'notes': 'Needs Maintenance'
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-      await db.insert('machines', {
-        'asset_type': 'ventilator',
-        'model_name': 'Dräger Evita V500',
-        'serial_number': 'SN-DR-092',
-        'hospital_unit': 'PAEDIATRIC • ICU 3',
-        'ward_location': 'Bed 1',
-        'status': 'OPERATIONAL',
-        'date_acquired': '2024-01-01',
-        'last_service_date': '2024-04-01',
-        'service_interval': '6 Months',
-        'notes': 'Operational'
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-      await db.insert('machines', {
-        'asset_type': 'anaesthetic_machine',
-        'model_name': 'Mindray A5',
-        'serial_number': 'SN-MA5-998',
-        'hospital_unit': 'MATERNITY • Theatre 1',
-        'ward_location': 'OT Room 1',
-        'status': 'OPERATIONAL',
-        'date_acquired': '2024-01-01',
-        'last_service_date': '2024-04-01',
-        'service_interval': '6 Months',
-        'notes': 'Operational'
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-      await db.insert('machines', {
-        'asset_type': 'anaesthetic_machine',
-        'model_name': 'WATO EX-35',
-        'serial_number': 'SN-W35-102',
-        'hospital_unit': 'MAIN • Theatre 2',
-        'ward_location': 'OT Room 2',
-        'status': 'MAINTENANCE',
-        'date_acquired': '2024-01-01',
-        'last_service_date': '2024-04-01',
-        'service_interval': '6 Months',
-        'notes': 'Needs Maintenance'
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      await db.insert(
+          'machines',
+          {
+            'asset_type': 'ventilator',
+            'model_name': 'Aeonmed VG70',
+            'serial_number': 'SN-VG70-441',
+            'hospital_unit': 'MAIN • ICU 1',
+            'ward_location': 'Bed 1',
+            'status': 'OPERATIONAL',
+            'date_acquired': '2024-01-01',
+            'last_service_date': '2024-04-01',
+            'service_interval': '6 Months',
+            'notes': 'Operational'
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore);
+      await db.insert(
+          'machines',
+          {
+            'asset_type': 'ventilator',
+            'model_name': 'Aeonmed VG70',
+            'serial_number': 'SN-VG70-442',
+            'hospital_unit': 'MAIN • ICU 2',
+            'ward_location': 'Bed 2',
+            'status': 'MAINTENANCE',
+            'date_acquired': '2024-01-01',
+            'last_service_date': '2024-04-01',
+            'service_interval': '6 Months',
+            'notes': 'Needs Maintenance'
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore);
+      await db.insert(
+          'machines',
+          {
+            'asset_type': 'ventilator',
+            'model_name': 'Dräger Evita V500',
+            'serial_number': 'SN-DR-092',
+            'hospital_unit': 'PAEDIATRIC • ICU 3',
+            'ward_location': 'Bed 1',
+            'status': 'OPERATIONAL',
+            'date_acquired': '2024-01-01',
+            'last_service_date': '2024-04-01',
+            'service_interval': '6 Months',
+            'notes': 'Operational'
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore);
+      await db.insert(
+          'machines',
+          {
+            'asset_type': 'anaesthetic_machine',
+            'model_name': 'Mindray A5',
+            'serial_number': 'SN-MA5-998',
+            'hospital_unit': 'MATERNITY • Theatre 1',
+            'ward_location': 'OT Room 1',
+            'status': 'OPERATIONAL',
+            'date_acquired': '2024-01-01',
+            'last_service_date': '2024-04-01',
+            'service_interval': '6 Months',
+            'notes': 'Operational'
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore);
+      await db.insert(
+          'machines',
+          {
+            'asset_type': 'anaesthetic_machine',
+            'model_name': 'WATO EX-35',
+            'serial_number': 'SN-W35-102',
+            'hospital_unit': 'MAIN • Theatre 2',
+            'ward_location': 'OT Room 2',
+            'status': 'MAINTENANCE',
+            'date_acquired': '2024-01-01',
+            'last_service_date': '2024-04-01',
+            'service_interval': '6 Months',
+            'notes': 'Needs Maintenance'
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore);
     }
   }
 
@@ -146,8 +165,8 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
     return await openDatabase(
-      path, 
-      version: 5, 
+      path,
+      version: 8,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -164,14 +183,15 @@ class DatabaseHelper {
     await db.execute('''
     CREATE TABLE manual_entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT, machine_model TEXT, category TEXT,
-      title TEXT, content TEXT
+      title TEXT, content TEXT, file_name TEXT, file_type TEXT, file_size INTEGER,
+      file_bytes BLOB, uploaded_at TEXT
     )''');
 
     await db.execute('''
     CREATE TABLE spare_parts (
       id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, compatible_model TEXT,
       quantity INTEGER, reorder_threshold INTEGER, location TEXT, unit TEXT,
-      last_restocked TEXT, notes TEXT
+      last_restocked TEXT, notes TEXT, image_file_name TEXT, image_bytes BLOB
     )''');
 
     await db.execute('''
@@ -195,6 +215,8 @@ class DatabaseHelper {
       timestamp TEXT,
       status TEXT
     )''');
+
+    await _ensureAiConversationTables(db);
 
     await db.execute('''
     CREATE TABLE fault_log (
@@ -231,7 +253,9 @@ class DatabaseHelper {
       date_acquired TEXT,
       last_service_date TEXT,
       service_interval TEXT,
-      notes TEXT
+      notes TEXT,
+      image_file_name TEXT,
+      image_bytes BLOB
     )''');
   }
 
@@ -252,6 +276,87 @@ class DatabaseHelper {
         notes TEXT
       )''');
     }
+    if (oldVersion < 6) {
+      await _ensureManualEntryColumns(db);
+    }
+    if (oldVersion < 7) {
+      await _ensureImageColumns(db);
+    }
+    if (oldVersion < 8) {
+      await _ensureAiConversationTables(db);
+    }
+  }
+
+  Future<void> _ensureAiConversationTables(Database db) async {
+    await db.execute('''
+    CREATE TABLE IF NOT EXISTS ai_conversations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      preview TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )''');
+
+    await db.execute('''
+    CREATE TABLE IF NOT EXISTS ai_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id INTEGER NOT NULL,
+      role TEXT NOT NULL,
+      text TEXT NOT NULL,
+      attachments_json TEXT,
+      timestamp TEXT NOT NULL,
+      FOREIGN KEY (conversation_id) REFERENCES ai_conversations (id)
+        ON DELETE CASCADE
+    )''');
+  }
+
+  Future<void> _ensureImageColumns(Database db) async {
+    Future<void> addMissingColumns(
+      String table,
+      Map<String, String> definitions,
+    ) async {
+      final columns = await db.rawQuery('PRAGMA table_info($table)');
+      final names = columns.map((column) => column['name'] as String).toSet();
+      for (final entry in definitions.entries) {
+        if (!names.contains(entry.key)) {
+          await db.execute(
+              'ALTER TABLE $table ADD COLUMN ${entry.key} ${entry.value}');
+        }
+      }
+    }
+
+    await addMissingColumns('spare_parts', {
+      'image_file_name': 'TEXT',
+      'image_bytes': 'BLOB',
+    });
+    await addMissingColumns('machines', {
+      'image_file_name': 'TEXT',
+      'image_bytes': 'BLOB',
+    });
+  }
+
+  Future<void> _ensureManualEntryColumns(Database db) async {
+    await db.execute('''
+    CREATE TABLE IF NOT EXISTS manual_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, machine_model TEXT, category TEXT,
+      title TEXT, content TEXT
+    )''');
+
+    final columns = await db.rawQuery('PRAGMA table_info(manual_entries)');
+    final names = columns.map((column) => column['name'] as String).toSet();
+
+    Future<void> addColumn(String name, String definition) async {
+      if (!names.contains(name)) {
+        await db
+            .execute('ALTER TABLE manual_entries ADD COLUMN $name $definition');
+      }
+    }
+
+    await addColumn('file_name', 'TEXT');
+    await addColumn('file_type', 'TEXT');
+    await addColumn('file_size', 'INTEGER');
+    await addColumn('file_bytes', 'BLOB');
+    await addColumn('uploaded_at', 'TEXT');
   }
 
   // --- MACHINES CACHE CRUD ---
@@ -268,7 +373,7 @@ class DatabaseHelper {
       await txn.delete('machines');
       for (var asset in assets) {
         await txn.insert(
-          'machines', 
+          'machines',
           asset.toMap(),
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
@@ -281,7 +386,7 @@ class DatabaseHelper {
     await db.transaction((txn) async {
       for (var asset in assets) {
         await txn.insert(
-          'machines', 
+          'machines',
           asset.toMap(),
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
@@ -292,9 +397,9 @@ class DatabaseHelper {
   Future<int> updateCachedAsset(HospitalAsset asset) async {
     final db = await instance.database;
     return await db.update(
-      'machines', 
-      asset.toMap(), 
-      where: 'id = ?', 
+      'machines',
+      asset.toMap(),
+      where: 'id = ?',
       whereArgs: [asset.id],
     );
   }
@@ -302,7 +407,7 @@ class DatabaseHelper {
   Future<int> addCachedAsset(HospitalAsset asset) async {
     final db = await instance.database;
     return await db.insert(
-      'machines', 
+      'machines',
       asset.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -314,7 +419,8 @@ class DatabaseHelper {
     return await db.query('sync_queue', orderBy: 'id ASC');
   }
 
-  Future<int> enqueueChange(String action, String targetTable, String recordId, Map<String, dynamic> payload) async {
+  Future<int> enqueueChange(String action, String targetTable, String recordId,
+      Map<String, dynamic> payload) async {
     final db = await instance.database;
     return await db.insert('sync_queue', {
       'action': action,
@@ -338,7 +444,19 @@ class DatabaseHelper {
 
   Future<List<Map<String, dynamic>>> getManualEntries() async {
     final db = await instance.database;
-    return await db.query('manual_entries');
+    return await db.query('manual_entries',
+        orderBy: 'uploaded_at DESC, id DESC');
+  }
+
+  Future<List<Map<String, dynamic>>> getManualEntriesForModel(
+      String machineModel) async {
+    final db = await instance.database;
+    return await db.query(
+      'manual_entries',
+      where: 'LOWER(machine_model) = ?',
+      whereArgs: [machineModel.toLowerCase()],
+      orderBy: 'uploaded_at DESC, id DESC',
+    );
   }
 
   // --- AI REQUESTS CRUD (Kept Local) ---
@@ -353,6 +471,87 @@ class DatabaseHelper {
     return await db.insert('ai_requests', request.toMap());
   }
 
+  Future<int> createAiConversation({
+    required String title,
+    required String preview,
+  }) async {
+    final db = await instance.database;
+    final now = DateTime.now().toUtc().toIso8601String();
+    return db.insert('ai_conversations', {
+      'title': title,
+      'preview': preview,
+      'created_at': now,
+      'updated_at': now,
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getAiConversations() async {
+    final db = await instance.database;
+    return db.query(
+      'ai_conversations',
+      orderBy: 'updated_at DESC, id DESC',
+      limit: 40,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getAiConversationMessages(
+      int conversationId) async {
+    final db = await instance.database;
+    return db.query(
+      'ai_messages',
+      where: 'conversation_id = ?',
+      whereArgs: [conversationId],
+      orderBy: 'timestamp ASC, id ASC',
+    );
+  }
+
+  Future<int> addAiConversationMessage({
+    required int conversationId,
+    required String role,
+    required String text,
+    String? attachmentsJson,
+    DateTime? timestamp,
+  }) async {
+    final db = await instance.database;
+    return db.insert('ai_messages', {
+      'conversation_id': conversationId,
+      'role': role,
+      'text': text,
+      'attachments_json': attachmentsJson,
+      'timestamp': (timestamp ?? DateTime.now()).toUtc().toIso8601String(),
+    });
+  }
+
+  Future<int> updateAiConversation({
+    required int id,
+    required String title,
+    required String preview,
+  }) async {
+    final db = await instance.database;
+    return db.update(
+      'ai_conversations',
+      {
+        'title': title,
+        'preview': preview,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<int> deleteAiConversation(int id) async {
+    final db = await instance.database;
+    return db.transaction((txn) async {
+      await txn.delete(
+        'ai_messages',
+        where: 'conversation_id = ?',
+        whereArgs: [id],
+      );
+      return txn.delete('ai_conversations', where: 'id = ?', whereArgs: [id]);
+    });
+  }
+
   // --- SPARE PARTS (INVENTORY) - DIRECT SUPABASE ---
   Future<List<SparePart>> getInventory() async {
     try {
@@ -364,13 +563,43 @@ class DatabaseHelper {
           return result.map((json) => SparePart.fromMap(json)).toList();
         }
       }
-      return response.map<SparePart>((json) => SparePart.fromMap(json)).toList();
+      final remote =
+          response.map<SparePart>((json) => SparePart.fromMap(json)).toList();
+      final db = await instance.database;
+      final local = (await db.query('spare_parts'))
+          .map((json) => SparePart.fromMap(json))
+          .toList();
+      return _mergeLocalInventoryImages(remote, local);
     } catch (e) {
       // Offline fallback: Query local SQLite cache
       final db = await instance.database;
       final result = await db.query('spare_parts');
       return result.map((json) => SparePart.fromMap(json)).toList();
     }
+  }
+
+  List<SparePart> _mergeLocalInventoryImages(
+    List<SparePart> remote,
+    List<SparePart> local,
+  ) {
+    String key(SparePart part) =>
+        '${part.name.trim().toLowerCase()}|${part.compatibleModel.trim().toLowerCase()}';
+
+    final localById = {
+      for (final part in local)
+        if (part.id != null) part.id!: part,
+    };
+    final localByKey = {for (final part in local) key(part): part};
+
+    return remote.map((part) {
+      final localMatch = (part.id == null ? null : localById[part.id]) ??
+          localByKey[key(part)];
+      if (localMatch?.imageBytes == null) return part;
+      return part.copyWith(
+        imageFileName: localMatch!.imageFileName,
+        imageBytes: localMatch.imageBytes,
+      );
+    }).toList();
   }
 
   Future<int> updateSparePart(SparePart part) async {
@@ -385,16 +614,19 @@ class DatabaseHelper {
         'last_restocked': part.lastRestocked,
         'notes': part.notes,
       }).eq('id', part.id!);
-      
+
       // Update local cache as well
       final db = await instance.database;
-      await db.update('spare_parts', part.toMap(), where: 'id = ?', whereArgs: [part.id]);
+      await db.update('spare_parts', part.toMap(),
+          where: 'id = ?', whereArgs: [part.id]);
       return 1;
     } catch (e) {
       // Local only write if offline (will be synced later)
       final db = await instance.database;
-      await enqueueChange('UPDATE', 'spare_parts', part.id.toString(), part.toMap());
-      return await db.update('spare_parts', part.toMap(), where: 'id = ?', whereArgs: [part.id]);
+      await enqueueChange(
+          'UPDATE', 'spare_parts', part.id.toString(), part.toMap());
+      return await db.update('spare_parts', part.toMap(),
+          where: 'id = ?', whereArgs: [part.id]);
     }
   }
 
@@ -416,7 +648,8 @@ class DatabaseHelper {
       return await db.insert('spare_parts', part.toMap());
     } catch (e) {
       final db = await instance.database;
-      await enqueueChange('INSERT', 'spare_parts', part.id.toString(), part.toMap());
+      await enqueueChange(
+          'INSERT', 'spare_parts', part.id.toString(), part.toMap());
       return await db.insert('spare_parts', part.toMap());
     }
   }
@@ -428,7 +661,7 @@ class DatabaseHelper {
           .from('service_logs')
           .select('*, machines(model_name)')
           .order('timestamp', ascending: false);
-      
+
       if (response.isEmpty) {
         final db = await instance.database;
         final result = await db.query('logs', orderBy: 'timestamp DESC');
@@ -439,8 +672,10 @@ class DatabaseHelper {
 
       return response.map<ServiceLog>((json) {
         final machineData = json['machines'] as Map<String, dynamic>?;
-        final modelName = machineData != null ? machineData['model_name'] ?? 'Unknown Machine' : 'Unknown Machine';
-        
+        final modelName = machineData != null
+            ? machineData['model_name'] ?? 'Unknown Machine'
+            : 'Unknown Machine';
+
         return ServiceLog(
           id: json['id'],
           machineModel: modelName,
@@ -485,7 +720,8 @@ class DatabaseHelper {
       });
 
       // Centralized sync queue registration
-      await enqueueChange('INSERT', 'service_logs', assetId.toString(), payload);
+      await enqueueChange(
+          'INSERT', 'service_logs', assetId.toString(), payload);
     }
   }
 
@@ -503,13 +739,20 @@ class DatabaseHelper {
 
   Future<List<ChatMessage>> getMessagesForContact(int contactId) async {
     final db = await instance.database;
-    final result = await db.query('messages', where: 'contact_id = ?', whereArgs: [contactId], orderBy: 'timestamp ASC');
+    final result = await db.query('messages',
+        where: 'contact_id = ?',
+        whereArgs: [contactId],
+        orderBy: 'timestamp ASC');
     return result.map((json) => ChatMessage.fromMap(json)).toList();
   }
 
   Future<ChatMessage?> getLastMessageForContact(int contactId) async {
     final db = await instance.database;
-    final result = await db.query('messages', where: 'contact_id = ?', whereArgs: [contactId], orderBy: 'timestamp DESC', limit: 1);
+    final result = await db.query('messages',
+        where: 'contact_id = ?',
+        whereArgs: [contactId],
+        orderBy: 'timestamp DESC',
+        limit: 1);
     if (result.isNotEmpty) return ChatMessage.fromMap(result.first);
     return null;
   }

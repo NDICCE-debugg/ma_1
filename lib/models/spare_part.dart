@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 class SparePart {
   final int? id;
   final String name;
@@ -8,6 +10,8 @@ class SparePart {
   final String unit;
   final String lastRestocked;
   final String notes;
+  final String imageFileName;
+  final Uint8List? imageBytes;
 
   SparePart({
     this.id,
@@ -19,6 +23,8 @@ class SparePart {
     this.unit = 'units',
     this.lastRestocked = 'UNKNOWN',
     this.notes = '',
+    this.imageFileName = '',
+    this.imageBytes,
   });
 
   Map<String, dynamic> toMap() {
@@ -32,7 +38,37 @@ class SparePart {
       'unit': unit,
       'last_restocked': lastRestocked,
       'notes': notes,
+      'image_file_name': imageFileName,
+      'image_bytes': imageBytes,
     };
+  }
+
+  SparePart copyWith({
+    int? id,
+    String? name,
+    String? compatibleModel,
+    int? quantity,
+    int? reorderThreshold,
+    String? location,
+    String? unit,
+    String? lastRestocked,
+    String? notes,
+    String? imageFileName,
+    Uint8List? imageBytes,
+  }) {
+    return SparePart(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      compatibleModel: compatibleModel ?? this.compatibleModel,
+      quantity: quantity ?? this.quantity,
+      reorderThreshold: reorderThreshold ?? this.reorderThreshold,
+      location: location ?? this.location,
+      unit: unit ?? this.unit,
+      lastRestocked: lastRestocked ?? this.lastRestocked,
+      notes: notes ?? this.notes,
+      imageFileName: imageFileName ?? this.imageFileName,
+      imageBytes: imageBytes ?? this.imageBytes,
+    );
   }
 
   factory SparePart.fromMap(Map<String, dynamic> map) {
@@ -46,6 +82,8 @@ class SparePart {
       unit: map['unit'] ?? 'units',
       lastRestocked: map['last_restocked'] ?? 'UNKNOWN',
       notes: map['notes'] ?? '',
+      imageFileName: map['image_file_name'] ?? '',
+      imageBytes: map['image_bytes'] as Uint8List?,
     );
   }
 }
