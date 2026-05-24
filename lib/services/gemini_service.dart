@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:ma_1/utils/app_config.dart';
@@ -22,10 +23,22 @@ class GeminiAttachment {
 /// conversation history, and streaming support.
 class GeminiService {
   static final GeminiService instance = GeminiService._init();
-  GeminiService._init();
+  
+  GeminiService._init() {
+    _loadInitialKey();
+  }
+
+  Future<void> _loadInitialKey() async {
+    final prefs = await SharedPreferences.getInstance();
+    final customKey = prefs.getString('custom_gemini_api_key');
+    _activeApiKey = (customKey != null && customKey.isNotEmpty) ? customKey : AppConfig.geminiApiKey;
+  }
 
   GenerativeModel? _model;
   ChatSession? _chat;
+  String _activeApiKey = AppConfig.geminiApiKey;
+
+  bool get isConfigured => _activeApiKey.isNotEmpty && _activeApiKey != 'YOUR_GEMINI_API_KEY_HERE';
 
   // System instruction tuned for biomedical equipment technicians
   static const String _systemPrompt = '''
@@ -58,6 +71,7 @@ RULES:
   void resetModel() {
     _model = null;
     _chat = null;
+    _loadInitialKey();
   }
 
   /// Initialises the model and starts a new chat session dynamically.

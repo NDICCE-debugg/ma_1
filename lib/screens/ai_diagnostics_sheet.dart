@@ -274,7 +274,7 @@ class _AiDiagnosticsSheetState extends State<AiDiagnosticsSheet> {
                           'Diagnostics Command Panel',
                           style: TextStyle(
                             fontSize: 19,
-                            fontWeight: FontWeight.w950,
+                            fontWeight: FontWeight.w900,
                             fontFamily: 'Outfit',
                             color: isDark ? Colors.white : AppTheme.primaryDark,
                           ),
@@ -779,7 +779,7 @@ class _AiDiagnosticsSheetState extends State<AiDiagnosticsSheet> {
             value,
             style: TextStyle(
               fontSize: 14,
-              fontWeight: FontWeight.w950,
+              fontWeight: FontWeight.w900,
               fontFamily: 'Outfit',
               color: isDark ? Colors.white : AppTheme.textPrimary,
             ),

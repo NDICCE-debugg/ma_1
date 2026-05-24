@@ -164,27 +164,43 @@ class _DashboardViewState extends State<DashboardView> {
   }
 
   Widget _buildGreetingHeader() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final chipBg = isDark ? const Color(0xFF0A1518) : Colors.white;
+    final chipBorder = isDark ? const Color(0xFF24353A) : const Color(0xFFE2E8F0);
+    final textPrimaryColor = isDark ? Colors.white : AppTheme.textPrimary;
+    final textSecondaryColor = isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary;
+
+    final hour = DateTime.now().hour;
+    String greeting;
+    if (hour >= 5 && hour < 12) {
+      greeting = 'Good morning, Michael';
+    } else if (hour >= 12 && hour < 17) {
+      greeting = 'Good afternoon, Michael';
+    } else {
+      greeting = 'Good evening, Michael';
+    }
+
     return Row(
       children: [
-        const Expanded(
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Good morning, Michael',
+                greeting,
                 style: TextStyle(
-                  color: AppTheme.textPrimary,
+                  color: textPrimaryColor,
                   fontSize: 24,
                   fontWeight: FontWeight.w900,
                   fontFamily: 'Outfit',
                   letterSpacing: -0.6,
                 ),
               ),
-              SizedBox(height: 4),
+              const SizedBox(height: 4),
               Text(
                 "Here's what's happening with your equipment today.",
                 style: TextStyle(
-                  color: AppTheme.textSecondary,
+                  color: textSecondaryColor,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   fontFamily: 'Outfit',
@@ -197,38 +213,44 @@ class _DashboardViewState extends State<DashboardView> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: chipBg,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+            border: Border.all(color: chipBorder),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.015),
+                color: isDark 
+                    ? Colors.black.withValues(alpha: 0.15) 
+                    : Colors.black.withValues(alpha: 0.015),
                 blurRadius: 8,
                 offset: const Offset(0, 4),
               ),
             ],
           ),
-          child: const Row(
+          child: Row(
             children: [
-              Icon(Icons.cloud_queue_rounded, color: Colors.blue, size: 20),
-              SizedBox(width: 8),
+              Icon(
+                hour >= 6 && hour < 18 ? Icons.wb_sunny_rounded : Icons.nights_stay_rounded,
+                color: hour >= 6 && hour < 18 ? Colors.amber : Colors.indigoAccent,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    '22°C',
+                    hour >= 6 && hour < 18 ? '22°C' : '16°C',
                     style: TextStyle(
-                      color: AppTheme.textPrimary,
+                      color: textPrimaryColor,
                       fontSize: 12,
                       fontWeight: FontWeight.w900,
                       fontFamily: 'Outfit',
                     ),
                   ),
                   Text(
-                    'Partly Cloudy',
+                    hour >= 6 && hour < 18 ? 'Partly Cloudy' : 'Clear Sky',
                     style: TextStyle(
-                      color: AppTheme.textSecondary,
+                      color: textSecondaryColor,
                       fontSize: 9,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'Outfit',
@@ -310,17 +332,25 @@ class _DashboardViewState extends State<DashboardView> {
     IconData icon,
     Color color,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF0A1518) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF24353A) : const Color(0xFFE2E8F0);
+    final textPrimaryColor = isDark ? Colors.white : AppTheme.textPrimary;
+    final textSecondaryColor = isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: cardBorder, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.015),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
+            color: isDark 
+                ? Colors.black.withValues(alpha: 0.25)
+                : Colors.black.withValues(alpha: 0.02),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -334,8 +364,12 @@ class _DashboardViewState extends State<DashboardView> {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.08),
+                  color: color.withValues(alpha: isDark ? 0.15 : 0.08),
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: color.withValues(alpha: isDark ? 0.3 : 0.15),
+                    width: 1,
+                  ),
                 ),
                 child: Icon(icon, color: color, size: 18),
               ),
@@ -347,8 +381,8 @@ class _DashboardViewState extends State<DashboardView> {
             children: [
               Text(
                 title,
-                style: const TextStyle(
-                  color: AppTheme.textSecondary,
+                style: TextStyle(
+                  color: textSecondaryColor,
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                   fontFamily: 'Outfit',
@@ -357,8 +391,8 @@ class _DashboardViewState extends State<DashboardView> {
               const SizedBox(height: 2),
               Text(
                 value,
-                style: const TextStyle(
-                  color: AppTheme.textPrimary,
+                style: TextStyle(
+                  color: textPrimaryColor,
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
                   fontFamily: 'Outfit',

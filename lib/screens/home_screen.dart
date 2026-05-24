@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:ma_1/screens/ai_assistant_view.dart';
 import 'package:ma_1/screens/analytics_view.dart';
@@ -359,6 +357,14 @@ class _HomeScreenState extends State<HomeScreen> {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
+        final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
+        final dialogBg = isDark ? const Color(0xFF0A1518) : Colors.white;
+        final dialogBorder = isDark ? const Color(0xFF24353A) : const Color(0xFFE2E8F0);
+        final badgeBg = isDark ? const Color(0xFF111F23) : const Color(0xFFF8FAFC);
+        final badgeBorder = isDark ? const Color(0xFF24353A) : const Color(0xFFE2E8F0);
+        final textPrimaryColor = isDark ? Colors.white : AppTheme.textPrimary;
+        final textSecondaryColor = isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary;
+
         return Dialog(
           backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
@@ -366,196 +372,184 @@ class _HomeScreenState extends State<HomeScreen> {
               const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 460),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                child: Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.82),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.72),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.primary.withValues(alpha: 0.14),
-                        blurRadius: 32,
-                        offset: const Offset(0, 18),
-                      ),
-                    ],
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Colors.white.withValues(alpha: 0.94),
-                        AppTheme.iceBlue.withValues(alpha: 0.2),
-                        Colors.white.withValues(alpha: 0.78),
-                      ],
-                    ),
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: dialogBg,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: dialogBorder,
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: isDark
+                        ? Colors.black.withValues(alpha: 0.4)
+                        : AppTheme.primary.withValues(alpha: 0.12),
+                    blurRadius: 32,
+                    offset: const Offset(0, 18),
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 58,
-                            height: 58,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [AppTheme.primary, AppTheme.secondary],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(14),
-                              boxShadow: [
-                                BoxShadow(
-                                  color:
-                                      AppTheme.secondary.withValues(alpha: 0.2),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 8),
-                                ),
-                              ],
+                      Container(
+                        width: 58,
+                        height: 58,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [AppTheme.primary, AppTheme.secondary],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color:
+                                  AppTheme.secondary.withValues(alpha: 0.2),
+                              blurRadius: 16,
+                              offset: const Offset(0, 8),
                             ),
-                            child: Text(
-                              initials,
-                              style: const TextStyle(
-                                color: Colors.white,
+                          ],
+                        ),
+                        child: Text(
+                          initials,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontFamily: 'Outfit',
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: textPrimaryColor,
                                 fontFamily: 'Outfit',
-                                fontSize: 20,
+                                fontSize: 18,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: AppTheme.textPrimary,
-                                    fontFamily: 'Outfit',
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  email,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: AppTheme.textSecondary,
-                                    fontFamily: 'Outfit',
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: 'Close',
-                            icon: const Icon(Icons.close_rounded),
-                            onPressed: () => Navigator.pop(dialogContext),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.54),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.72),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.badge_outlined,
-                                color: AppTheme.secondary, size: 18),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                reg,
-                                style: const TextStyle(
-                                  color: AppTheme.textPrimary,
-                                  fontFamily: 'Outfit',
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                ),
+                            const SizedBox(height: 3),
+                            Text(
+                              email,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: textSecondaryColor,
+                                fontFamily: 'Outfit',
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                            const _MiniStatus(label: 'Active'),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 18),
-                      _AccountMenuTile(
-                        icon: Icons.account_circle_outlined,
-                        title: 'Professional profile',
-                        subtitle:
-                            'Credentials, role, skills, and contact details',
-                        onTap: () {
-                          Navigator.pop(dialogContext);
-                          _openScreen(const ProfileEditScreen());
-                        },
-                      ),
-                      _AccountMenuTile(
-                        icon: Icons.settings_outlined,
-                        title: 'Settings',
-                        subtitle:
-                            'Appearance, notifications, privacy, and support',
-                        onTap: () {
-                          Navigator.pop(dialogContext);
-                          _openScreen(const SettingsScreen());
-                        },
-                      ),
-                      _AccountMenuTile(
-                        icon: Icons.help_outline_rounded,
-                        title: 'Help and support',
-                        subtitle: 'Guides, safety notes, and liaison channels',
-                        onTap: () {
-                          Navigator.pop(dialogContext);
-                          _openScreen(const HelpScreen());
-                        },
-                      ),
-                      const Divider(height: 22),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppTheme.error,
-                            side: const BorderSide(color: AppTheme.error),
-                          ),
-                          onPressed: () async {
-                            Navigator.pop(dialogContext);
-                            await AuthService.instance.signOut();
-                            if (!mounted) return;
-                            Navigator.pushAndRemoveUntil(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const LoginScreen()),
-                              (route) => false,
-                            );
-                          },
-                          icon: const Icon(Icons.logout_rounded, size: 18),
-                          label: const Text('Sign out'),
-                        ),
+                      IconButton(
+                        tooltip: 'Close',
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () => Navigator.pop(dialogContext),
                       ),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: badgeBg,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: badgeBorder,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.badge_outlined,
+                            color: AppTheme.secondary, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            reg,
+                            style: TextStyle(
+                              color: textPrimaryColor,
+                              fontFamily: 'Outfit',
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const _MiniStatus(label: 'Active'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  _AccountMenuTile(
+                    icon: Icons.account_circle_outlined,
+                    title: 'Professional profile',
+                    subtitle:
+                        'Credentials, role, skills, and contact details',
+                    onTap: () {
+                      Navigator.pop(dialogContext);
+                      _openScreen(const ProfileEditScreen());
+                    },
+                  ),
+                  _AccountMenuTile(
+                    icon: Icons.settings_outlined,
+                    title: 'Settings',
+                    subtitle:
+                        'Appearance, notifications, privacy, and support',
+                    onTap: () {
+                      Navigator.pop(dialogContext);
+                      _openScreen(const SettingsScreen());
+                    },
+                  ),
+                  _AccountMenuTile(
+                    icon: Icons.help_outline_rounded,
+                    title: 'Help and support',
+                    subtitle: 'Guides, safety notes, and liaison channels',
+                    onTap: () {
+                      Navigator.pop(dialogContext);
+                      _openScreen(const HelpScreen());
+                    },
+                  ),
+                  const Divider(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.error,
+                        side: const BorderSide(color: AppTheme.error),
+                      ),
+                      onPressed: () async {
+                        Navigator.pop(dialogContext);
+                        await AuthService.instance.signOut();
+                        if (!mounted) return;
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const LoginScreen()),
+                          (route) => false,
+                        );
+                      },
+                      icon: const Icon(Icons.logout_rounded, size: 18),
+                      label: const Text('Sign out'),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -859,6 +853,12 @@ class _AccountMenuTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tileBg = isDark ? const Color(0xFF111F23) : Colors.white;
+    final tileBorder = isDark ? const Color(0xFF24353A) : const Color(0xFFE2E8F0);
+    final textPrimaryColor = isDark ? Colors.white : AppTheme.textPrimary;
+    final textSecondaryColor = isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: InkWell(
@@ -868,11 +868,13 @@ class _AccountMenuTile extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
-            color: Colors.white.withValues(alpha: 0.48),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
+            color: tileBg,
+            border: Border.all(color: tileBorder),
             boxShadow: [
               BoxShadow(
-                color: AppTheme.primary.withValues(alpha: 0.035),
+                color: isDark
+                    ? Colors.black.withValues(alpha: 0.2)
+                    : AppTheme.primary.withValues(alpha: 0.035),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
               ),
@@ -898,8 +900,8 @@ class _AccountMenuTile extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        color: AppTheme.textPrimary,
+                      style: TextStyle(
+                        color: textPrimaryColor,
                         fontFamily: 'Outfit',
                         fontSize: 14,
                         fontWeight: FontWeight.w900,
@@ -910,8 +912,8 @@ class _AccountMenuTile extends StatelessWidget {
                       subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppTheme.textSecondary,
+                      style: TextStyle(
+                        color: textSecondaryColor,
                         fontFamily: 'Outfit',
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -920,8 +922,8 @@ class _AccountMenuTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded,
-                  color: AppTheme.textSecondary),
+              Icon(Icons.chevron_right_rounded,
+                  color: textSecondaryColor),
             ],
           ),
         ),
