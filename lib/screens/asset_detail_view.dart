@@ -6,6 +6,7 @@ import 'package:ma_1/models/manual_entry.dart';
 import 'package:ma_1/screens/repair_cockpit_screen.dart';
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/services/database_helper.dart';
+import 'package:ma_1/services/google_chat_service.dart';
 
 class AssetDetailView extends StatefulWidget {
   final Map<String, dynamic> assetData;
@@ -146,12 +147,23 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                       description: descCtrl.text,
                       severity: severity,
                     );
+
+                    // Dynamic Google Chat Cards v2 Triage Broadcast!
+                    await GoogleChatService.instance.sendEmergencyPageCard(
+                      assetModel: widget.assetData['model_name'] ?? 'Medical Asset',
+                      serialNumber: widget.assetData['serial_number'] ?? 'SN-N/A',
+                      wardLocation: widget.assetData['ward_location'] ?? 'Hospital ICU Ward',
+                      faultDescription: descCtrl.text,
+                      severity: severity,
+                      loggedBy: 'Clinical Maintenance Staff',
+                    );
+
                     if (!ctx.mounted) return;
                     Navigator.pop(ctx);
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                         backgroundColor: AppTheme.error,
-                        content: Text("Issue logged successfully")));
+                        content: Text("Issue logged & broadcast to Google Chat!")));
                   },
                   child: const Text("Submit Report"),
                 ),

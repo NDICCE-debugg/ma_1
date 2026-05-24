@@ -54,6 +54,7 @@ dependencies:
   agora_rtc_engine: ^6.3.0
   flutter_sound: ^9.2.13
   emoji_picker_flutter: ^4.4.0 
+  dart_jsonwebtoken: ^2.4.2
 
   # --- AUTHENTICATION & SECURITY ---
   google_sign_in: ^6.2.1

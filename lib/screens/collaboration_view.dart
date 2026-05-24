@@ -8,6 +8,7 @@ import 'package:ma_1/screens/chat_screen.dart';
 import 'package:ma_1/screens/meeting_room_view.dart';
 import 'package:ma_1/screens/call_screen.dart';
 import 'package:intl/intl.dart';
+import 'package:ma_1/services/google_chat_service.dart';
 
 class CollaborationView extends StatefulWidget {
   const CollaborationView({super.key});
@@ -23,78 +24,9 @@ class _CollaborationViewState extends State<CollaborationView>
   bool _isSearching = false;
   final TextEditingController _searchCtrl = TextEditingController();
 
-  List<Map<String, dynamic>> _chats = [
-    {
-      "id": "dr-chipo-moyo",
-      "name": "Dr. Chipo Moyo",
-      "last_msg":
-          "Urgent: ICU Aeonmed VG70 Ventilator has a constant 'Low O2 Pressure' fault alarm. Purity cell reading at 88%.",
-      "time": "10:45 AM",
-      "unread": 2,
-      "online": true
-    },
-    {
-      "id": "farai-gumbo",
-      "name": "Farai Gumbo",
-      "last_msg":
-          "Evita V500 PEEP valve calibration test complete. Volume leakage check passed, ready to redeploy.",
-      "time": "Yesterday",
-      "unread": 0,
-      "online": false
-    },
-    {
-      "id": "tendai-chidi",
-      "name": "Tendai Chidi",
-      "last_msg":
-          "Central oxygen plant manifold pressure dropping below 4.2 bar. Manually routing to reserve cylinder banks.",
-      "time": "May 22",
-      "unread": 1,
-      "online": true
-    }
-  ];
-
-  final List<Map<String, dynamic>> _calls = [
-    {
-      "name": "Dr. Chipo Moyo",
-      "type": "voice",
-      "direction": "incoming",
-      "time": "Today, 10:45 AM",
-      "status": "Low O2 Alarm Fault (12m 4s)",
-      "phone": "+263772123456",
-      "online": true,
-    },
-    {
-      "name": "Farai Gumbo",
-      "type": "video",
-      "direction": "outgoing",
-      "time": "Yesterday, 15:30",
-      "status": "PEEP Valve Calibrated (8m 15s)",
-      "phone": "+263773456789",
-      "online": false,
-    },
-    {
-      "name": "Tendai Chidi",
-      "type": "voice",
-      "direction": "missed",
-      "time": "Yesterday, 09:15",
-      "status": "Manifold Pressure Drop",
-      "phone": "+263774567890",
-      "online": true,
-    },
-  ];
-
-  final List<Map<String, dynamic>> _meetings = [
-    {
-      "topic": "Oxygen Plant Pipeline Pressure Failure Consultation",
-      "time": "Today, 14:00",
-      "host": "Farai Gumbo"
-    },
-    {
-      "topic": "ICU Ventilator Oxygen Cell Failover Audit",
-      "time": "Tomorrow, 09:30",
-      "host": "Dr. Chipo Moyo"
-    }
-  ];
+  List<Map<String, dynamic>> _chats = [];
+  List<Map<String, dynamic>> _calls = [];
+  List<Map<String, dynamic>> _meetings = [];
 
   List<Map<String, dynamic>> _contacts = [];
   bool _isLoadingContacts = false;
@@ -122,11 +54,15 @@ class _CollaborationViewState extends State<CollaborationView>
     final results = await Future.wait([
       ChatService.instance.getContacts(),
       ChatService.instance.getConversations(),
+      ChatService.instance.getCallLogs(),
+      ChatService.instance.getMeetings(),
     ]);
     if (!mounted) return;
     setState(() {
       _contacts = results[0];
       _chats = results[1];
+      _calls = results[2];
+      _meetings = results[3];
       _isLoadingContacts = false;
       _isLoadingConversations = false;
     });
@@ -174,8 +110,9 @@ class _CollaborationViewState extends State<CollaborationView>
                 )));
   }
 
-  void _startCall(Map<String, dynamic> contact, {required bool isVideo}) {
-    Navigator.push(
+  void _startCall(Map<String, dynamic> contact, {required bool isVideo}) async {
+    final startTime = DateTime.now();
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => CallScreen(
@@ -185,6 +122,26 @@ class _CollaborationViewState extends State<CollaborationView>
         ),
       ),
     );
+
+    // Dynamic Call Log tracking - registers the call dynamically upon completion!
+    final duration = DateTime.now().difference(startTime);
+    if (duration.inSeconds > 2) {
+      final minutes = duration.inMinutes.toString().padLeft(2, '0');
+      final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+
+      final newLog = {
+        "name": contact['name'],
+        "type": isVideo ? "video" : "voice",
+        "direction": "outgoing",
+        "time": "Today, ${DateFormat('HH:mm').format(DateTime.now())}",
+        "status": "${isVideo ? 'Video' : 'Voice'} Call (${minutes}m ${seconds}s)",
+        "phone": contact['phone'] ?? '',
+        "online": contact['online'] == true || contact['online'] == 1,
+      };
+
+      await ChatService.instance.addCallLog(newLog);
+      _loadCommsData();
+    }
   }
 
   void _showNewChatPicker() {
@@ -425,16 +382,35 @@ class _CollaborationViewState extends State<CollaborationView>
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       if (topicCtrl.text.isNotEmpty) {
-                        setState(() {
-                          _meetings.add({
-                            "topic": topicCtrl.text,
-                            "time": "Today, 14:00",
-                            "host": "You"
-                          });
-                        });
+                        final newMeeting = {
+                          "topic": topicCtrl.text,
+                          "time": "Today, ${DateFormat('HH:mm').format(DateTime.now())}",
+                          "host": "You"
+                        };
+                        await ChatService.instance.addMeeting(newMeeting);
+                        
+                        // Dynamic Cards v2 Broadcast to Google Chat Space!
+                        final meetingCode = _generateRandomMeetingCode();
+                        await GoogleChatService.instance.sendMeetingCard(
+                          topic: topicCtrl.text,
+                          time: newMeeting['time']!,
+                          host: 'Clinical Coordinator',
+                          joinUrl: 'https://meet.google.com/med-$meetingCode',
+                        );
+
+                        if (!ctx.mounted) return;
                         Navigator.pop(ctx);
+                        if (!mounted) return;
+                        _loadCommsData();
+                        
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Clinical meeting scheduled and broadcast to Google Chat!'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
                       }
                     },
                     child: const Text("Schedule Meeting"))),
@@ -880,13 +856,33 @@ class _CollaborationViewState extends State<CollaborationView>
                 label: const Text("Start Now",
                     style: TextStyle(
                         color: Colors.white, fontWeight: FontWeight.bold)),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const MeetingRoomView(
-                        meetingTopic: "Instant Consultation"),
-                  ),
-                ),
+                onPressed: () async {
+                  final meetingCode = _generateRandomMeetingCode();
+                  final joinUrl = 'https://meet.google.com/med-$meetingCode';
+                  
+                  await GoogleChatService.instance.sendMeetingCard(
+                    topic: "Instant Technical Consultation Bridge",
+                    time: "Started Now",
+                    host: "Clinical Coordinator",
+                    joinUrl: joinUrl,
+                  );
+
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Instant meeting started and broadcast to Google Chat!'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const MeetingRoomView(
+                          meetingTopic: "Instant Consultation"),
+                    ),
+                  );
+                },
               ),
             ],
           ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
@@ -32,6 +33,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isTyping = false;
   bool _isLoading = true;
   bool _isSending = false;
+  Timer? _pollingTimer;
 
   @override
   void initState() {
@@ -40,10 +42,20 @@ class _ChatScreenState extends State<ChatScreen> {
     ChatService.instance.incomingMessage.addListener(_onMessageReceived);
     ChatService.instance.typingIndicator.addListener(_onTyping);
     _loadMessages();
+
+    // Start background syncing if this is the live Google Chat room
+    if (widget.conversationId == 'google-chat-workspace') {
+      _pollingTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
+        if (mounted && !_isSending) {
+          _refreshMessagesSilently();
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     ChatService.instance.incomingMessage.removeListener(_onMessageReceived);
     ChatService.instance.typingIndicator.removeListener(_onTyping);
     _msgCtrl.dispose();
@@ -62,6 +74,23 @@ class _ChatScreenState extends State<ChatScreen> {
       _isLoading = false;
     });
     _scrollToBottom();
+  }
+
+  Future<void> _refreshMessagesSilently() async {
+    final messages =
+        await ChatService.instance.getMessages(widget.conversationId);
+    if (!mounted) return;
+
+    // Only update and scroll if the conversation stream has actually changed!
+    if (messages.length != _messages.length ||
+        (messages.isNotEmpty && _messages.isNotEmpty && messages.last['id'] != _messages.last['id'])) {
+      setState(() {
+        _messages
+          ..clear()
+          ..addAll(messages);
+      });
+      _scrollToBottom();
+    }
   }
 
   void _onMessageReceived() {
@@ -181,8 +210,9 @@ class _ChatScreenState extends State<ChatScreen> {
     _sendMessage();
   }
 
-  void _startCall(bool isVideo) {
-    Navigator.push(
+  void _startCall(bool isVideo) async {
+    final startTime = DateTime.now();
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => CallScreen(
@@ -192,6 +222,173 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ),
     );
+
+    // Dynamic modern Call Logs added directly to your chat feed upon call termination!
+    final duration = DateTime.now().difference(startTime);
+    if (duration.inSeconds > 2) {
+      final minutes = duration.inMinutes.toString().padLeft(2, '0');
+      final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+      final callTypeLabel = isVideo ? "Video Call" : "Voice Call";
+      final localMessage = {
+        'id': 'system-call-${DateTime.now().microsecondsSinceEpoch}',
+        'conversation_id': widget.conversationId,
+        'sender_id': 'system',
+        'sender_name': 'System',
+        'message_text': '$callTypeLabel ended • $minutes:$seconds',
+        'message_type': 'system',
+        'timestamp': DateTime.now().toUtc().toIso8601String(),
+      };
+      setState(() {
+        _messages.add(localMessage);
+      });
+      _scrollToBottom();
+    }
+  }
+
+  Widget _buildQuickSuggestions() {
+    final contactId = widget.conversationId;
+    List<String> suggestions = [];
+    if (contactId == 'dr-chipo-moyo') {
+      suggestions = [
+        "Checking Bed 2 alarm log.",
+        "Manual O2 cell check done.",
+        "Routing backup cylinders."
+      ];
+    } else if (contactId == 'farai-gumbo') {
+      suggestions = [
+        "Running Evita valve calibration.",
+        "Checking B2 replacement turbine.",
+        "Pneumatic leak test passed."
+      ];
+    } else if (contactId == 'tendai-chidi') {
+      suggestions = [
+        "Manifold pressure verified at 4.2 bar.",
+        "Reserve cylinders routing checked.",
+        "Pipeline status is stable."
+      ];
+    } else if (contactId == 'dr-sekai-nzenza') {
+      suggestions = [
+        "ICU audit sheet is completed.",
+        "High pressure alarm resolved.",
+        "Technical log is uploaded."
+      ];
+    } else if (contactId == 'rufaro-moyo') {
+      suggestions = [
+        "Turbine inventory is restocked.",
+        "Reviewing purchase requests.",
+        "Drafting PM compliance logs."
+      ];
+    } else if (contactId == 'kudakwashe-hove') {
+      suggestions = [
+        "Bringing pH buffers to the lab.",
+        "Drifting sensor verification done.",
+        "pH calibration run successful."
+      ];
+    } else {
+      suggestions = [
+        "Understood, colleague.",
+        "Checked. Logging now.",
+        "Task completed."
+      ];
+    }
+
+    return Container(
+      height: 38,
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: suggestions.length,
+        itemBuilder: (context, idx) {
+          final text = suggestions[idx];
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ActionChip(
+              backgroundColor: Colors.white,
+              elevation: 0,
+              side: const BorderSide(color: AppTheme.border, width: 1),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              label: Text(
+                text,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.secondary,
+                ),
+              ),
+              onPressed: () {
+                _msgCtrl.text = text;
+                _sendMessage();
+              },
+            ),
+          );
+        },
+      ),
+    ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.1, end: 0);
+  }
+
+  Widget _buildTypingIndicatorBubble() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 16, bottom: 12, right: 16),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 12,
+              backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
+              child: Text(
+                widget.contactName.substring(0, 1),
+                style: const TextStyle(
+                  color: AppTheme.primary,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppTheme.border, width: 0.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    width: 7,
+                    height: 7,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primary),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    "${widget.contactName} is typing...",
+                    style: const TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ).animate().fadeIn(duration: 150.ms).slideY(begin: 0.05, end: 0);
   }
 
   @override
@@ -271,18 +468,10 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
           ),
 
-          if (_isTyping)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 20, bottom: 12),
-                child: Text("${widget.contactName} is typing...",
-                    style: const TextStyle(
-                        color: AppTheme.textSecondary,
-                        fontSize: 12,
-                        fontStyle: FontStyle.italic)),
-              ),
-            ),
+          if (_isTyping) _buildTypingIndicatorBubble(),
+
+          // Dynamic Structured suggestions
+          _buildQuickSuggestions(),
 
           // INPUT BAR (Professional Style)
           Container(
@@ -377,6 +566,44 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildMessageBubble(Map<String, dynamic> msg) {
+    final isSystem = msg['message_type'] == 'system';
+    
+    // RENDER SYSTEM EVENT CHIPS BEAUTIFULLY
+    if (isSystem) {
+      final text = msg['message_text']?.toString() ?? '';
+      final isVideo = text.contains('Video');
+      return Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppTheme.muted,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppTheme.divider, width: 0.5),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isVideo ? Icons.video_camera_front_outlined : Icons.call_rounded,
+                size: 13,
+                color: AppTheme.textSecondary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                text,
+                style: const TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ).animate().scale(duration: 200.ms, curve: Curves.easeOutBack);
+    }
+
     final currentUserId = ChatService.instance.currentUserId;
     final senderId = msg['sender_id']?.toString();
     final isMe = senderId == currentUserId || senderId == 'local-technician';
