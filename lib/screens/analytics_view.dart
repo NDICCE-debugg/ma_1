@@ -626,7 +626,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
   Widget build(BuildContext context) {
     // Lazily initialize _tabCtrl so hot-reload (which reuses the State object
     // without calling initState again) never crashes on LateInitializationError.
-    _tabCtrl ??= TabController(length: 3, vsync: this);
+    _tabCtrl ??= TabController(length: 4, vsync: this);
     final tabCtrl = _tabCtrl!;
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -658,6 +658,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
                 _buildEquipmentTab(),
                 _buildSparePartsTab(),
                 _buildSuppliersTab(),
+                _buildPrognosticsTab(),
               ],
             ),
           ),
@@ -906,7 +907,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
 
   Widget _buildSearchField(String hintText) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      padding: const EdgeInsets.fromLTRB(0, 10, 0, 8),
       child: TextField(
         controller: _searchCtrl,
         style: const TextStyle(
@@ -1200,10 +1201,10 @@ class _AnalyticsViewState extends State<AnalyticsView>
   Widget _buildFilterBar() {
     return Container(
       height: 44,
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 4),
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: EdgeInsets.zero,
         children: [
           _buildFilterPill(
             label: _filterType == null
@@ -1547,13 +1548,13 @@ class _AnalyticsViewState extends State<AnalyticsView>
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
-
-              _buildSearchField('Search by machine name, ID, or location...'),
               const SizedBox(height: 8),
 
+              _buildSearchField('Search by machine name, ID, or location...'),
+              const SizedBox(height: 2),
+
               _buildFilterBar(),
-              const SizedBox(height: 12),
+              const SizedBox(height: 6),
 
               if (assets.isEmpty)
                 Center(

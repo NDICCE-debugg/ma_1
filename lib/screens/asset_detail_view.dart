@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -29,11 +30,12 @@ class _AssetDetailViewState extends State<AssetDetailView> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text("Equipment QR Code",
             style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
+                fontFamily: 'Outfit',
                 color: AppTheme.primaryDark)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -42,8 +44,8 @@ class _AssetDetailViewState extends State<AssetDetailView> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.border),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppTheme.divider),
               ),
               child: QrImageView(
                 data: qrJson,
@@ -57,15 +59,20 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                 widget.assetData['model_name']?.toString().toUpperCase() ??
                     "MODEL",
                 style:
-                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, fontFamily: 'Outfit')),
+            const SizedBox(height: 4),
             Text(widget.assetData['serial_number'] ?? "",
                 style: const TextStyle(
-                    color: AppTheme.textSecondary, fontFamily: 'RobotoMono')),
+                    color: AppTheme.textSecondary, fontSize: 13, fontFamily: 'RobotoMono')),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
+            style: TextButton.styleFrom(
+              foregroundColor: AppTheme.primary,
+              textStyle: const TextStyle(fontWeight: FontWeight.w800, fontFamily: 'Outfit'),
+            ),
             child: const Text("Close"),
           ),
         ],
@@ -82,7 +89,7 @@ class _AssetDetailViewState extends State<AssetDetailView> {
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => StatefulBuilder(
         builder: (context, setSheetState) => Padding(
           padding: EdgeInsets.only(
@@ -94,32 +101,49 @@ class _AssetDetailViewState extends State<AssetDetailView> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text("Report Equipment Issue",
-                  style: TextStyle(
-                      color: AppTheme.error,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold)),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.error.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.report_problem_outlined, color: AppTheme.error, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text("Report Equipment Issue",
+                      style: TextStyle(
+                          color: AppTheme.error,
+                          fontSize: 18,
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w900)),
+                ],
+              ),
               const SizedBox(height: 8),
               const Text("Document the fault details for the technical team.",
                   style:
-                      TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
-              const SizedBox(height: 24),
+                      TextStyle(color: AppTheme.textSecondary, fontSize: 13, fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
+              const SizedBox(height: 20),
               const Text("Issue Description",
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, fontFamily: 'Outfit')),
               const SizedBox(height: 8),
               TextField(
                 controller: descCtrl,
                 maxLines: 3,
+                style: const TextStyle(fontSize: 14, fontFamily: 'Outfit'),
                 decoration: const InputDecoration(
                     hintText: "Describe the observed fault..."),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
               const Text("Severity Level",
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, fontFamily: 'Outfit')),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 initialValue: severity,
-                decoration: const InputDecoration(),
+                decoration: const InputDecoration(
+                  contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                ),
                 items: ['critical', 'moderate', 'minor']
                     .map((s) => DropdownMenuItem(
                         value: s,
@@ -128,16 +152,21 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                                 color: s == 'critical'
                                     ? AppTheme.error
                                     : AppTheme.textPrimary,
-                                fontWeight: FontWeight.w600))))
+                                fontSize: 12.5,
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w800))))
                     .toList(),
                 onChanged: (v) => setSheetState(() => severity = v!),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
-                  style:
-                      ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.error,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
                   onPressed: () async {
                     final int assetId = widget.assetData['id'] ??
                         widget.assetData['asset_id'] ??
@@ -173,7 +202,7 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                   child: const Text("Submit Report"),
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
             ],
           ),
         ),
@@ -194,7 +223,7 @@ class _AssetDetailViewState extends State<AssetDetailView> {
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.62,
@@ -226,7 +255,8 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                           'Technical Manuals',
                           style: TextStyle(
                               fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w900,
+                              fontFamily: 'Outfit',
                               color: AppTheme.primaryDark),
                         ),
                         Text(
@@ -234,7 +264,7 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                               ? 'Uploaded local documents'
                               : modelName,
                           style: const TextStyle(
-                              fontSize: 12, color: AppTheme.textSecondary),
+                              fontSize: 12, color: AppTheme.textSecondary, fontFamily: 'Outfit', fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
@@ -253,13 +283,15 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(Icons.folder_off_outlined,
-                                size: 42,
-                                color: AppTheme.neutral.withValues(alpha: 0.7)),
+                                size: 48,
+                                color: AppTheme.neutral.withValues(alpha: 0.4)),
                             const SizedBox(height: 12),
                             const Text(
                               'No manuals uploaded for this model yet',
                               style: TextStyle(
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w900,
+                                  fontFamily: 'Outfit',
+                                  fontSize: 15,
                                   color: AppTheme.textPrimary),
                             ),
                             const SizedBox(height: 6),
@@ -267,7 +299,7 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                               'Use the drawer upload action to attach service PDFs, schematics, or calibration notes.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                  fontSize: 12, color: AppTheme.textSecondary),
+                                  fontSize: 12, color: AppTheme.textSecondary, fontFamily: 'Outfit', fontWeight: FontWeight.w600),
                             ),
                           ],
                         ),
@@ -275,7 +307,7 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                     : ListView.separated(
                         controller: scrollController,
                         itemCount: manuals.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final manual = manuals[index];
                           final fileLabel = [
@@ -288,9 +320,9 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                           return Container(
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
-                              color: AppTheme.background,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppTheme.border),
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppTheme.divider),
                             ),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -299,8 +331,8 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                                   width: 38,
                                   height: 38,
                                   decoration: BoxDecoration(
-                                    color: AppTheme.iceBlue
-                                        .withValues(alpha: 0.14),
+                                    color: AppTheme.primary
+                                        .withValues(alpha: 0.08),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Icon(_manualIcon(manual.fileType),
@@ -315,7 +347,9 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                                       Text(
                                         manual.title,
                                         style: const TextStyle(
-                                            fontWeight: FontWeight.w800,
+                                            fontWeight: FontWeight.w900,
+                                            fontFamily: 'Outfit',
+                                            fontSize: 14,
                                             color: AppTheme.textPrimary),
                                       ),
                                       const SizedBox(height: 4),
@@ -323,6 +357,8 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                                         '${manual.category}${fileLabel.isEmpty ? '' : ' | $fileLabel'}',
                                         style: const TextStyle(
                                             fontSize: 11,
+                                            fontFamily: 'Outfit',
+                                            fontWeight: FontWeight.bold,
                                             color: AppTheme.textSecondary),
                                       ),
                                       const SizedBox(height: 8),
@@ -332,7 +368,9 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
                                             fontSize: 12,
-                                            height: 1.35,
+                                            height: 1.4,
+                                            fontFamily: 'Outfit',
+                                            fontWeight: FontWeight.w500,
                                             color: AppTheme.textPrimary),
                                       ),
                                     ],
@@ -384,129 +422,349 @@ class _AssetDetailViewState extends State<AssetDetailView> {
 
   @override
   Widget build(BuildContext context) {
-    String type = (widget.assetData['asset_type'] ?? "Equipment").toString();
-    String status = (widget.assetData['status'] ?? "Operational").toString();
-    Color statusColor = status.toUpperCase() == 'OPERATIONAL'
+    final String type = (widget.assetData['asset_type'] ?? widget.assetData['assetType'] ?? "Equipment").toString();
+    final String status = (widget.assetData['status'] ?? "Operational").toString();
+    final String model = (widget.assetData['model_name'] ?? widget.assetData['modelName'] ?? "Unknown Model").toString();
+    final String serial = (widget.assetData['serial_number'] ?? widget.assetData['serialNumber'] ?? "N/A").toString();
+    final String unit = (widget.assetData['hospital_unit'] ?? widget.assetData['hospitalUnit'] ?? "N/A").toString();
+    final String ward = (widget.assetData['ward_location'] ?? widget.assetData['wardLocation'] ?? "N/A").toString();
+    final String lastService = (widget.assetData['last_service_date'] ?? widget.assetData['lastServiceDate'] ?? "N/A").toString();
+    final String acquired = (widget.assetData['date_acquired'] ?? widget.assetData['dateAcquired'] ?? "N/A").toString();
+    final String interval = (widget.assetData['service_interval'] ?? widget.assetData['serviceInterval'] ?? "180").toString();
+
+    final Color statusColor = status.toUpperCase() == 'OPERATIONAL'
         ? AppTheme.success
         : (status.toUpperCase() == 'OFFLINE'
             ? AppTheme.error
             : AppTheme.warning);
 
+    final rawBytes = widget.assetData['image_bytes'] ?? widget.assetData['imageBytes'];
+    final Uint8List? imageBytes = rawBytes != null
+        ? (rawBytes is String ? base64Decode(rawBytes) : Uint8List.fromList(List<int>.from(rawBytes)))
+        : null;
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: const Text("Equipment Details"),
+        title: const Text("Asset Dossier"),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+          onPressed: () => Navigator.pop(context),
+        ),
         actions: [
           IconButton(
+              tooltip: 'Equipment QR Identity tag',
               onPressed: _showQrDialog,
-              icon:
-                  const Icon(Icons.qr_code_2_rounded, color: AppTheme.primary)),
+              icon: const Icon(Icons.qr_code_2_rounded, color: AppTheme.primary, size: 24)),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // PRIMARY INFORMATION CARD
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(type.toUpperCase(),
-                            style: const TextStyle(
-                                color: AppTheme.textSecondary,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1)),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                              color: statusColor.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(20)),
-                          child: Text(status,
-                              style: TextStyle(
-                                  color: statusColor,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold)),
-                        ),
-                      ],
+      body: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+        children: [
+          // --- 1. Immersive Hero Product Showcase Banner ---
+          _buildHeroHeader(type, model, serial, status, statusColor, imageBytes)
+              .animate()
+              .fadeIn(duration: 350.ms)
+              .slideY(begin: 0.04, end: 0, curve: Curves.easeOutCubic),
+          const SizedBox(height: 18),
+
+          // --- 2. Futuristic Specifications Grid (Dashboard-style specification chips) ---
+          const Text(
+            "Hardware Specifications",
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+              fontFamily: 'Outfit',
+              color: AppTheme.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            childAspectRatio: 2.25,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            children: [
+              _buildSpecTile(Icons.business_rounded, "Clinical Unit", unit, const Color(0xFF3B82F6)),
+              _buildSpecTile(Icons.location_on_outlined, "Location Room", ward, const Color(0xFF8B5CF6)),
+              _buildSpecTile(Icons.history_toggle_off_rounded, "Last Service", lastService, const Color(0xFFF59E0B)),
+              _buildSpecTile(Icons.verified_outlined, "Service Interval", "$interval Days", const Color(0xFF10B981)),
+              _buildSpecTile(Icons.shopping_bag_outlined, "Acquisition Date", acquired, const Color(0xFF64748B)),
+              _buildSpecTile(Icons.notes_outlined, "Notes Profile", (widget.assetData['notes'] ?? 'None logged').toString(), const Color(0xFF0F766E)),
+            ],
+          ).animate().fadeIn(duration: 400.ms, delay: 100.ms),
+          const SizedBox(height: 24),
+
+          // --- 3. Fault-to-Fix Interactive Holographic Banner ---
+          const Text(
+            "Guided Repair Workflows",
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+              fontFamily: 'Outfit',
+              color: AppTheme.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildCockpitBanner()
+              .animate()
+              .fadeIn(duration: 400.ms, delay: 150.ms)
+              .scale(begin: const Offset(0.98, 0.98), end: const Offset(1, 1), curve: Curves.easeOutCubic),
+          const SizedBox(height: 18),
+
+          // --- 4. Responsive Action List Blades (Polished touch gestures) ---
+          Column(
+            children: [
+              _buildActionTile(
+                "Diagnostic Repair Cockpit",
+                "Execute active triage calibrations & checklist safety",
+                Icons.construction_rounded,
+                AppTheme.secondary,
+                _openRepairCockpit,
+              ),
+              const SizedBox(height: 10),
+              _buildActionTile(
+                "Log Urgent Equipment Issue",
+                "Log anomalies & dispatch alert to Google Chat",
+                Icons.report_problem_outlined,
+                AppTheme.error,
+                _showLogFaultSheet,
+              ),
+              const SizedBox(height: 10),
+              _buildActionTile(
+                "View Technical Manuals",
+                "Read service guides, operational PDFs, & schematics",
+                Icons.menu_book_outlined,
+                AppTheme.primary,
+                _showManualsSheet,
+              ),
+            ],
+          ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeroHeader(
+    String type,
+    String model,
+    String serial,
+    String status,
+    Color statusColor,
+    Uint8List? imageBytes,
+  ) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.015),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Cybernetic visual frame gradient header
+          Container(
+            height: 190,
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Color(0xFFF8FAFC),
+                  Color(0xFFE2E8F0),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: imageBytes != null
+                ? Image.memory(
+                    imageBytes,
+                    fit: BoxFit.contain,
+                  )
+                : Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(22),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 12,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        type.toLowerCase() == 'ventilator'
+                            ? Icons.air_outlined
+                            : Icons.vaccines_outlined,
+                        color: AppTheme.primary,
+                        size: 48,
+                      ),
                     ),
-                    const SizedBox(height: 12),
-                    Text(widget.assetData['model_name'] ?? "Unknown Model",
+                  ),
+          ),
+          // Details block
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        type.toUpperCase(),
                         style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.textPrimary)),
-                    const SizedBox(height: 4),
-                    Text("SN: ${widget.assetData['serial_number'] ?? "N/A"}",
-                        style: const TextStyle(
-                            color: AppTheme.textSecondary,
-                            fontSize: 15,
-                            fontFamily: 'RobotoMono')),
-                    const Divider(height: 32),
-                    _buildInfoRow(Icons.business_rounded, "Department",
-                        widget.assetData['hospital_unit'] ?? "N/A"),
-                    const SizedBox(height: 12),
-                    _buildInfoRow(Icons.location_on_outlined, "Location",
-                        widget.assetData['ward_location'] ?? "N/A"),
-                    const SizedBox(height: 12),
-                    _buildInfoRow(Icons.calendar_today_outlined, "Last Service",
-                        widget.assetData['last_service_date'] ?? "N/A"),
+                          color: AppTheme.primary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          fontFamily: 'Outfit',
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ),
+                    // Pulsing beacon status badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: statusColor.withValues(alpha: 0.2)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
+                          ).animate(onPlay: (c) => c.repeat(reverse: true))
+                           .scale(begin: const Offset(1, 1), end: const Offset(1.4, 1.4), duration: 800.ms),
+                          const SizedBox(width: 6),
+                          Text(
+                            status.toUpperCase(),
+                            style: TextStyle(
+                              color: statusColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              fontFamily: 'Outfit',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
-              ),
-            ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.05, end: 0),
-
-            const SizedBox(height: 24),
-            const Text("Repair Workflow",
-                style: TextStyle(
-                    fontSize: 16,
+                const SizedBox(height: 12),
+                Text(
+                  model,
+                  style: const TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 22,
                     fontWeight: FontWeight.w900,
-                    fontFamily: 'Outfit')),
-            const SizedBox(height: 12),
-
-            _buildCockpitBanner(),
-            const SizedBox(height: 16),
-
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                SizedBox(
-                  width: 180,
-                  child: _buildActionButton(
-                      "Repair Cockpit",
-                      Icons.construction_rounded,
-                      AppTheme.secondary,
-                      _openRepairCockpit),
+                    fontFamily: 'Outfit',
+                    letterSpacing: -0.5,
+                  ),
                 ),
-                SizedBox(
-                  width: 180,
-                  child: _buildActionButton(
-                      "Report Issue",
-                      Icons.report_problem_outlined,
-                      AppTheme.error,
-                      _showLogFaultSheet),
-                ),
-                SizedBox(
-                  width: 180,
-                  child: _buildActionButton(
-                      "View Manuals",
-                      Icons.menu_book_outlined,
-                      AppTheme.primary,
-                      _showManualsSheet),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.fingerprint_rounded, size: 14, color: AppTheme.textSecondary),
+                    const SizedBox(width: 6),
+                    Text(
+                      'SN: $serial',
+                      style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'RobotoMono',
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpecTile(IconData icon, String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.01),
+            blurRadius: 8,
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Outfit',
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Outfit',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -517,16 +775,23 @@ class _AssetDetailViewState extends State<AssetDetailView> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppTheme.primary,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primary.withValues(alpha: 0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(9),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(Icons.tune_rounded, color: Colors.white),
           ),
@@ -539,16 +804,17 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                   'Fault-to-fix guided workflow',
                   style: TextStyle(
                     color: Colors.white,
+                    fontSize: 13.5,
                     fontWeight: FontWeight.w900,
                     fontFamily: 'Outfit',
                   ),
                 ),
                 SizedBox(height: 3),
                 Text(
-                  'Capture the fault, run triage, follow calibration checks, verify readings, and prepare a service report.',
+                  'Capture the fault, run triage, follow calibration checks, and prepare service reports.',
                   style: TextStyle(
                     color: Colors.white70,
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                     fontFamily: 'Outfit',
                   ),
@@ -557,10 +823,14 @@ class _AssetDetailViewState extends State<AssetDetailView> {
             ),
           ),
           const SizedBox(width: 12),
-          FilledButton(
-            style: FilledButton.styleFrom(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: AppTheme.primary,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              textStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, fontFamily: 'Outfit'),
             ),
             onPressed: _openRepairCockpit,
             child: const Text('Start'),
@@ -570,55 +840,78 @@ class _AssetDetailViewState extends State<AssetDetailView> {
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, color: AppTheme.primary, size: 18),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label,
-                style: const TextStyle(
-                    color: AppTheme.textSecondary, fontSize: 11)),
-            Text(value,
-                style:
-                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionButton(
-      String label, IconData icon, Color color, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 118),
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppTheme.border),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03), blurRadius: 10)
-          ],
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 8),
-            Text(label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: color, fontSize: 12, fontWeight: FontWeight.bold)),
-          ],
+  Widget _buildActionTile(
+    String title,
+    String subtitle,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.01),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, color: color, size: 20),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w900,
+                            fontFamily: 'Outfit',
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: const TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Outfit',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: AppTheme.textSecondary),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
 }
-

@@ -1,4 +1,5 @@
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ma_1/utils/app_config.dart';
 
 /// Clinical Gemma Simulation Service
@@ -99,8 +100,11 @@ CONVERSATION RULES:
     List<Map<String, dynamic>> priorMessages = const [],
     bool isVoiceCall = false,
   }) async {
-    if (AppConfig.geminiApiKey.isEmpty ||
-        AppConfig.geminiApiKey == 'YOUR_GEMINI_API_KEY_HERE') {
+    final prefs = await SharedPreferences.getInstance();
+    final customKey = prefs.getString('custom_gemini_api_key');
+    final activeKey = (customKey != null && customKey.isNotEmpty) ? customKey : AppConfig.geminiApiKey;
+
+    if (activeKey.isEmpty || activeKey == 'YOUR_GEMINI_API_KEY_HERE') {
       return _generateOfflineFallback(contactId, userMessage);
     }
 
@@ -143,7 +147,7 @@ CONVERSATION RULES:
     try {
       final model = GenerativeModel(
         model: AppConfig.simulationModel,
-        apiKey: AppConfig.geminiApiKey,
+        apiKey: activeKey,
         systemInstruction: Content.system(systemInstruction),
         generationConfig: GenerationConfig(
           temperature: 0.7,
@@ -162,7 +166,7 @@ CONVERSATION RULES:
       try {
         final fallbackModel = GenerativeModel(
           model: 'gemini-2.5-flash',
-          apiKey: AppConfig.geminiApiKey,
+          apiKey: activeKey,
           systemInstruction: Content.system(systemInstruction),
           generationConfig: GenerationConfig(
             temperature: 0.7,

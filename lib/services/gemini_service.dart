@@ -1,5 +1,4 @@
-import 'dart:typed_data';
-
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:ma_1/utils/app_config.dart';
 
@@ -55,16 +54,23 @@ RULES:
   gap clearly instead of inventing values, limits, or part numbers.
 ''';
 
-  bool get isConfigured =>
-      AppConfig.geminiApiKey.isNotEmpty &&
-      AppConfig.geminiApiKey != 'YOUR_GEMINI_API_KEY_HERE';
+  /// Clear the model and chat session to force re-initialisation when key changes
+  void resetModel() {
+    _model = null;
+    _chat = null;
+  }
 
-  /// Initialises the model and starts a new chat session.
-  void _ensureInitialized() {
+  /// Initialises the model and starts a new chat session dynamically.
+  Future<void> _ensureInitialized() async {
     if (_model != null) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final customKey = prefs.getString('custom_gemini_api_key');
+    final activeKey = (customKey != null && customKey.isNotEmpty) ? customKey : AppConfig.geminiApiKey;
+
     _model = GenerativeModel(
       model: 'gemini-2.5-flash',
-      apiKey: AppConfig.geminiApiKey,
+      apiKey: activeKey,
       systemInstruction: Content.system(_systemPrompt),
       generationConfig: GenerationConfig(
         temperature: 0.4,
@@ -86,13 +92,17 @@ RULES:
     String userMessage, {
     List<GeminiAttachment> attachments = const [],
   }) async {
-    if (!isConfigured) {
+    final prefs = await SharedPreferences.getInstance();
+    final customKey = prefs.getString('custom_gemini_api_key');
+    final activeKey = (customKey != null && customKey.isNotEmpty) ? customKey : AppConfig.geminiApiKey;
+
+    if (activeKey.isEmpty || activeKey == 'YOUR_GEMINI_API_KEY_HERE') {
       throw GeminiException(
         'Gemini API key not configured. '
-        'Open lib/utils/app_config.dart and paste your key into geminiApiKey.',
+        'Enter a valid key in Settings or AppConfig.',
       );
     }
-    _ensureInitialized();
+    await _ensureInitialized();
 
     try {
       final response = await _chat!.sendMessage(
@@ -115,13 +125,17 @@ RULES:
     String userMessage, {
     List<GeminiAttachment> attachments = const [],
   }) async* {
-    if (!isConfigured) {
+    final prefs = await SharedPreferences.getInstance();
+    final customKey = prefs.getString('custom_gemini_api_key');
+    final activeKey = (customKey != null && customKey.isNotEmpty) ? customKey : AppConfig.geminiApiKey;
+
+    if (activeKey.isEmpty || activeKey == 'YOUR_GEMINI_API_KEY_HERE') {
       throw GeminiException(
         'Gemini API key not configured. '
-        'Open lib/utils/app_config.dart and paste your key.',
+        'Enter a valid key in Settings or AppConfig.',
       );
     }
-    _ensureInitialized();
+    await _ensureInitialized();
 
     try {
       final stream =

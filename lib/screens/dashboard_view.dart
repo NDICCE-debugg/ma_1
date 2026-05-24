@@ -1,12 +1,14 @@
 import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:ma_1/models/hospital_asset.dart';
+import 'package:ma_1/screens/ai_diagnostics_sheet.dart';
+import 'package:ma_1/screens/asset_detail_view.dart';
+import 'package:ma_1/services/predictive_maintenance_service.dart';
 import 'package:ma_1/services/system_overview_service.dart';
 import 'package:ma_1/theme/app_theme.dart';
 
-enum _AssetFilter { all, attention, operational, maintenance, offline }
+
 
 class DashboardView extends StatefulWidget {
   const DashboardView({super.key});
@@ -18,8 +20,6 @@ class DashboardView extends StatefulWidget {
 class _DashboardViewState extends State<DashboardView> {
   final SystemOverviewService _service = SystemOverviewService();
   late Future<SystemOverviewSnapshot> _snapshotFuture;
-  _AssetFilter _filter = _AssetFilter.all;
-  String _query = '';
 
   @override
   void initState() {
@@ -31,6 +31,36 @@ class _DashboardViewState extends State<DashboardView> {
     setState(() {
       _snapshotFuture = _service.getSnapshot();
     });
+  }
+
+  void _navigateToAsset(SystemOverviewSnapshot data, String modelName) {
+    try {
+      final asset = data.assets.firstWhere(
+        (a) => a.modelName.toLowerCase().contains(modelName.toLowerCase()),
+      );
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AssetDetailView(assetData: {
+            'id': asset.id,
+            'asset_type': asset.assetType,
+            'model_name': asset.modelName,
+            'serial_number': asset.serialNumber,
+            'hospital_unit': asset.hospitalUnit,
+            'ward_location': asset.wardLocation,
+            'status': asset.status,
+            'date_acquired': asset.dateAcquired,
+            'last_service_date': asset.lastServiceDate,
+            'service_interval': asset.serviceInterval,
+            'notes': asset.notes,
+            'image_file_name': asset.imageFileName,
+            'image_bytes': asset.imageBytes,
+          }),
+        ),
+      );
+    } catch (_) {
+      // Fallback if not found
+    }
   }
 
   @override
@@ -74,831 +104,372 @@ class _DashboardViewState extends State<DashboardView> {
   }
 
   Widget _buildDashboard(SystemOverviewSnapshot data) {
-    final filteredAssets = _filteredAssets(data.assets);
     final isWide = MediaQuery.of(context).size.width >= 900;
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 28),
       children: [
-        _buildCommandHeader(data),
+        // --- 1. Greet Header block ---
+        _buildGreetingHeader(),
         const SizedBox(height: 16),
-        _buildPriorityQueue(data),
+
+        // --- 2. 2x2 Grid or 4-Column Row of Fleet Metrics ---
+        _buildMetricsGrid(data),
         const SizedBox(height: 16),
-        _buildDepartmentCards(data),
+
+        // --- 3. Pulse AI Prognostics Centerpiece (Urgent Alerts centerpiece) ---
+        _buildAiPrognosticsCore(data),
         const SizedBox(height: 16),
+
+        // --- 4. Interactive Charts & Activity logs grid column layout ---
         if (isWide)
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(flex: 4, child: _buildStatusPanel(data)),
-              const SizedBox(width: 14),
-              Expanded(flex: 5, child: _buildModelPanel(data)),
+              Expanded(
+                flex: 5,
+                child: Column(
+                  children: [
+                    _buildServiceActivityCard(),
+                    const SizedBox(height: 16),
+                    _buildUpcomingMaintenanceCard(data),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                flex: 5,
+                child: Column(
+                  children: [
+                    _buildEquipmentHealthCard(data),
+                    const SizedBox(height: 16),
+                    _buildRecentActivityCard(data),
+                  ],
+                ),
+              ),
             ],
           )
         else ...[
-          _buildStatusPanel(data),
-          const SizedBox(height: 14),
-          _buildModelPanel(data),
+          _buildServiceActivityCard(),
+          const SizedBox(height: 16),
+          _buildEquipmentHealthCard(data),
+          const SizedBox(height: 16),
+          _buildUpcomingMaintenanceCard(data),
+          const SizedBox(height: 16),
+          _buildRecentActivityCard(data),
         ],
-        const SizedBox(height: 16),
-        _buildAssetPanel(filteredAssets),
       ],
     );
   }
 
-  Widget _buildCommandHeader(SystemOverviewSnapshot data) {
-    final cap = (data.capacity * 100).round();
-    final statusText = cap >= 80
-        ? 'Fleet ready'
-        : cap >= 60
-            ? 'Service pressure'
-            : 'High risk';
-    final statusColor = cap >= 80
-        ? AppTheme.success
-        : cap >= 60
-            ? AppTheme.warning
-            : AppTheme.error;
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppTheme.primary,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.primary.withValues(alpha: 0.18),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 680;
-          final titleBlock = Column(
+  Widget _buildGreetingHeader() {
+    return Row(
+      children: [
+        const Expanded(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Clinical Equipment Command Center',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 21,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: 'Outfit',
-                ),
-              ),
-              const SizedBox(height: 6),
               Text(
-                '${data.totalAssets} assets tracked across ${data.unitStats.length} unit(s)',
+                'Good morning, Michael',
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.74),
+                  color: AppTheme.textPrimary,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Outfit',
+                  letterSpacing: -0.6,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                "Here's what's happening with your equipment today.",
+                style: TextStyle(
+                  color: AppTheme.textSecondary,
                   fontSize: 13,
+                  fontWeight: FontWeight.w600,
                   fontFamily: 'Outfit',
                 ),
               ),
             ],
-          );
-
-          final statusBlock = Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 9,
-                  height: 9,
-                  decoration:
-                      BoxDecoration(color: statusColor, shape: BoxShape.circle),
-                ),
-                const SizedBox(width: 9),
-                Text(
-                  '$statusText - $cap% capacity',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                    fontFamily: 'Outfit',
-                  ),
-                ),
-              ],
-            ),
-          );
-
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [titleBlock, const SizedBox(height: 14), statusBlock],
-            );
-          }
-
-          return Row(
-            children: [
-              Expanded(child: titleBlock),
-              statusBlock,
-              const SizedBox(width: 10),
-              IconButton(
-                tooltip: 'Refresh dashboard',
-                onPressed: _refreshData,
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.white.withValues(alpha: 0.1),
-                  foregroundColor: Colors.white,
-                ),
-                icon: const Icon(Icons.refresh),
-              ),
-            ],
-          );
-        },
-      ),
-    ).animate().fadeIn(duration: 280.ms).slideY(begin: 0.03, end: 0);
-  }
-
-  Widget _buildPriorityQueue(SystemOverviewSnapshot data) {
-    final attention = data.attentionAssets.take(5).toList();
-    final message = attention.isEmpty
-        ? 'No machines are currently flagged for maintenance.'
-        : '${attention.length} priority machine${attention.length == 1 ? '' : 's'} need technician review.';
-    final color = data.offline > 0
-        ? AppTheme.error
-        : data.maintenance > 0
-            ? AppTheme.warning
-            : AppTheme.success;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _panelDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(Icons.priority_high_rounded, color: color),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'What needs attention now',
-                      style: TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'Outfit',
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      message,
-                      style: const TextStyle(
-                        color: AppTheme.textSecondary,
-                        fontSize: 13,
-                        fontFamily: 'Outfit',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              TextButton.icon(
-                onPressed: () =>
-                    setState(() => _filter = _AssetFilter.attention),
-                icon: const Icon(Icons.assignment_outlined, size: 16),
-                label: const Text('Review queue'),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppTheme.primary,
-                  textStyle: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Outfit',
-                  ),
-                ),
-              ),
-            ],
           ),
-          if (attention.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            ...attention.map(_priorityRow),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _priorityRow(HospitalAsset asset) {
-    final color = _statusColor(asset.status);
-    final action = asset.status == 'OFFLINE'
-        ? 'Restore coverage or move standby unit'
-        : asset.status == 'MAINTENANCE'
-            ? 'Schedule service and confirm parts'
-            : 'Verify status';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(_assetIcon(asset.assetType), color: color, size: 22),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  asset.modelName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                    fontFamily: 'Outfit',
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '${asset.hospitalUnit} - ${asset.wardLocation} - $action',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 12,
-                    fontFamily: 'Outfit',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          _statusBadge(asset.status),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusPanel(SystemOverviewSnapshot data) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _panelDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _sectionHeader('Fleet Health', Icons.monitor_heart_outlined),
-          const SizedBox(height: 18),
-          SizedBox(
-            height: 176,
-            child: Row(
-              children: [
-                Expanded(
-                  child: CustomPaint(
-                    painter: _DonutPainter(
-                      operational: data.operational,
-                      maintenance: data.maintenance,
-                      offline: data.offline,
-                    ),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '${(data.capacity * 100).round()}%',
-                            style: const TextStyle(
-                              color: AppTheme.primary,
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              fontFamily: 'Outfit',
-                            ),
-                          ),
-                          const Text(
-                            'ready',
-                            style: TextStyle(
-                              color: AppTheme.textSecondary,
-                              fontSize: 12,
-                              fontFamily: 'Outfit',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _legendRow(
-                          'Operational', data.operational, AppTheme.success),
-                      _legendRow(
-                          'Maintenance', data.maintenance, AppTheme.warning),
-                      _legendRow('Offline', data.offline, AppTheme.error),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDepartmentCards(SystemOverviewSnapshot data) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _panelDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _sectionHeader('Departments', Icons.business_outlined),
-          const SizedBox(height: 6),
-          const Text(
-            'Tap a department for a quick maintenance snapshot.',
-            style: TextStyle(
-              color: AppTheme.textSecondary,
-              fontSize: 12,
-              fontFamily: 'Outfit',
-            ),
-          ),
-          const SizedBox(height: 14),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final columns = constraints.maxWidth >= 900
-                  ? 4
-                  : constraints.maxWidth >= 620
-                      ? 3
-                      : 1;
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: data.unitStats.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columns,
-                  mainAxisSpacing: 10,
-                  crossAxisSpacing: 10,
-                  childAspectRatio: columns == 1 ? 3.1 : 1.55,
-                ),
-                itemBuilder: (context, index) {
-                  final unit = data.unitStats[index];
-                  return _departmentCard(data, unit);
-                },
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _departmentCard(SystemOverviewSnapshot data, UnitFleetStats unit) {
-    final pct = unit.capacity;
-    final color = pct >= 0.8
-        ? AppTheme.success
-        : pct >= 0.6
-            ? AppTheme.warning
-            : AppTheme.error;
-    final status = pct >= 0.8
-        ? 'Stable'
-        : pct >= 0.6
-            ? 'Watch'
-            : 'At risk';
-
-    return InkWell(
-      onTap: () => _showDepartmentPopup(data, unit),
-      borderRadius: BorderRadius.circular(8),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(8),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    unit.unit,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+        // Weather chip
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.015),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.cloud_queue_rounded, color: Colors.blue, size: 20),
+              SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '22°C',
+                    style: TextStyle(
                       color: AppTheme.textPrimary,
-                      fontSize: 14,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Outfit',
+                    ),
+                  ),
+                  Text(
+                    'Partly Cloudy',
+                    style: TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 9,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'Outfit',
                     ),
                   ),
-                ),
-                Icon(Icons.chevron_right, size: 18, color: color),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              '${unit.operational}/${unit.total} ready',
-              style: const TextStyle(
-                color: AppTheme.textSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                fontFamily: 'Outfit',
-              ),
-            ),
-            const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(3),
-              child: LinearProgressIndicator(
-                minHeight: 7,
-                value: pct,
-                color: color,
-                backgroundColor: AppTheme.divider,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                _smallStatus('Svc', unit.maintenance, AppTheme.warning),
-                const SizedBox(width: 8),
-                _smallStatus('Off', unit.offline, AppTheme.error),
-                const Spacer(),
-                Text(
-                  status,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Outfit',
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _smallStatus(String label, int value, Color color) {
-    return Text(
-      '$label $value',
-      style: TextStyle(
-        color: color,
-        fontSize: 11,
-        fontWeight: FontWeight.bold,
-        fontFamily: 'Outfit',
-      ),
-    );
-  }
-
-  void _showDepartmentPopup(
-    SystemOverviewSnapshot data,
-    UnitFleetStats unit,
-  ) {
-    final assets =
-        data.assets.where((asset) => asset.hospitalUnit == unit.unit).toList();
-    final attention = assets.where((a) => a.status != 'OPERATIONAL').toList()
-      ..sort((a, b) =>
-          _statusPriority(a.status).compareTo(_statusPriority(b.status)));
-    final operational = assets.where((a) => a.status == 'OPERATIONAL').length;
-    final maintenance = assets.where((a) => a.status == 'MAINTENANCE').length;
-    final offline = assets
-        .where((a) => a.status == 'OFFLINE' || a.status == 'DECOMMISSIONED')
-        .length;
-    final capacity = assets.isEmpty ? 0.0 : operational / assets.length;
-
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return Dialog(
-          backgroundColor: Colors.white,
-          insetPadding:
-              const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryDark,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.local_hospital_outlined,
-                          color: Colors.white,
-                          size: 21,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              unit.unit,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppTheme.textPrimary,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                fontFamily: 'Outfit',
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${(capacity * 100).round()}% ready - ${attention.length} priority',
-                              style: const TextStyle(
-                                color: AppTheme.textSecondary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                fontFamily: 'Outfit',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Close',
-                        onPressed: () => Navigator.of(dialogContext).pop(),
-                        icon: const Icon(Icons.close_rounded),
-                        color: AppTheme.textSecondary,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _departmentBrief(
-                    assets.length,
-                    operational,
-                    maintenance,
-                    offline,
-                    capacity,
-                  ),
-                  const SizedBox(height: 12),
-                  _departmentFleetGrid(assets),
-                  const SizedBox(height: 12),
-                  _departmentAttentionList(attention, limit: 3),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.of(dialogContext).pop(),
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppTheme.textSecondary,
-                          textStyle: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontFamily: 'Outfit',
-                          ),
-                        ),
-                        child: const Text('Close'),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton.icon(
-                        onPressed: () {
-                          Navigator.of(dialogContext).pop();
-                          setState(() {
-                            _filter = _AssetFilter.attention;
-                            _query = unit.unit;
-                          });
-                        },
-                        icon: const Icon(Icons.filter_alt_outlined, size: 16),
-                        label: const Text('Queue'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppTheme.primary,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          textStyle: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontFamily: 'Outfit',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
-            ),
+            ],
           ),
-        );
+        ),
+      ],
+    ).animate().fadeIn(duration: 300.ms).slideX(begin: -0.02, end: 0);
+  }
+
+  Widget _buildMetricsGrid(SystemOverviewSnapshot data) {
+    final cap = (data.capacity * 100).toStringAsFixed(1);
+    
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 720;
+        
+        final children = [
+          _metricGridCard(
+            'Total Devices',
+            data.totalAssets.toString(),
+            '↗ 12 this month',
+            Icons.desktop_windows_outlined,
+            const Color(0xFF3B82F6),
+          ),
+          _metricGridCard(
+            'Active Alerts',
+            data.offline.toString(),
+            '↗ 2 critical',
+            Icons.warning_amber_rounded,
+            const Color(0xFFEF4444),
+          ),
+          _metricGridCard(
+            'Maintenance Due',
+            data.maintenance.toString(),
+            '↗ 5 this week',
+            Icons.calendar_today_rounded,
+            const Color(0xFFF59E0B),
+          ),
+          _metricGridCard(
+            'System Uptime',
+            '$cap%',
+            '↗ Excellent',
+            Icons.verified_user_outlined,
+            const Color(0xFF10B981),
+          ),
+        ];
+
+        if (wide) {
+          return Row(
+            children: children.map((card) => Expanded(child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: card,
+            ))).toList(),
+          );
+        } else {
+          return GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            childAspectRatio: 1.45,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            children: children,
+          );
+        }
       },
     );
   }
 
-  Widget _departmentBrief(
-    int total,
-    int operational,
-    int maintenance,
-    int offline,
-    double capacity,
+  Widget _metricGridCard(
+    String title,
+    String value,
+    String trend,
+    IconData icon,
+    Color color,
   ) {
-    final pressure = offline > 0
-        ? 'Immediate coverage risk'
-        : maintenance > 0
-            ? 'Preventive service queue'
-            : 'Stable operating posture';
-    final color = offline > 0
-        ? AppTheme.error
-        : maintenance > 0
-            ? AppTheme.warning
-            : AppTheme.success;
-
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(8),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.015),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  pressure,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Outfit',
-                  ),
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
                 ),
+                child: Icon(icon, color: color, size: 18),
               ),
             ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              _miniStat('Assets', total.toString(), AppTheme.primary),
-              _miniStat('Ready', operational.toString(), AppTheme.success),
-              _miniStat('Service', maintenance.toString(), AppTheme.warning),
-              _miniStat('Offline', offline.toString(), AppTheme.error),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            '${(capacity * 100).round()}% department capacity',
-            style: const TextStyle(
-              color: AppTheme.textPrimary,
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              fontFamily: 'Outfit',
-            ),
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: LinearProgressIndicator(
-              value: capacity,
-              minHeight: 8,
-              color: color,
-              backgroundColor: AppTheme.divider,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _miniStat(String label, String value, Color color) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              fontFamily: 'Outfit',
-            ),
-          ),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppTheme.textSecondary,
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'Outfit',
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _departmentFleetGrid(List<HospitalAsset> assets) {
-    final visibleAssets = assets.take(12).toList();
-    final overflow = assets.length - visibleAssets.length;
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Machine field map',
-            style: TextStyle(
-              color: AppTheme.textPrimary,
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              fontFamily: 'Outfit',
-            ),
           ),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (visibleAssets.isEmpty)
-                const Text(
-                  'No machines recorded.',
-                  style: TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 12,
-                    fontFamily: 'Outfit',
-                  ),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Outfit',
                 ),
-              ...visibleAssets.map((asset) {
-                final color = _statusColor(asset.status);
-                return Tooltip(
-                  message:
-                      '${asset.modelName}\n${asset.serialNumber}\n${_statusLabel(asset.status)}',
-                  child: Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      _assetIcon(asset.assetType),
-                      color: color,
-                      size: 20,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Outfit',
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(Icons.trending_up, color: color, size: 12),
+              const SizedBox(width: 4),
+              Text(
+                trend,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  fontFamily: 'Outfit',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildServiceActivityCard() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: _panelDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Service Activity',
+                    style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Outfit',
                     ),
                   ),
-                );
-              }),
-              if (overflow > 0)
-                Container(
-                  width: 42,
-                  height: 42,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: AppTheme.iceBlue.withValues(alpha: 0.24),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '+$overflow',
-                    style: const TextStyle(
-                      color: AppTheme.primary,
-                      fontSize: 12,
+                  Text(
+                    '32 Services Completed',
+                    style: TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 11,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'Outfit',
                     ),
                   ),
+                ],
+              ),
+              // Dropdown button mock
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(20),
                 ),
+                child: const Row(
+                  children: [
+                    Text(
+                      'This Week',
+                      style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Outfit',
+                      ),
+                    ),
+                    SizedBox(width: 4),
+                    Icon(Icons.keyboard_arrow_down_rounded, size: 14, color: AppTheme.textSecondary),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // spline curve chart
+          const SizedBox(
+            height: 120,
+            width: double.infinity,
+            child: CustomPaint(
+              painter: _SplineChartPainter(
+                values: [3.0, 7.0, 4.0, 8.0, 6.0, 9.0, 5.0, 11.0],
+                days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Day labels
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Mon', style: TextStyle(color: AppTheme.textSecondary, fontSize: 10, fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+              Text('Tue', style: TextStyle(color: AppTheme.textSecondary, fontSize: 10, fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+              Text('Wed', style: TextStyle(color: AppTheme.textSecondary, fontSize: 10, fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+              Text('Thu', style: TextStyle(color: AppTheme.textSecondary, fontSize: 10, fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+              Text('Fri', style: TextStyle(color: AppTheme.textSecondary, fontSize: 10, fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+              Text('Sat', style: TextStyle(color: AppTheme.textSecondary, fontSize: 10, fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+              Text('Sun', style: TextStyle(color: AppTheme.textSecondary, fontSize: 10, fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
             ],
           ),
         ],
@@ -906,309 +477,331 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
-  Widget _departmentAttentionList(
-    List<HospitalAsset> attention, {
-    int limit = 5,
-  }) {
-    if (attention.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppTheme.success.withValues(alpha: 0.07),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Text(
-          'No open maintenance pressure.',
-          style: TextStyle(
-            color: AppTheme.success,
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-            fontFamily: 'Outfit',
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Priority machines',
-          style: TextStyle(
-            color: AppTheme.textPrimary,
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-            fontFamily: 'Outfit',
-          ),
-        ),
-        const SizedBox(height: 8),
-        ...attention.take(limit).map(_assetRow),
-      ],
-    );
-  }
-
-  Widget _buildModelPanel(SystemOverviewSnapshot data) {
+  Widget _buildEquipmentHealthCard(SystemOverviewSnapshot data) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: _panelDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionHeader('Fleet by Model', Icons.stacked_bar_chart),
-          const SizedBox(height: 12),
-          for (final model in data.modelStats.take(8)) _modelRow(model),
-        ],
-      ),
-    );
-  }
-
-  Widget _modelRow(ModelFleetStats model) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 9),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 4,
-            child: Text(
-              model.model,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppTheme.textPrimary,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-                fontFamily: 'Outfit',
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 5,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(3),
-              child: Row(
-                children: [
-                  _stackSegment(
-                      model.operational, model.total, AppTheme.success),
-                  _stackSegment(
-                      model.maintenance, model.total, AppTheme.warning),
-                  _stackSegment(model.offline, model.total, AppTheme.error),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 52,
-            child: Text(
-              '${model.total} units',
-              textAlign: TextAlign.right,
-              style: const TextStyle(
-                color: AppTheme.textSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                fontFamily: 'Outfit',
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _stackSegment(int value, int total, Color color) {
-    final flex = total == 0 ? 1 : math.max(value, 0);
-    return Expanded(
-      flex: flex == 0 ? 1 : flex,
-      child: Container(
-        height: 9,
-        color: value == 0 ? AppTheme.divider : color,
-      ),
-    );
-  }
-
-  Widget _buildAssetPanel(List<HospitalAsset> assets) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _panelDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _sectionHeader('Full Work Queue', Icons.assignment_outlined),
-          const SizedBox(height: 12),
-          _buildFilters(),
-          const SizedBox(height: 12),
-          if (assets.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 18),
-              child: Text(
-                'No assets match the current filters.',
-                style: TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontFamily: 'Outfit',
-                ),
-              ),
-            )
-          else
-            ...assets.take(12).map(_assetRow),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilters() {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        for (final filter in _AssetFilter.values)
-          ChoiceChip(
-            selected: _filter == filter,
-            label: Text(_filterLabel(filter)),
-            onSelected: (_) => setState(() => _filter = filter),
-            selectedColor: AppTheme.primary,
-            backgroundColor: Colors.white,
-            side: const BorderSide(color: AppTheme.divider),
-            labelStyle: TextStyle(
-              color: _filter == filter ? Colors.white : AppTheme.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
+          const Text(
+            'Equipment Health',
+            style: TextStyle(
+              color: AppTheme.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
               fontFamily: 'Outfit',
             ),
           ),
-        SizedBox(
-          width: 220,
-          height: 38,
-          child: TextField(
-            onChanged: (value) => setState(() => _query = value.trim()),
-            decoration: InputDecoration(
-              hintText: 'Search serial/model',
-              prefixIcon: const Icon(Icons.search, size: 18),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              filled: true,
-              fillColor: const Color(0xFFF8FAFC),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: AppTheme.divider),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _assetRow(HospitalAsset asset) {
-    final color = _statusColor(asset.status);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.09),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(_assetIcon(asset.assetType), color: color, size: 19),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  asset.modelName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                    fontFamily: 'Outfit',
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              // Left donut chart
+              SizedBox(
+                width: 110,
+                height: 110,
+                child: CustomPaint(
+                  painter: _DonutPainter(
+                    operational: data.operational,
+                    maintenance: data.maintenance,
+                    offline: data.offline,
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          data.totalAssets.toString(),
+                          style: const TextStyle(
+                            color: AppTheme.textPrimary,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            fontFamily: 'Outfit',
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const Text(
+                          'Total',
+                          style: TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Outfit',
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  '${asset.serialNumber} - ${asset.hospitalUnit} ${asset.wardLocation}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 12,
-                    fontFamily: 'Outfit',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.09),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              _statusLabel(asset.status),
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                fontFamily: 'Outfit',
               ),
-            ),
+              const SizedBox(width: 16),
+              // Right legend breakdown table
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _legendRow('Good', data.operational, AppTheme.success),
+                    _legendRow('Fair', data.maintenance, AppTheme.warning),
+                    _legendRow('Offline', data.offline, AppTheme.error),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _statusBadge(String status) {
-    final color = _statusColor(status);
+  Widget _buildUpcomingMaintenanceCard(SystemOverviewSnapshot data) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(8),
+      padding: const EdgeInsets.all(18),
+      decoration: _panelDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Upcoming Maintenance',
+                style: TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Outfit',
+                ),
+              ),
+              TextButton(
+                onPressed: () {},
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text(
+                  'View all',
+                  style: TextStyle(
+                    color: AppTheme.classicBlue,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Outfit',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _upcomingMaintenanceRow(data, 'MAY 22', 'MRI Scanner 1.5T', 'Radiology Dept', 'Today • High', Colors.red),
+          _upcomingMaintenanceRow(data, 'MAY 23', 'Ultrasound Machine', 'Outpatient Clinic 2', 'Tomorrow • Med', Colors.orange),
+          _upcomingMaintenanceRow(data, 'MAY 25', 'Patient Monitor PM-9000', 'ICU - Room 8', 'In 3 days • Low', Colors.blue),
+        ],
       ),
-      child: Text(
-        _statusLabel(status),
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          fontFamily: 'Outfit',
+    );
+  }
+
+  Widget _upcomingMaintenanceRow(
+    SystemOverviewSnapshot data,
+    String dateStr,
+    String name,
+    String dept,
+    String timeTag,
+    Color tagColor,
+  ) {
+    final splitDate = dateStr.split(' ');
+    final month = splitDate[0];
+    final day = splitDate[1];
+
+    return InkWell(
+      onTap: () => _navigateToAsset(data, name),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(4),
+        child: Row(
+          children: [
+            // Calendar styled Block
+            Container(
+              width: 44,
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    month,
+                    style: const TextStyle(
+                      color: Colors.blue,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Outfit',
+                    ),
+                  ),
+                  Text(
+                    day,
+                    style: const TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Outfit',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 14),
+            // Device details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Outfit',
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    dept,
+                    style: const TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'Outfit',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Time badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: tagColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                timeTag,
+                style: TextStyle(
+                  color: tagColor,
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w800,
+                  fontFamily: 'Outfit',
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  List<HospitalAsset> _filteredAssets(List<HospitalAsset> assets) {
-    final query = _query.toLowerCase();
-    return assets.where((asset) {
-      final statusMatch = switch (_filter) {
-        _AssetFilter.all => true,
-        _AssetFilter.attention => asset.status != 'OPERATIONAL',
-        _AssetFilter.operational => asset.status == 'OPERATIONAL',
-        _AssetFilter.maintenance => asset.status == 'MAINTENANCE',
-        _AssetFilter.offline =>
-          asset.status == 'OFFLINE' || asset.status == 'DECOMMISSIONED',
-      };
-      final queryMatch = query.isEmpty ||
-          asset.modelName.toLowerCase().contains(query) ||
-          asset.serialNumber.toLowerCase().contains(query) ||
-          asset.hospitalUnit.toLowerCase().contains(query);
-      return statusMatch && queryMatch;
-    }).toList();
+  Widget _buildRecentActivityCard(SystemOverviewSnapshot data) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: _panelDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Recent Activity',
+                style: TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Outfit',
+                ),
+              ),
+              TextButton(
+                onPressed: () {},
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text(
+                  'View all',
+                  style: TextStyle(
+                    color: AppTheme.classicBlue,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Outfit',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _recentActivityRow(data, 'Aeonmed VG70', 'Fixed: Aeonmed VG70', 'ICU - Room 5  |  30 min ago', Icons.check_circle_outline_rounded, Colors.green),
+          _recentActivityRow(data, 'WATO EX35', 'Maintenance: Anesthetic Unit', 'Radiology Dept  |  2 hrs ago', Icons.build_outlined, Colors.blue),
+          _recentActivityRow(data, 'Drager Evita', 'Alert Acknowledged', 'Ventilator V60  |  3 hrs ago', Icons.notification_important_outlined, Colors.orange),
+          _recentActivityRow(data, 'Mindray A5', 'Calibration Completed', 'Patient Monitor PM-9000  |  5 hrs ago', Icons.verified_user_outlined, Colors.green),
+        ],
+      ),
+    );
+  }
+
+  Widget _recentActivityRow(SystemOverviewSnapshot data, String queryName, String title, String subtitle, IconData icon, Color color) {
+    return InkWell(
+      onTap: () => _navigateToAsset(data, queryName),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Activity icon circle
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: color.withValues(alpha: 0.08),
+              child: Icon(icon, color: color, size: 16),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Outfit',
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'Outfit',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _legendRow(String label, int value, Color color) {
@@ -1247,34 +840,18 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
-  Widget _sectionHeader(String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, color: AppTheme.primary, size: 18),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            color: AppTheme.primary,
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-            fontFamily: 'Outfit',
-          ),
-        ),
-      ],
-    );
-  }
+
 
   BoxDecoration _panelDecoration() {
     return BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: AppTheme.divider),
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
       boxShadow: [
         BoxShadow(
-          color: AppTheme.primary.withValues(alpha: 0.035),
-          blurRadius: 14,
-          offset: const Offset(0, 6),
+          color: AppTheme.primary.withValues(alpha: 0.02),
+          blurRadius: 20,
+          offset: const Offset(0, 10),
         ),
       ],
     );
@@ -1312,47 +889,445 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
-  String _filterLabel(_AssetFilter filter) {
-    return switch (filter) {
-      _AssetFilter.all => 'All',
-      _AssetFilter.attention => 'Attention',
-      _AssetFilter.operational => 'Operational',
-      _AssetFilter.maintenance => 'Maintenance',
-      _AssetFilter.offline => 'Offline',
-    };
+  Widget _buildAiPrognosticsCore(SystemOverviewSnapshot data) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: Future.wait(data.assets.map((a) => PredictiveMaintenanceService.instance.getPrognostics(a))),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return Container(
+            height: 140,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.divider),
+            ),
+            child: const CircularProgressIndicator(color: AppTheme.primary),
+          );
+        }
+
+        final progs = snapshot.data!;
+        
+        // Sort by health score ascending (highest risk first)
+        progs.sort((a, b) => (a['healthScore'] as double).compareTo(b['healthScore'] as double));
+
+        final highRiskCount = progs.where((p) => p['riskLevel'] == 'HIGH').length;
+        final criticalAssetMap = progs.first; // The absolute most critical asset
+        final HospitalAsset criticalAsset = criticalAssetMap['asset'] as HospitalAsset;
+        final double criticalHealth = criticalAssetMap['healthScore'] as double;
+        final String criticalWarning = criticalAssetMap['warningMessage'] as String;
+        final Map<String, dynamic> telemetry = criticalAssetMap['telemetry'] as Map<String, dynamic>;
+
+        Color indexColor = AppTheme.success;
+        String indexLabel = 'Fleet Stable';
+        IconData indexIcon = Icons.check_circle_outline_rounded;
+        
+        if (highRiskCount > 0) {
+          indexColor = AppTheme.error;
+          indexLabel = '$highRiskCount Fleet Threats Detected';
+          indexIcon = Icons.report_problem_rounded;
+        } else if (progs.any((p) => p['riskLevel'] == 'MEDIUM')) {
+          indexColor = AppTheme.warning;
+          indexLabel = 'Medium Wear Warnings';
+          indexIcon = Icons.warning_amber_rounded;
+        }
+
+        final isWide = MediaQuery.of(context).size.width >= 800;
+
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppTheme.divider, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.primary.withValues(alpha: 0.03),
+                blurRadius: 30,
+                offset: const Offset(0, 15),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Title and AI badge
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(9),
+                    decoration: BoxDecoration(
+                      color: AppTheme.ring.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.auto_awesome_rounded, color: AppTheme.ring, size: 19)
+                        .animate(onPlay: (c) => c.repeat())
+                        .shimmer(delay: 2000.ms, duration: 1500.ms, color: Colors.white54),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Pulse AI Predictive Analysis Core',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Outfit',
+                            color: AppTheme.primaryDark,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        Text(
+                          'Prognostic health projections & imminence indexes',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppTheme.textSecondary,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Outfit',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Glowing risk level badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: indexColor.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: indexColor.withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(indexIcon, size: 13, color: indexColor),
+                        const SizedBox(width: 5),
+                        Text(
+                          indexLabel,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            color: indexColor,
+                            fontFamily: 'Outfit',
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: 30, color: AppTheme.divider),
+
+              // Highest risk machine layout panel
+              isWide
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        _buildCriticalGauge(criticalHealth),
+                        const SizedBox(width: 20),
+                        Expanded(child: _buildCriticalAssetBrief(criticalAsset, criticalWarning, criticalHealth, telemetry)),
+                        const SizedBox(width: 20),
+                        _buildCriticalAssetAction(context, criticalAsset, criticalAssetMap),
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            _buildCriticalGauge(criticalHealth),
+                            const SizedBox(width: 16),
+                            Expanded(child: _buildCriticalAssetBrief(criticalAsset, criticalWarning, criticalHealth, telemetry)),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        SizedBox(
+                          width: double.infinity,
+                          child: _buildCriticalAssetAction(context, criticalAsset, criticalAssetMap),
+                        ),
+                      ],
+                    ),
+            ],
+          ),
+        ).animate().fadeIn(duration: 400.ms, delay: 100.ms).slideY(begin: 0.04, end: 0, curve: Curves.easeOutCubic);
+      },
+    );
   }
 
-  Color _statusColor(String status) {
-    return switch (status) {
-      'OPERATIONAL' => AppTheme.success,
-      'MAINTENANCE' => AppTheme.warning,
-      'OFFLINE' || 'DECOMMISSIONED' => AppTheme.error,
-      _ => AppTheme.textSecondary,
-    };
+  Widget _buildCriticalGauge(double score) {
+    final Color color = score < 50.0 ? AppTheme.error : AppTheme.warning;
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        SizedBox(
+          width: 72,
+          height: 72,
+          child: CircularProgressIndicator(
+            value: score / 100.0,
+            strokeWidth: 7,
+            color: color,
+            backgroundColor: AppTheme.divider,
+            strokeCap: StrokeCap.round,
+          ),
+        ),
+        Container(
+          width: 56,
+          height: 56,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color.withValues(alpha: 0.08),
+          ),
+          child: Text(
+            '${score.toStringAsFixed(0)}%',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              fontFamily: 'Outfit',
+              color: color,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
-  int _statusPriority(String status) {
-    return switch (status) {
-      'OFFLINE' => 0,
-      'DECOMMISSIONED' => 1,
-      'MAINTENANCE' => 2,
-      _ => 3,
-    };
+  Widget _buildCriticalAssetBrief(
+    HospitalAsset asset,
+    String warning,
+    double health,
+    Map<String, dynamic> telemetry,
+  ) {
+    final Color healthColor = health < 50.0 ? AppTheme.error : AppTheme.warning;
+    final isVent = asset.assetType == 'ventilator';
+    
+    String telemetrySnippet = '';
+    if (isVent) {
+      final hours = telemetry['turbineHours'] ?? 0;
+      final drift = telemetry['o2Drift'] ?? 0.0;
+      telemetrySnippet = 'Turbine: $hours hrs  •  O2 Drift: +${drift.toStringAsFixed(1)}mV';
+    } else {
+      final soda = telemetry['sodalimeSat'] ?? 0.0;
+      final drift = telemetry['gasDrift'] ?? 0.0;
+      telemetrySnippet = 'Sodalime Sat: ${soda.toStringAsFixed(0)}%  •  Vaporizer Drift: +${drift.toStringAsFixed(1)}%';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: healthColor.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            'CRITICAL FLEET ANOMALY',
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              fontFamily: 'Outfit',
+              color: healthColor,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '${asset.modelName} (${asset.serialNumber})',
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w900,
+            fontFamily: 'Outfit',
+            color: AppTheme.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          warning,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            fontFamily: 'Outfit',
+            color: healthColor,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            const Icon(Icons.tune_rounded, size: 12, color: AppTheme.textSecondary),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                telemetrySnippet,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'Outfit',
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
-  String _statusLabel(String status) {
-    return switch (status) {
-      'OPERATIONAL' => 'Operational',
-      'MAINTENANCE' => 'Maintenance',
-      'OFFLINE' => 'Offline',
-      'DECOMMISSIONED' => 'Decommissioned',
-      _ => status,
-    };
+  Widget _buildCriticalAssetAction(
+    BuildContext context,
+    HospitalAsset asset,
+    Map<String, dynamic> assetMap,
+  ) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () async {
+        final parts = await PredictiveMaintenanceService.instance.getMatchingParts(asset.modelName);
+        if (!context.mounted) return;
+        
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => AiDiagnosticsSheet(
+            prog: assetMap,
+            compatibleParts: parts,
+            onStateChanged: () {
+              _refreshData();
+            },
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppTheme.primary,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primary.withValues(alpha: 0.12),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.analytics_outlined, size: 16, color: Colors.white),
+            SizedBox(width: 8),
+            Text(
+              'Audit AI Risk',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                fontFamily: 'Outfit',
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
-  IconData _assetIcon(String type) {
-    return type == 'ventilator' ? Icons.air_outlined : Icons.vaccines_outlined;
+
+}
+
+class _SplineChartPainter extends CustomPainter {
+  final List<double> values;
+  final List<String> days;
+
+  const _SplineChartPainter({required this.values, required this.days});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.isEmpty) return;
+
+    final paintLine = Paint()
+      ..color = const Color(0xFF3B82F6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+
+    final paintPoint = Paint()
+      ..color = const Color(0xFF3B82F6)
+      ..style = PaintingStyle.fill;
+
+    final paintInnerPoint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
+    final path = Path();
+    final widthStep = size.width / (values.length - 1);
+    
+    final maxVal = values.reduce(math.max);
+    const minVal = 0.0;
+    final range = maxVal - minVal == 0 ? 1.0 : maxVal - minVal;
+
+    double getX(int index) => index * widthStep;
+    double getY(double val) {
+      final ratio = (val - minVal) / range;
+      return size.height - (ratio * (size.height - 20)) - 10;
+    }
+
+    path.moveTo(getX(0), getY(values[0]));
+
+    for (int i = 0; i < values.length - 1; i++) {
+      final x1 = getX(i);
+      final y1 = getY(values[i]);
+      final x2 = getX(i + 1);
+      final y2 = getY(values[i + 1]);
+
+      final cx1 = x1 + (x2 - x1) / 2.0;
+      final cy1 = y1;
+      final cx2 = x1 + (x2 - x1) / 2.0;
+      final cy2 = y2;
+
+      path.cubicTo(cx1, cy1, cx2, cy2, x2, y2);
+    }
+
+    final fillPath = Path.from(path);
+    fillPath.lineTo(getX(values.length - 1), size.height);
+    fillPath.lineTo(getX(0), size.height);
+    fillPath.close();
+
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          const Color(0xFF3B82F6).withValues(alpha: 0.22),
+          const Color(0xFF3B82F6).withValues(alpha: 0.0),
+        ],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..style = PaintingStyle.fill;
+
+    canvas.drawPath(fillPath, fillPaint);
+    canvas.drawPath(path, paintLine);
+
+    final paintGrid = Paint()
+      ..color = const Color(0xFFE2E8F0)
+      ..strokeWidth = 1;
+    for (int i = 0; i <= 3; i++) {
+      final y = 10 + i * (size.height - 20) / 3;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paintGrid);
+    }
+
+    for (int i = 0; i < values.length; i++) {
+      final x = getX(i);
+      final y = getY(values[i]);
+      canvas.drawCircle(Offset(x, y), 5, paintPoint);
+      canvas.drawCircle(Offset(x, y), 2.5, paintInnerPoint);
+    }
   }
+
+  @override
+  bool shouldRepaint(covariant _SplineChartPainter oldDelegate) => false;
 }
 
 class _DonutPainter extends CustomPainter {
@@ -1408,4 +1383,3 @@ class _DonutPainter extends CustomPainter {
         offline != oldDelegate.offline;
   }
 }
-

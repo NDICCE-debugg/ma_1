@@ -1,6 +1,4 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
-import 'package:flutter/foundation.dart';
 import 'package:ma_1/models/hospital_asset.dart';
 import 'package:ma_1/models/spare_part.dart';
 import 'package:ma_1/services/database_helper.dart';
@@ -48,10 +46,10 @@ class PredictiveMaintenanceService {
 
       if (turbineHours > 13000) {
         warningMessage =
-            'High ventilator turbine usage hours detected (${turbineHours} hrs).';
+            'High ventilator turbine usage hours detected ($turbineHours hrs).';
       } else if (o2Drift > 2.4) {
         warningMessage =
-            'Oxygen sensor calibration drift is elevated (+${o2Drift} mV).';
+            'Oxygen sensor calibration drift is elevated (+$o2Drift mV).';
       }
     } else {
       // Simulate Operating Theatre Anesthetic Workstation telemetry
@@ -72,7 +70,7 @@ class PredictiveMaintenanceService {
             'CO2 absorbent canister is nearing saturation (${sodalimeSat.toStringAsFixed(1)}%).';
       } else if (gasDrift > 2.0) {
         warningMessage =
-            'Anesthetic vaporizer output calibration drift detected (+${gasDrift}%).';
+            'Anesthetic vaporizer output calibration drift detected (+$gasDrift%).';
       }
     }
 
