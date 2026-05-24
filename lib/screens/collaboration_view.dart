@@ -6,9 +6,9 @@ import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/services/chat_service.dart';
 import 'package:ma_1/screens/chat_screen.dart';
 import 'package:ma_1/screens/meeting_room_view.dart';
-import 'package:ma_1/screens/call_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:ma_1/services/google_chat_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class CollaborationView extends StatefulWidget {
   const CollaborationView({super.key});
@@ -110,38 +110,57 @@ class _CollaborationViewState extends State<CollaborationView>
                 )));
   }
 
-  void _startCall(Map<String, dynamic> contact, {required bool isVideo}) async {
-    final startTime = DateTime.now();
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CallScreen(
-          contactName: contact['name'],
-          phoneNumber: contact['phone']?.toString(),
-          isVideoCall: isVideo,
-        ),
-      ),
-    );
+  Future<void> _placePhoneCall(Map<String, dynamic> contact) async {
+    final phone = _normalizedPhone(contact['phone']?.toString());
+    final name = contact['name']?.toString() ?? 'contact';
 
-    // Dynamic Call Log tracking - registers the call dynamically upon completion!
-    final duration = DateTime.now().difference(startTime);
-    if (duration.inSeconds > 2) {
-      final minutes = duration.inMinutes.toString().padLeft(2, '0');
-      final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+    if (phone == null) {
+      _showCallMessage('No phone number is saved for $name.');
+      return;
+    }
 
-      final newLog = {
-        "name": contact['name'],
-        "type": isVideo ? "video" : "voice",
+    final bool launched;
+    try {
+      launched = await launchUrl(
+        Uri(scheme: 'tel', path: phone),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      _showCallMessage('Could not open the phone dialer on this device.');
+      return;
+    }
+
+    if (!mounted) return;
+    if (launched) {
+      await ChatService.instance.addCallLog({
+        "name": name,
+        "type": "voice",
         "direction": "outgoing",
         "time": "Today, ${DateFormat('HH:mm').format(DateTime.now())}",
-        "status": "${isVideo ? 'Video' : 'Voice'} Call (${minutes}m ${seconds}s)",
-        "phone": contact['phone'] ?? '',
+        "status": "Dialer opened",
+        "phone": phone,
         "online": contact['online'] == true || contact['online'] == 1,
-      };
-
-      await ChatService.instance.addCallLog(newLog);
+      });
       _loadCommsData();
     }
+
+    _showCallMessage(
+      launched
+          ? 'Opening phone dialer for $name.'
+          : 'Could not open the phone dialer on this device.',
+    );
+  }
+
+  String? _normalizedPhone(String? value) {
+    final phone = value?.replaceAll(RegExp(r'[^\d+]'), '').trim() ?? '';
+    return phone.isEmpty ? null : phone;
+  }
+
+  void _showCallMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
   }
 
   void _showNewChatPicker() {
@@ -224,7 +243,7 @@ class _CollaborationViewState extends State<CollaborationView>
                               .where((value) =>
                                   value != null &&
                                   value.toString().trim().isNotEmpty)
-                              .join(' • '),
+                              .join(' - '),
                           style: TextStyle(
                               color: isOnline
                                   ? AppTheme.success
@@ -297,34 +316,19 @@ class _CollaborationViewState extends State<CollaborationView>
                               .where((value) =>
                                   value != null &&
                                   value.toString().trim().isNotEmpty)
-                              .join(' • '),
+                              .join(' - '),
                           style: TextStyle(
                               color: isOnline
                                   ? AppTheme.success
                                   : AppTheme.textSecondary,
                               fontSize: 12)),
-                      trailing: Wrap(
-                        spacing: 8,
-                        children: [
-                          IconButton(
-                            tooltip: "Voice call",
-                            icon: const Icon(Icons.call_rounded,
-                                color: AppTheme.primary),
-                            onPressed: () {
-                              Navigator.pop(ctx);
-                              _startCall(c, isVideo: false);
-                            },
-                          ),
-                          IconButton(
-                            tooltip: "Video call",
-                            icon: const Icon(Icons.video_camera_front_outlined,
-                                color: AppTheme.secondary),
-                            onPressed: () {
-                              Navigator.pop(ctx);
-                              _startCall(c, isVideo: true);
-                            },
-                          ),
-                        ],
+                      trailing: IconButton.filled(
+                        tooltip: "Phone call",
+                        icon: const Icon(Icons.call_rounded),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _placePhoneCall(c);
+                        },
                       ),
                     );
                   }).toList(),
@@ -386,14 +390,15 @@ class _CollaborationViewState extends State<CollaborationView>
                       if (topicCtrl.text.isNotEmpty) {
                         final newMeeting = {
                           "topic": topicCtrl.text,
-                          "time": "Today, ${DateFormat('HH:mm').format(DateTime.now())}",
+                          "time":
+                              "Today, ${DateFormat('HH:mm').format(DateTime.now())}",
                           "host": "You"
                         };
                         await ChatService.instance.addMeeting(newMeeting);
-                        
-                        // Dynamic Cards v2 Broadcast to Google Chat Space!
+
                         final meetingCode = _generateRandomMeetingCode();
-                        await GoogleChatService.instance.sendMeetingCard(
+                        final sentToGoogleChat =
+                            await GoogleChatService.instance.sendMeetingCard(
                           topic: topicCtrl.text,
                           time: newMeeting['time']!,
                           host: 'Clinical Coordinator',
@@ -404,10 +409,12 @@ class _CollaborationViewState extends State<CollaborationView>
                         Navigator.pop(ctx);
                         if (!mounted) return;
                         _loadCommsData();
-                        
+
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Clinical meeting scheduled and broadcast to Google Chat!'),
+                          SnackBar(
+                            content: Text(sentToGoogleChat
+                                ? 'Clinical meeting scheduled and sent to Google Chat.'
+                                : 'Clinical meeting scheduled. Google Chat is not configured.'),
                             behavior: SnackBarBehavior.floating,
                           ),
                         );
@@ -665,7 +672,6 @@ class _CollaborationViewState extends State<CollaborationView>
                 const Divider(height: 1, indent: 80, color: AppTheme.divider),
             itemBuilder: (ctx, i) {
               final call = _calls[i];
-              final isVideo = call['type'] == 'video';
               final isMissed = call['direction'] == 'missed';
               final isIncoming = call['direction'] == 'incoming';
 
@@ -694,39 +700,40 @@ class _CollaborationViewState extends State<CollaborationView>
                             color: AppTheme.primary,
                             fontSize: 20,
                             fontWeight: FontWeight.bold))),
-                title: Text(call['name'],
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16)),
+                title: Text(
+                  call['name'],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
                 subtitle: Padding(
                   padding: const EdgeInsets.only(top: 4.0),
                   child: Row(
                     children: [
                       Icon(directionIcon, size: 14, color: directionColor),
                       const SizedBox(width: 6),
-                      Text("${call['status']} • ${call['time']}",
+                      Expanded(
+                        child: Text(
+                          "${call['status']} - ${call['time']}",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                              color: AppTheme.textSecondary, fontSize: 12)),
+                            color: AppTheme.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 trailing: IconButton(
-                  icon: Icon(
-                      isVideo
-                          ? Icons.video_camera_front_outlined
-                          : Icons.call_rounded,
-                      color: AppTheme.secondary),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => CallScreen(
-                          contactName: call['name'],
-                          phoneNumber: call['phone']?.toString(),
-                          isVideoCall: isVideo,
-                        ),
-                      ),
-                    );
-                  },
+                  tooltip: 'Call again',
+                  icon:
+                      const Icon(Icons.call_rounded, color: AppTheme.secondary),
+                  onPressed: () => _placePhoneCall(call),
                 ),
               );
             },
@@ -859,8 +866,9 @@ class _CollaborationViewState extends State<CollaborationView>
                 onPressed: () async {
                   final meetingCode = _generateRandomMeetingCode();
                   final joinUrl = 'https://meet.google.com/med-$meetingCode';
-                  
-                  await GoogleChatService.instance.sendMeetingCard(
+
+                  final sentToGoogleChat =
+                      await GoogleChatService.instance.sendMeetingCard(
                     topic: "Instant Technical Consultation Bridge",
                     time: "Started Now",
                     host: "Clinical Coordinator",
@@ -869,8 +877,10 @@ class _CollaborationViewState extends State<CollaborationView>
 
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Instant meeting started and broadcast to Google Chat!'),
+                    SnackBar(
+                      content: Text(sentToGoogleChat
+                          ? 'Instant meeting started and sent to Google Chat.'
+                          : 'Instant meeting started. Google Chat is not configured.'),
                       behavior: SnackBarBehavior.floating,
                     ),
                   );

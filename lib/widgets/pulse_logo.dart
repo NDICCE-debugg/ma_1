@@ -42,3 +42,4 @@ class PulseLogo extends StatelessWidget {
     );
   }
 }
+

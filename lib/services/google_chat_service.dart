@@ -10,6 +10,7 @@ import 'package:ma_1/utils/app_config.dart';
 class GoogleChatService {
   static final GoogleChatService instance = GoogleChatService._init();
   GoogleChatService._init();
+  bool _apiUnavailable = false;
 
   /// Checks if the webhook pipeline (Path A) is configured
   bool get isConfiguredForWebhook =>
@@ -18,6 +19,8 @@ class GoogleChatService {
 
   /// Checks if the Google Chat API pipeline (Path B) is configured
   bool get isConfiguredForApi =>
+      AppConfig.enableGoogleChatApi &&
+      !_apiUnavailable &&
       AppConfig.googleServiceAccountEmail.isNotEmpty &&
       AppConfig.googleServiceAccountPrivateKey.isNotEmpty &&
       AppConfig.googleChatSpaceName.isNotEmpty;
@@ -43,7 +46,8 @@ class GoogleChatService {
       final jwt = JWT(
         {
           'iss': email,
-          'scope': 'https://www.googleapis.com/auth/chat.bot https://www.googleapis.com/auth/chat.messages.readonly https://www.googleapis.com/auth/chat.messages',
+          'scope':
+              'https://www.googleapis.com/auth/chat.bot https://www.googleapis.com/auth/chat.messages.readonly https://www.googleapis.com/auth/chat.messages',
           'aud': 'https://oauth2.googleapis.com/token',
           'exp': exp,
           'iat': iat,
@@ -68,7 +72,8 @@ class GoogleChatService {
         final data = jsonDecode(response.body);
         return data['access_token']?.toString();
       } else {
-        debugPrint('[GOOGLE CHAT AUTH ERROR] Status: ${response.statusCode}, Body: ${response.body}');
+        debugPrint(
+            '[GOOGLE CHAT AUTH ERROR] Status: ${response.statusCode}. Check Google Chat API credentials.');
         return null;
       }
     } catch (e) {
@@ -83,12 +88,14 @@ class GoogleChatService {
 
     final token = await _getAccessToken();
     if (token == null) {
-      debugPrint('[GOOGLE CHAT API ERROR] - Could not retrieve access token for fetching messages');
+      debugPrint(
+          '[GOOGLE CHAT API ERROR] Could not retrieve access token for fetching messages.');
       return [];
     }
 
     final spaceName = AppConfig.googleChatSpaceName.trim();
-    final url = 'https://chat.googleapis.com/v1/$spaceName/messages?pageSize=20';
+    final url =
+        'https://chat.googleapis.com/v1/$spaceName/messages?pageSize=20';
 
     try {
       final response = await http.get(
@@ -101,31 +108,42 @@ class GoogleChatService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final List<dynamic> messagesList = data['messages'] ?? [];
-        
-        return messagesList.map((m) {
-          final sender = m['sender'] ?? {};
-          final senderName = sender['displayName']?.toString() ?? 'Clinical Team Member';
-          final text = m['text']?.toString() ?? (m['cardsV2'] != null ? 'Actionable Card Broadcast' : '');
-          final createTime = m['createTime']?.toString() ?? DateTime.now().toUtc().toIso8601String();
-          final messageId = m['name']?.toString() ?? '';
-          
-          final isMe = sender['email']?.toString() == AppConfig.googleServiceAccountEmail;
 
-          return {
-            'id': messageId,
-            'sender_id': isMe ? 'me' : 'gchat-user',
-            'sender_name': senderName,
-            'message_text': text,
-            'timestamp': createTime,
-            'delivery_state': 'sent',
-          };
-        }).toList().reversed.toList(); // Chronological order
+        return messagesList
+            .map((m) {
+              final sender = m['sender'] ?? {};
+              final senderName =
+                  sender['displayName']?.toString() ?? 'Clinical Team Member';
+              final text = m['text']?.toString() ??
+                  (m['cardsV2'] != null ? 'Actionable Card Broadcast' : '');
+              final createTime = m['createTime']?.toString() ??
+                  DateTime.now().toUtc().toIso8601String();
+              final messageId = m['name']?.toString() ?? '';
+
+              final isMe = sender['email']?.toString() ==
+                  AppConfig.googleServiceAccountEmail;
+
+              return {
+                'id': messageId,
+                'sender_id': isMe ? 'me' : 'gchat-user',
+                'sender_name': senderName,
+                'message_text': text,
+                'timestamp': createTime,
+                'delivery_state': 'sent',
+              };
+            })
+            .toList()
+            .reversed
+            .toList(); // Chronological order
       } else {
-        debugPrint('[GOOGLE CHAT API ERROR] - Failed to fetch messages. Status: ${response.statusCode}, Body: ${response.body}');
+        _handleApiFailure(response.statusCode);
+        debugPrint(
+            '[GOOGLE CHAT API ERROR] Failed to fetch messages. Status: ${response.statusCode}.');
         return [];
       }
     } catch (e) {
-      debugPrint('[GOOGLE CHAT API EXCEPTION] - Failed to fetch messages. Error: $e');
+      debugPrint(
+          '[GOOGLE CHAT API EXCEPTION] - Failed to fetch messages. Error: $e');
       return [];
     }
   }
@@ -134,6 +152,12 @@ class GoogleChatService {
   Future<bool> sendTextMessage(String text) async {
     final payload = {'text': text};
     return _dispatchPayload(payload, 'Simple Text Message');
+  }
+
+  void _handleApiFailure(int statusCode) {
+    if (statusCode == 404 || statusCode == 403) {
+      _apiUnavailable = true;
+    }
   }
 
   /// Dispatches an emergency triage card to Google Chat when a critical fault is logged
@@ -145,9 +169,10 @@ class GoogleChatService {
     required String severity,
     required String loggedBy,
   }) async {
-    final severityColor = severity.toUpperCase() == 'CRITICAL' || severity.toUpperCase() == 'HIGH'
-        ? '#E11D48' // High-contrast Red
-        : '#D97706'; // High-contrast Amber
+    final severityColor =
+        severity.toUpperCase() == 'CRITICAL' || severity.toUpperCase() == 'HIGH'
+            ? '#E11D48' // High-contrast Red
+            : '#D97706'; // High-contrast Amber
 
     final cardPayload = {
       'cardsV2': [
@@ -155,7 +180,7 @@ class GoogleChatService {
           'cardId': 'clinical_emergency_dispatch',
           'card': {
             'header': {
-              'title': '🚨 CLINICAL TRIAGE EMERGENCY PAGE',
+              'title': 'CLINICAL TRIAGE EMERGENCY PAGE',
               'subtitle': 'Critical Medical Equipment Failure Alert',
               'imageUrl': 'https://img.icons8.com/color/96/alarm.png',
               'imageType': 'CIRCLE',
@@ -195,7 +220,8 @@ class GoogleChatService {
                   {
                     'decoratedText': {
                       'topLabel': 'SEVERITY STATUS',
-                      'text': '<font color="$severityColor"><b>${severity.toUpperCase()}</b></font>',
+                      'text':
+                          '<font color="$severityColor"><b>${severity.toUpperCase()}</b></font>',
                       'startIcon': {'knownIcon': 'FLAG'},
                     }
                   },
@@ -248,7 +274,7 @@ class GoogleChatService {
           'cardId': 'clinical_tele_consultation',
           'card': {
             'header': {
-              'title': '📅 CLINICAL CONSULTATION SCHEDULED',
+              'title': 'CLINICAL CONSULTATION SCHEDULED',
               'subtitle': 'Secure Tele-health Consultation Invitation',
               'imageUrl': 'https://img.icons8.com/color/96/video-call.png',
               'imageType': 'CIRCLE',
@@ -304,19 +330,19 @@ class GoogleChatService {
       ]
     };
 
-    return _dispatchPayload(cardPayload, 'Consultation Meeting Invitation Card');
+    return _dispatchPayload(
+        cardPayload, 'Consultation Meeting Invitation Card');
   }
 
   /// Core helper to serialize and POST the JSON payload to the configured endpoint
-  Future<bool> _dispatchPayload(Map<String, dynamic> payload, String debugName) async {
+  Future<bool> _dispatchPayload(
+      Map<String, dynamic> payload, String debugName) async {
     final jsonString = jsonEncode(payload);
 
     if (!isConfigured) {
-      debugPrint('============================================================');
-      debugPrint('[MOCK GOOGLE CHAT INTEGRATION] - Payload for "$debugName":');
-      debugPrint(const JsonEncoder.withIndent('  ').convert(payload));
-      debugPrint('============================================================');
-      return true; // Return true as mock success
+      debugPrint(
+          'Google Chat is not configured. Skipping "$debugName" dispatch.');
+      return false;
     }
 
     if (isConfiguredForWebhook) {
@@ -334,8 +360,8 @@ class GoogleChatService {
           debugPrint('Successfully dispatched webhook: $debugName');
           return true;
         } else {
-          debugPrint('Failed to dispatch webhook: $debugName, Status: ${response.statusCode}');
-          debugPrint('Response body: ${response.body}');
+          debugPrint(
+              'Failed to dispatch Google Chat webhook: $debugName, Status: ${response.statusCode}');
           return false;
         }
       } catch (e) {
@@ -346,7 +372,8 @@ class GoogleChatService {
       // PATH B: Full Google Chat API delivery pipeline via Service Account OAuth2
       final token = await _getAccessToken();
       if (token == null) {
-        debugPrint('[GOOGLE CHAT API ERROR] - Could not retrieve access token for "$debugName"');
+        debugPrint(
+            '[GOOGLE CHAT API ERROR] Could not retrieve access token for "$debugName"');
         return false;
       }
 
@@ -367,12 +394,14 @@ class GoogleChatService {
           debugPrint('Successfully dispatched to Google Chat API: $debugName');
           return true;
         } else {
-          debugPrint('Failed to dispatch to Google Chat API: $debugName, Status: ${response.statusCode}');
-          debugPrint('Response body: ${response.body}');
+          _handleApiFailure(response.statusCode);
+          debugPrint(
+              'Failed to dispatch to Google Chat API: $debugName, Status: ${response.statusCode}');
           return false;
         }
       } catch (e) {
-        debugPrint('Exception dispatching to Google Chat API: $debugName. Error: $e');
+        debugPrint(
+            'Exception dispatching to Google Chat API: $debugName. Error: $e');
         return false;
       }
     }

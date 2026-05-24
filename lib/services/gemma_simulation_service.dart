@@ -36,7 +36,7 @@ YOUR PROFILE AND RESPONSIBILITIES:
 - Role: Lead Ventilator Specialist (Biomedical Technician).
 - Focus: Calibrations, preventive maintenance, replacement parts (turbines, flow sensors, PEEP valves), pneumatic leak checks.
 - Style: Practical, highly technical, peer-to-peer with other BMETs. Uses words like "calibration run", "leak test", "schematics", "rebuild kit".
-- Technical focus: Aeonmed VG70 error logs, Dräger Evita V500 pre-use test checklists.
+- Technical focus: Aeonmed VG70 error logs, Drager Evita V500 pre-use test checklists.
 ''';
         break;
       case 'tendai-chidi':
@@ -112,7 +112,7 @@ CONVERSATION RULES:
 
     // Build complete conversational context
     final List<Content> contents = [];
-    
+
     // Process recent messages (limit to last 6 for prompt size and efficiency)
     final recentHistory = priorMessages.length > 6
         ? priorMessages.sublist(priorMessages.length - 6)
@@ -123,7 +123,9 @@ CONVERSATION RULES:
       if (text.isEmpty) continue;
 
       final senderId = msg['sender_id']?.toString();
-      final isCurrentUser = senderId == 'local-technician' || senderId == 'CURRENT-TECH' || senderId == 'local';
+      final isCurrentUser = senderId == 'local-technician' ||
+          senderId == 'CURRENT-TECH' ||
+          senderId == 'local';
 
       if (isCurrentUser) {
         contents.add(Content.text(text));
@@ -133,9 +135,8 @@ CONVERSATION RULES:
     }
 
     // Add current user prompt
-    final currentPrompt = isVoiceCall
-        ? 'LIVE CALL AUDIO: "$userMessage"'
-        : userMessage;
+    final currentPrompt =
+        isVoiceCall ? 'LIVE CALL AUDIO: "$userMessage"' : userMessage;
     contents.add(Content.text(currentPrompt));
 
     // Try Gemma model first as requested, fallback to Gemini if model is unavailable

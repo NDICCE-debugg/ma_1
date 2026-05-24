@@ -148,11 +148,14 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                       severity: severity,
                     );
 
-                    // Dynamic Google Chat Cards v2 Triage Broadcast!
-                    await GoogleChatService.instance.sendEmergencyPageCard(
-                      assetModel: widget.assetData['model_name'] ?? 'Medical Asset',
-                      serialNumber: widget.assetData['serial_number'] ?? 'SN-N/A',
-                      wardLocation: widget.assetData['ward_location'] ?? 'Hospital ICU Ward',
+                    final sentToGoogleChat =
+                        await GoogleChatService.instance.sendEmergencyPageCard(
+                      assetModel:
+                          widget.assetData['model_name'] ?? 'Medical Asset',
+                      serialNumber:
+                          widget.assetData['serial_number'] ?? 'SN-N/A',
+                      wardLocation: widget.assetData['ward_location'] ??
+                          'Hospital ICU Ward',
                       faultDescription: descCtrl.text,
                       severity: severity,
                       loggedBy: 'Clinical Maintenance Staff',
@@ -161,9 +164,11 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                     if (!ctx.mounted) return;
                     Navigator.pop(ctx);
                     if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                         backgroundColor: AppTheme.error,
-                        content: Text("Issue logged & broadcast to Google Chat!")));
+                        content: Text(sentToGoogleChat
+                            ? "Issue logged and sent to Google Chat."
+                            : "Issue logged. Google Chat is not configured.")));
                   },
                   child: const Text("Submit Report"),
                 ),
@@ -616,3 +621,4 @@ class _AssetDetailViewState extends State<AssetDetailView> {
     );
   }
 }
+

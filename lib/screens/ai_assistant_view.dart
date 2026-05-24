@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
@@ -12,9 +13,10 @@ import 'package:ma_1/services/auth_service.dart';
 import 'package:ma_1/services/database_helper.dart';
 import 'package:ma_1/services/gemini_service.dart';
 import 'package:ma_1/services/manual_rag_service.dart';
+import 'package:ma_1/services/rag_api_service.dart';
 import 'package:ma_1/widgets/pulse_logo.dart';
 
-// ─── Chat message model ──────────────────────────────────────────────────────
+// â”€â”€â”€ Chat message model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 enum _Role { user, assistant, error }
 
@@ -42,12 +44,12 @@ class _PromptMode {
   const _PromptMode(this.label, this.icon, this.instruction);
 }
 
-// ─── Suggestion chips ────────────────────────────────────────────────────────
+// â”€â”€â”€ Suggestion chips â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const List<String> _kSuggestions = [
   'Aeonmed VG70 turbine replacement steps',
   'ERR-TURB-09 alarm meaning and fix',
-  'Pre-use checkout for Dräger Evita V500',
+  'Pre-use checkout for Drager Evita V500',
   'O2 sensor calibration procedure',
   'PEEP valve inspection checklist',
   'Mindray A5 sodalime canister change',
@@ -82,7 +84,7 @@ const List<_PromptMode> _kPromptModes = [
   ),
 ];
 
-// ─── Main Widget ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Widget â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class AIAssistantView extends StatefulWidget {
   const AIAssistantView({super.key});
@@ -155,7 +157,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     });
   }
 
-  // ─── Send message ───────────────────────────────────────────────────────────
+  // â”€â”€â”€ Send message â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _sendMessage(String text) async {
     text = text.trim();
@@ -217,6 +219,31 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     setState(() => _messages.add(assistantMsg));
 
     try {
+      if (files.isEmpty) {
+        try {
+          final ragAnswer = await RagApiService.instance.queryManuals(
+            query: technicianQuestion,
+          );
+          if (ragAnswer.hasManualContext &&
+              ragAnswer.answer.trim().isNotEmpty) {
+            assistantMsg.text = _formatRagAnswer(ragAnswer);
+            assistantMsg.isStreaming = false;
+            setState(() {
+              _isProcessing = false;
+              _cancelRequested = false;
+            });
+            await _persistAiMessage(
+              role: _Role.assistant,
+              text: assistantMsg.text,
+            );
+            _scrollToBottom();
+            return;
+          }
+        } catch (e) {
+          debugPrint('Backend RAG unavailable, falling back to local AI: $e');
+        }
+      }
+
       final stream = GeminiService.instance
           .streamMessage(prompt, attachments: modelAttachments);
       await for (final chunk in stream) {
@@ -268,7 +295,22 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     _scrollToBottom();
   }
 
-  // ─── Voice ─────────────────────────────────────────────────────────────────
+  String _formatRagAnswer(RagQueryResult result) {
+    final answer = result.answer.trim();
+    if (result.sources.isEmpty) return answer;
+    if (answer.toLowerCase().contains('manual sources used')) return answer;
+    final sources = result.sources.take(5).map((source) {
+      final page =
+          source.pageNumber == null ? '' : ', page ${source.pageNumber}';
+      final section = (source.sectionTitle ?? '').trim().isEmpty
+          ? ''
+          : ' - ${source.sectionTitle}';
+      return '- ${source.fileName}$page$section';
+    }).join('\n');
+    return '$answer\n\nManual sources used:\n$sources';
+  }
+
+  // â”€â”€â”€ Voice â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _toggleVoice() async {
     if (_isListening) {
@@ -313,7 +355,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     );
   }
 
-  // ─── New chat ───────────────────────────────────────────────────────────────
+  // â”€â”€â”€ New chat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _loadConversationHistory() async {
     setState(() => _isLoadingHistory = true);
@@ -537,7 +579,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     };
   }
 
-  // ─── Helper ─────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _showSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -546,7 +588,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     ));
   }
 
-  // ─── BUILD ──────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ BUILD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @override
   Widget build(BuildContext context) {
@@ -591,7 +633,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     );
   }
 
-  // ─── API KEY BANNER ─────────────────────────────────────────────────────────
+  // â”€â”€â”€ API KEY BANNER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildSafetyBanner() {
     return Container(
@@ -661,7 +703,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     );
   }
 
-  // ─── LISTENING BANNER ───────────────────────────────────────────────────────
+  // â”€â”€â”€ LISTENING BANNER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildListeningBanner() {
     return Container(
@@ -675,7 +717,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
           Expanded(
             child: Text(
               _listeningText.isEmpty
-                  ? 'Listening… speak your question'
+                  ? 'Listening... speak your question'
                   : '"$_listeningText"',
               style: const TextStyle(
                   color: AppTheme.error,
@@ -695,7 +737,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     );
   }
 
-  // ─── SIDEBAR ────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ SIDEBAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildSidebar(String userName, String initial) {
     return Container(
@@ -933,7 +975,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     );
   }
 
-  // ─── TOP BAR ─────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ TOP BAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildHistoryItem(Map<String, dynamic> conversation) {
     final id = conversation['id'] as int?;
@@ -1177,7 +1219,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     );
   }
 
-  // ─── GREETING ────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ GREETING â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildModeSelector() {
     final selected = _kPromptModes[_selectedModeIndex];
@@ -1507,7 +1549,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
         .slideY(begin: 0.05, end: 0);
   }
 
-  // ─── MESSAGE LIST ───────────────────────────────────────────────────────────
+  // â”€â”€â”€ MESSAGE LIST â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildMessageList() {
     return ListView.builder(
@@ -1590,7 +1632,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                         Text(
                           isUser
                               ? _formatTime(msg.timestamp)
-                              : 'Pulse AI • ${_formatTime(msg.timestamp)}',
+                              : 'Pulse AI - ${_formatTime(msg.timestamp)}',
                           style: TextStyle(
                             color: isUser
                                 ? AppTheme.textSecondary
@@ -1622,7 +1664,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Text(
-                            'Pulse AI • Gemini 2.5 Flash',
+                            'Pulse AI - Gemini 2.5 Flash',
                             style: TextStyle(
                                 fontSize: 10,
                                 color: Color(0xFF94A3B8),
@@ -1721,9 +1763,71 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     );
   }
 
-  // Minimal structured text renderer (bold + bullets)
+  // Rich markdown renderer for AI responses.
   Widget _buildFormattedText(String text, {bool isError = false}) {
     final color = isError ? AppTheme.error : const Color(0xFF0F172A);
+    final baseStyle = TextStyle(
+      color: color,
+      fontSize: 14,
+      height: 1.55,
+      fontFamily: 'Outfit',
+      fontWeight: FontWeight.w500,
+    );
+
+    return MarkdownBody(
+      data: text,
+      selectable: true,
+      styleSheet: MarkdownStyleSheet(
+        p: baseStyle,
+        strong: baseStyle.copyWith(fontWeight: FontWeight.w800),
+        em: baseStyle.copyWith(fontStyle: FontStyle.italic),
+        h1: baseStyle.copyWith(
+          color: isError ? AppTheme.error : AppTheme.primary,
+          fontSize: 19,
+          height: 1.25,
+          fontWeight: FontWeight.w800,
+        ),
+        h2: baseStyle.copyWith(
+          color: isError ? AppTheme.error : AppTheme.primary,
+          fontSize: 17,
+          height: 1.3,
+          fontWeight: FontWeight.w800,
+        ),
+        h3: baseStyle.copyWith(
+          color: isError ? AppTheme.error : AppTheme.primary,
+          fontSize: 15,
+          height: 1.35,
+          fontWeight: FontWeight.w800,
+        ),
+        listBullet: baseStyle.copyWith(
+          color: isError ? AppTheme.error : AppTheme.primary,
+          fontWeight: FontWeight.bold,
+        ),
+        blockquote: baseStyle.copyWith(color: AppTheme.textSecondary),
+        code: baseStyle.copyWith(
+          color: AppTheme.primary,
+          backgroundColor: AppTheme.iceBlue.withValues(alpha: 0.28),
+          fontFamily: 'monospace',
+          fontSize: 13,
+        ),
+        codeblockDecoration: BoxDecoration(
+          color: AppTheme.muted,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppTheme.divider),
+        ),
+        codeblockPadding: const EdgeInsets.all(12),
+        a: baseStyle.copyWith(
+          color: AppTheme.primary,
+          decoration: TextDecoration.underline,
+          fontWeight: FontWeight.bold,
+        ),
+        tableHead: baseStyle.copyWith(fontWeight: FontWeight.w800),
+        tableBody: baseStyle.copyWith(fontSize: 13),
+      ),
+    );
+  }
+
+  /*
     final lines = text.split('\n');
 
     return Column(
@@ -1754,7 +1858,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
         }
         // Bullet / numbered list
         if (line.trimLeft().startsWith('- ') ||
-            line.trimLeft().startsWith('• ') ||
+            line.trimLeft().startsWith('- ') ||
             RegExp(r'^\d+\. ').hasMatch(line.trimLeft())) {
           final indent = line.length - line.trimLeft().length;
           return Padding(
@@ -1763,7 +1867,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('  •  ',
+                const Text('  -  ',
                     style: TextStyle(
                         color: AppTheme.primary,
                         fontSize: 14,
@@ -1772,7 +1876,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                   child: _inlineText(
                       line
                           .trimLeft()
-                          .replaceFirst(RegExp(r'^[-•\d]+[.\s]+'), ''),
+                          .replaceFirst(RegExp(r'^[--\d]+[.\s]+'), ''),
                       color),
                 ),
               ],
@@ -1786,7 +1890,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
             child: _inlineText(line, color),
           );
         }
-        // Empty line → spacing
+        // Empty line â†’ spacing
         if (line.trim().isEmpty) return const SizedBox(height: 6);
         // Normal paragraph
         return Padding(
@@ -1821,6 +1925,8 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     return RichText(text: TextSpan(children: spans));
   }
 
+  */
+
   Widget _buildTypingIndicator() {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -1838,7 +1944,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     );
   }
 
-  // ─── INPUT AREA ─────────────────────────────────────────────────────────────
+  // â”€â”€â”€ INPUT AREA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildComposerIconButton({
     required IconData icon,

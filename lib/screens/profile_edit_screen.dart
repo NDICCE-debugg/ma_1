@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:ma_1/services/auth_service.dart';
@@ -212,8 +214,19 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 height: 72,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: AppTheme.primary,
+                  gradient: const LinearGradient(
+                    colors: [AppTheme.primary, AppTheme.secondary],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.secondary.withValues(alpha: 0.22),
+                      blurRadius: 18,
+                      offset: const Offset(0, 9),
+                    ),
+                  ],
                 ),
                 child: Text(
                   initials,
@@ -409,9 +422,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.muted,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.divider),
+        color: Colors.white.withValues(alpha: 0.58),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.68)),
       ),
       child: Row(
         children: [
@@ -477,38 +490,56 @@ class _ProfileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (title != null) ...[
-              Text(
-                title!,
-                style: const TextStyle(
-                  color: AppTheme.textPrimary,
-                  fontFamily: 'Outfit',
-                  fontSize: 17,
-                  fontWeight: FontWeight.w900,
-                ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.74),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.primary.withValues(alpha: 0.05),
+                blurRadius: 18,
+                offset: const Offset(0, 10),
               ),
-              if (description != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  description!,
-                  style: const TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontFamily: 'Outfit',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 18),
             ],
-            child,
-          ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (title != null) ...[
+                  Text(
+                    title!,
+                    style: const TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontFamily: 'Outfit',
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  if (description != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      description!,
+                      style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontFamily: 'Outfit',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 18),
+                ],
+                child,
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -542,3 +573,4 @@ class _StatusBadge extends StatelessWidget {
     );
   }
 }
+

@@ -158,10 +158,11 @@ END $$;
 INSERT INTO public.users (id, name, email, reg_number, role, phone, online, last_seen)
 VALUES
   ('dr-chipo-moyo',    'Dr. Chipo Moyo',    'chipo.moyo@parirenyatwa.co.zw',     'CONSULT-ICU', 'ICU Consultant',            '+263772123456', true,  NOW()),
-  ('farai-gumbo',     'Farai Gumbo',        'farai.gumbo@parirenyatwa.co.zw',    'TECH-VENT',   'Ventilator Technician',     '+263773456789', false, NOW() - INTERVAL '3 hours'),
+  ('farai-gumbo',     'Farai Gumbo',        'farai.gumbo@parirenyatwa.co.zw',    'TECH-VENT',   'Ventilator Technician',     '+263773456789', true, NOW()),
   ('tendai-chidi',    'Tendai Chidi',       'tendai.chidi@parirenyatwa.co.zw',   'PLANT-OXY',   'Medical Gas Technician',    '+263774567890', true,  NOW()),
-  ('rudo-nyathi',     'Rudo Nyathi',        'rudo.nyathi@parirenyatwa.co.zw',    'THEATRE-BME', 'Theatre Biomedical Lead',   '+263775678901', true,  NOW()),
-  ('nqobile-dube',    'Nqobile Dube',       'nqobile.dube@parirenyatwa.co.zw',   'IMAGING-BME', 'Imaging Equipment Engineer','+263776789012', false, NOW() - INTERVAL '1 day')
+  ('dr-sekai-nzenza', 'Dr. Sekai Nzenza',   'sekai.nzenza@parirenyatwa.co.zw',   'CMO-ADMIN',   'Chief Medical Officer',     '+263771987654', true,  NOW()),
+  ('rufaro-moyo',     'Rufaro Moyo',        'rufaro.moyo@parirenyatwa.co.zw',    'BIOMED-HEAD', 'Biomedical Department Head', '+263782345678', true,  NOW()),
+  ('kudakwashe-hove', 'Kudakwashe Hove',    'kudakwashe.hove@parirenyatwa.co.zw','LAB-SPECIAL', 'Senior Laboratory Specialist','+263715678901', true,  NOW())
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   email = EXCLUDED.email,
@@ -174,10 +175,11 @@ ON CONFLICT (id) DO UPDATE SET
 INSERT INTO public.conversations (id, group_name, last_message, last_message_time, is_group)
 VALUES
   ('dr-chipo-moyo', 'Dr. Chipo Moyo', 'Urgent: ICU Aeonmed VG70 has a constant Low O2 Pressure fault alarm.', NOW() - INTERVAL '11 minutes', false),
-  ('farai-gumbo', 'Farai Gumbo', 'Evita V500 PEEP valve calibration test complete. Ready to redeploy.', NOW() - INTERVAL '1 day 2 hours', false),
-  ('tendai-chidi', 'Tendai Chidi', 'Central oxygen plant manifold pressure is dropping below 4.2 bar.', NOW() - INTERVAL '1 day 7 hours', false),
-  ('rudo-nyathi', 'Rudo Nyathi', 'Theatre 2 anaesthetic workstation needs leak-test confirmation.', NOW() - INTERVAL '2 days', false),
-  ('nqobile-dube', 'Nqobile Dube', 'Portable ultrasound probe cable failure logged for review.', NOW() - INTERVAL '3 days', false)
+  ('farai-gumbo', 'Farai Gumbo', 'Evita V500 PEEP valve calibration test complete. Ready to redeploy.', NOW() - INTERVAL '3 hours', false),
+  ('tendai-chidi', 'Tendai Chidi', 'Central oxygen plant manifold pressure is dropping below 4.2 bar.', NOW() - INTERVAL '5 hours', false),
+  ('dr-sekai-nzenza', 'Dr. Sekai Nzenza', 'BMET Team, please prepare the technical audit report for the ICU fleet.', NOW() - INTERVAL '8 hours', false),
+  ('rufaro-moyo', 'Rufaro Moyo', 'Regarding the spare parts inventory: do we have the turbine replacements?', NOW() - INTERVAL '12 hours', false),
+  ('kudakwashe-hove', 'Kudakwashe Hove', 'The blood gas analyzer in ICU lab is drifting on pH calibration.', NOW() - INTERVAL '18 hours', false)
 ON CONFLICT (id) DO UPDATE SET
   group_name = EXCLUDED.group_name,
   last_message = EXCLUDED.last_message,
@@ -200,6 +202,24 @@ INSERT INTO public.messages (conversation_id, sender_id, message_text, message_t
 SELECT 'tendai-chidi', 'tendai-chidi', 'Oxygen manifold pressure is unstable. Reserve cylinders are online while I inspect the regulator bank.', 'text', NOW() - INTERVAL '1 day 7 hours'
 WHERE NOT EXISTS (
   SELECT 1 FROM public.messages WHERE conversation_id = 'tendai-chidi' AND sender_id = 'tendai-chidi'
+);
+
+INSERT INTO public.messages (conversation_id, sender_id, message_text, message_type, timestamp)
+SELECT 'dr-sekai-nzenza', 'dr-sekai-nzenza', 'BMET Team, please prepare the technical audit report for the ICU ventilator fleet before the clinical safety review this afternoon.', 'text', NOW() - INTERVAL '8 hours'
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.messages WHERE conversation_id = 'dr-sekai-nzenza' AND sender_id = 'dr-sekai-nzenza'
+);
+
+INSERT INTO public.messages (conversation_id, sender_id, message_text, message_type, timestamp)
+SELECT 'rufaro-moyo', 'rufaro-moyo', 'Regarding the spare parts inventory: do we have the turbine replacements restocked on Shelf B2? I am drafting the procurement invoice.', 'text', NOW() - INTERVAL '12 hours'
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.messages WHERE conversation_id = 'rufaro-moyo' AND sender_id = 'rufaro-moyo'
+);
+
+INSERT INTO public.messages (conversation_id, sender_id, message_text, message_type, timestamp)
+SELECT 'kudakwashe-hove', 'kudakwashe-hove', 'The blood gas analyzer in ICU lab is drifting on pH calibration. Can you bring the reference buffers for a verification test?', 'text', NOW() - INTERVAL '18 hours'
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.messages WHERE conversation_id = 'kudakwashe-hove' AND sender_id = 'kudakwashe-hove'
 );
 
 -- 6. Seed 'service_logs' Table

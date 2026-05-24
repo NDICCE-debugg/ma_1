@@ -177,7 +177,7 @@ class _DashboardViewState extends State<DashboardView> {
                 ),
                 const SizedBox(width: 9),
                 Text(
-                  '$statusText • $cap% capacity',
+                  '$statusText - $cap% capacity',
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -331,7 +331,7 @@ class _DashboardViewState extends State<DashboardView> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  '${asset.hospitalUnit} • ${asset.wardLocation} • $action',
+                  '${asset.hospitalUnit} - ${asset.wardLocation} - $action',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -632,7 +632,7 @@ class _DashboardViewState extends State<DashboardView> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              '${(capacity * 100).round()}% ready • ${attention.length} priority',
+                              '${(capacity * 100).round()}% ready - ${attention.length} priority',
                               style: const TextStyle(
                                 color: AppTheme.textSecondary,
                                 fontSize: 12,
@@ -1138,7 +1138,7 @@ class _DashboardViewState extends State<DashboardView> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  '${asset.serialNumber} • ${asset.hospitalUnit} ${asset.wardLocation}',
+                  '${asset.serialNumber} - ${asset.hospitalUnit} ${asset.wardLocation}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -1408,3 +1408,4 @@ class _DonutPainter extends CustomPainter {
         offline != oldDelegate.offline;
   }
 }
+

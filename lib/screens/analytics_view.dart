@@ -14,7 +14,7 @@ import 'package:ma_1/services/database_helper.dart';
 import 'package:ma_1/services/notification_service.dart';
 import 'package:ma_1/theme/app_theme.dart';
 
-// ─── Supplier model ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Supplier model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class Supplier {
   final int? id;
@@ -50,7 +50,7 @@ class Supplier {
       );
 }
 
-// ─── Main Widget ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Widget â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class AnalyticsView extends StatefulWidget {
   const AnalyticsView({super.key});
@@ -111,6 +111,44 @@ class _AnalyticsViewState extends State<AnalyticsView>
     });
   }
 
+  String _assetSectionLabel(int index) => switch (index) {
+        1 => 'Spare Parts',
+        2 => 'Suppliers',
+        _ => 'Equipment',
+      };
+
+  String _assetSectionDescription(int index) => switch (index) {
+        1 => 'Stock levels, reorder thresholds, and storage bins',
+        2 => 'Approved vendors, contacts, and lead times',
+        _ => 'Machine records, service state, and QR intake',
+      };
+
+  IconData _assetSectionIcon(int index) => switch (index) {
+        1 => Icons.inventory_2_outlined,
+        2 => Icons.storefront_outlined,
+        _ => Icons.monitor_heart_outlined,
+      };
+
+  void _selectAssetSection(int index) {
+    final tabCtrl = _tabCtrl;
+    if (tabCtrl == null || tabCtrl.index == index) return;
+    tabCtrl.animateTo(index);
+    setState(() {});
+  }
+
+  void _refreshActiveSection() {
+    switch (_tabCtrl?.index ?? 0) {
+      case 1:
+        _refreshInventory();
+        break;
+      case 2:
+        _refreshSuppliers();
+        break;
+      default:
+        _refreshEquipment();
+    }
+  }
+
   Future<List<Supplier>> _fetchSuppliers() async {
     try {
       final res = await Supabase.instance.client
@@ -128,7 +166,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
 
   List<Supplier> _fallbackSuppliers() => [
         Supplier(
-          name: 'Dräger Medical Zimbabwe',
+          name: 'Drager Medical Zimbabwe',
           physicalAddress: '124 Samora Machel Ave, Harare',
           phone: '+263 24 279 1234',
           email: 'support.zw@draeger.com',
@@ -141,7 +179,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
           phone: '+86 10 8498 1122',
           email: 'service@aeonmed.com',
           averageLeadTimeDays: 14,
-          notes: 'Direct manufacturer — Aeonmed VG series parts.',
+          notes: 'Direct manufacturer - Aeonmed VG series parts.',
         ),
         Supplier(
           name: 'Mindray Clinical Solutions',
@@ -185,7 +223,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
         ),
       ];
 
-  // ─── QR SCANNER ─────────────────────────────────────────────────────────────
+  // â”€â”€â”€ QR SCANNER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _openQrScanner() {
     if (kIsWeb) {
@@ -258,7 +296,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
     }
   }
 
-  // ─── ADD/EDIT PART SHEET ─────────────────────────────────────────────────────
+  // â”€â”€â”€ ADD/EDIT PART SHEET â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _showEditPartDialog(BuildContext context,
       {SparePart? existingPart, SparePart? prefill}) async {
@@ -457,7 +495,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
     );
   }
 
-  // ─── RESTOCK SHEET ───────────────────────────────────────────────────────────
+  // â”€â”€â”€ RESTOCK SHEET â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _showRestockSheet(BuildContext context, SparePart part) {
     final addQtyCtrl = TextEditingController();
@@ -537,7 +575,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
     );
   }
 
-  // ─── HELPERS ────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _showStatusMessage(String msg, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -572,7 +610,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
     );
   }
 
-  // ─── BUILD ───────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ BUILD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @override
   Widget build(BuildContext context) {
@@ -598,169 +636,11 @@ class _AnalyticsViewState extends State<AnalyticsView>
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Header row ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.surface,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppTheme.divider),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.025),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AppTheme.muted,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppTheme.divider),
-                    ),
-                    child: const Icon(
-                      Icons.precision_manufacturing_rounded,
-                      color: AppTheme.secondary,
-                      size: 23,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Asset Control',
-                          style: TextStyle(
-                            color: AppTheme.textPrimary,
-                            fontFamily: 'Outfit',
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        SizedBox(height: 3),
-                        Text(
-                          'Equipment registry, spare parts, suppliers, and QR intake',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: AppTheme.textSecondary,
-                            fontFamily: 'Outfit',
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  ListenableBuilder(
-                    listenable: tabCtrl,
-                    builder: (_, __) => tabCtrl.index == 0
-                        ? Tooltip(
-                            message: kIsWeb
-                                ? 'QR scanning available on mobile'
-                                : 'Scan asset QR code',
-                            child: FilledButton.icon(
-                              style: FilledButton.styleFrom(
-                                backgroundColor: AppTheme.primary,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 13),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(9),
-                                ),
-                              ),
-                              onPressed: _openQrScanner,
-                              icon:
-                                  const Icon(Icons.qr_code_2_rounded, size: 18),
-                              label: const Text(
-                                'Scan',
-                                style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ).animate().scale(
-                                duration: 320.ms, curve: Curves.easeOutBack),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // ── Tab Bar ──
-          Container(
-            margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: TabBar(
-              controller: tabCtrl,
-              indicator: BoxDecoration(
-                color: AppTheme.primary,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: Colors.transparent,
-              labelColor: Colors.white,
-              unselectedLabelColor: AppTheme.textSecondary,
-              labelStyle: const TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13),
-              unselectedLabelStyle: const TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w500,
-                  fontSize: 13),
-              tabs: const [
-                Tab(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.monitor_heart_outlined, size: 16),
-                      SizedBox(width: 6),
-                      Text('Equipment'),
-                    ],
-                  ),
-                ),
-                Tab(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.inventory_2_outlined, size: 16),
-                      SizedBox(width: 6),
-                      Text('Spare Parts'),
-                    ],
-                  ),
-                ),
-                Tab(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.store_outlined, size: 16),
-                      SizedBox(width: 6),
-                      Text('Suppliers'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _buildCompactAssetToolbar(tabCtrl),
 
           const SizedBox(height: 4),
 
-          // ── Tab Views ──
+          // â”€â”€ Tab Views â”€â”€
           Expanded(
             child: TabBarView(
               controller: tabCtrl,
@@ -776,9 +656,243 @@ class _AnalyticsViewState extends State<AnalyticsView>
     );
   }
 
-  // ══════════════════════════════════════════
-  //  TAB 1 — SPARE PARTS
-  // ══════════════════════════════════════════
+  // â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-
+  //  TAB 1 â€” SPARE PARTS
+  // â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-
+
+  Widget _buildCompactAssetToolbar(TabController tabCtrl) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: ListenableBuilder(
+        listenable: tabCtrl,
+        builder: (context, _) {
+          final index = tabCtrl.index;
+          final isEquipment = index == 0;
+
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.84),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.divider),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.deepBlue.withValues(alpha: 0.04),
+                  blurRadius: 18,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: PopupMenuButton<int>(
+                      initialValue: index,
+                      tooltip: 'Choose asset section',
+                      position: PopupMenuPosition.under,
+                      color: AppTheme.surface,
+                      surfaceTintColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: const BorderSide(color: AppTheme.divider),
+                      ),
+                      onSelected: _selectAssetSection,
+                      itemBuilder: (context) => List.generate(
+                        3,
+                        (itemIndex) => PopupMenuItem<int>(
+                          value: itemIndex,
+                          child: Row(
+                            children: [
+                              Icon(
+                                _assetSectionIcon(itemIndex),
+                                size: 18,
+                                color: itemIndex == index
+                                    ? AppTheme.secondary
+                                    : AppTheme.textSecondary,
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                _assetSectionLabel(itemIndex),
+                                style: TextStyle(
+                                  color: itemIndex == index
+                                      ? AppTheme.textPrimary
+                                      : AppTheme.textSecondary,
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 240),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 9),
+                          decoration: BoxDecoration(
+                            color: AppTheme.muted,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppTheme.divider),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 30,
+                                height: 30,
+                                decoration: BoxDecoration(
+                                  color: AppTheme.deepBlue,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  _assetSectionIcon(index),
+                                  color: Colors.white,
+                                  size: 17,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Flexible(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      _assetSectionLabel(index),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: AppTheme.textPrimary,
+                                        fontFamily: 'Outfit',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                    Text(
+                                      _assetSectionDescription(index),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: AppTheme.textSecondary,
+                                        fontFamily: 'Outfit',
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                color: AppTheme.textSecondary,
+                                size: 19,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                if (isEquipment)
+                  Tooltip(
+                    message: kIsWeb
+                        ? 'QR scanning available on mobile'
+                        : 'Scan asset QR code',
+                    child: IconButton.filled(
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        foregroundColor: Colors.white,
+                        fixedSize: const Size(42, 42),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: _openQrScanner,
+                      icon: const Icon(Icons.qr_code_scanner_rounded, size: 19),
+                    ),
+                  ),
+                const SizedBox(width: 6),
+                PopupMenuButton<String>(
+                  tooltip: 'Asset actions',
+                  position: PopupMenuPosition.under,
+                  color: AppTheme.surface,
+                  surfaceTintColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: const BorderSide(color: AppTheme.divider),
+                  ),
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'refresh':
+                        _refreshActiveSection();
+                        break;
+                      case 'scan':
+                        _openQrScanner();
+                        break;
+                      case 'add-part':
+                        _showEditPartDialog(context);
+                        break;
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem<String>(
+                      value: 'refresh',
+                      child: Row(
+                        children: [
+                          Icon(Icons.refresh_rounded, size: 18),
+                          SizedBox(width: 10),
+                          Text('Refresh section'),
+                        ],
+                      ),
+                    ),
+                    if (isEquipment)
+                      const PopupMenuItem<String>(
+                        value: 'scan',
+                        child: Row(
+                          children: [
+                            Icon(Icons.qr_code_scanner_rounded, size: 18),
+                            SizedBox(width: 10),
+                            Text('Scan QR code'),
+                          ],
+                        ),
+                      ),
+                    if (index == 1)
+                      const PopupMenuItem<String>(
+                        value: 'add-part',
+                        child: Row(
+                          children: [
+                            Icon(Icons.add_box_outlined, size: 18),
+                            SizedBox(width: 10),
+                            Text('Add spare part'),
+                          ],
+                        ),
+                      ),
+                  ],
+                  child: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: AppTheme.surface,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppTheme.divider),
+                    ),
+                    child: const Icon(
+                      Icons.more_horiz_rounded,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   Widget _buildSearchField(String hintText) {
     return Padding(
@@ -990,7 +1104,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
             style: const TextStyle(
                 fontSize: 14, fontFamily: 'Outfit', color: Color(0xFF0F172A)),
             decoration: InputDecoration(
-              hintText: 'Search parts by name, model or location…',
+              hintText: 'Search parts by name, model or location...',
               hintStyle: const TextStyle(
                   color: Color(0xFF94A3B8), fontSize: 13, fontFamily: 'Outfit'),
               prefixIcon:
@@ -1152,7 +1266,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
     final locationText = [
       asset.hospitalUnit,
       asset.wardLocation,
-    ].where((value) => value.trim().isNotEmpty).join(' • ');
+    ].where((value) => value.trim().isNotEmpty).join(' - ');
 
     return Card(
       margin: const EdgeInsets.only(bottom: 14),
@@ -1457,9 +1571,9 @@ class _AnalyticsViewState extends State<AnalyticsView>
     );
   }
 
-  // ══════════════════════════════════════════
-  //  TAB 2 — SUPPLIERS
-  // ══════════════════════════════════════════
+  // â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-
+  //  TAB 2 â€” SUPPLIERS
+  // â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-â-
 
   Widget _buildSuppliersTab() {
     return FutureBuilder<List<Supplier>>(
@@ -1805,7 +1919,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
   }
 }
 
-// ─── QR SCANNER SHEET ────────────────────────────────────────────────────────
+// â”€â”€â”€ QR SCANNER SHEET â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _PartEditorDialog extends StatefulWidget {
   final SparePart? existingPart;

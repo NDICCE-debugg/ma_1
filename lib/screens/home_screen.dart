@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:ma_1/screens/ai_assistant_view.dart';
 import 'package:ma_1/screens/analytics_view.dart';
@@ -202,8 +204,7 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Padding(
-                padding:
-                    EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 child: Row(
                   children: [
                     PulseLogo(size: 34, borderRadius: 9),
@@ -359,155 +360,202 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (dialogContext) {
         return Dialog(
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
           insetPadding:
               const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 460),
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 58,
-                        height: 58,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: AppTheme.primary,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Text(
-                          initials,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontFamily: 'Outfit',
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppTheme.textPrimary,
-                                fontFamily: 'Outfit',
-                                fontSize: 18,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              email,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppTheme.textSecondary,
-                                fontFamily: 'Outfit',
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Close',
-                        icon: const Icon(Icons.close_rounded),
-                        onPressed: () => Navigator.pop(dialogContext),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.82),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.72),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primary.withValues(alpha: 0.14),
+                        blurRadius: 32,
+                        offset: const Offset(0, 18),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.muted,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppTheme.divider),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.badge_outlined,
-                            color: AppTheme.secondary, size: 18),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            reg,
-                            style: const TextStyle(
-                              color: AppTheme.textPrimary,
-                              fontFamily: 'Outfit',
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        const _MiniStatus(label: 'Active'),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.94),
+                        AppTheme.iceBlue.withValues(alpha: 0.2),
+                        Colors.white.withValues(alpha: 0.78),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 18),
-                  _AccountMenuTile(
-                    icon: Icons.account_circle_outlined,
-                    title: 'Professional profile',
-                    subtitle: 'Credentials, role, skills, and contact details',
-                    onTap: () {
-                      Navigator.pop(dialogContext);
-                      _openScreen(const ProfileEditScreen());
-                    },
-                  ),
-                  _AccountMenuTile(
-                    icon: Icons.settings_outlined,
-                    title: 'Settings',
-                    subtitle: 'Appearance, notifications, privacy, and support',
-                    onTap: () {
-                      Navigator.pop(dialogContext);
-                      _openScreen(const SettingsScreen());
-                    },
-                  ),
-                  _AccountMenuTile(
-                    icon: Icons.help_outline_rounded,
-                    title: 'Help and support',
-                    subtitle: 'Guides, safety notes, and liaison channels',
-                    onTap: () {
-                      Navigator.pop(dialogContext);
-                      _openScreen(const HelpScreen());
-                    },
-                  ),
-                  const Divider(height: 22),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.error,
-                        side: const BorderSide(color: AppTheme.error),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 58,
+                            height: 58,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [AppTheme.primary, AppTheme.secondary],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                              boxShadow: [
+                                BoxShadow(
+                                  color:
+                                      AppTheme.secondary.withValues(alpha: 0.2),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              initials,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontFamily: 'Outfit',
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: AppTheme.textPrimary,
+                                    fontFamily: 'Outfit',
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  email,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: AppTheme.textSecondary,
+                                    fontFamily: 'Outfit',
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Close',
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () => Navigator.pop(dialogContext),
+                          ),
+                        ],
                       ),
-                      onPressed: () async {
-                        Navigator.pop(dialogContext);
-                        await AuthService.instance.signOut();
-                        if (!mounted) return;
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const LoginScreen()),
-                          (route) => false,
-                        );
-                      },
-                      icon: const Icon(Icons.logout_rounded, size: 18),
-                      label: const Text('Sign out'),
-                    ),
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.54),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.72),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.badge_outlined,
+                                color: AppTheme.secondary, size: 18),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                reg,
+                                style: const TextStyle(
+                                  color: AppTheme.textPrimary,
+                                  fontFamily: 'Outfit',
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            const _MiniStatus(label: 'Active'),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      _AccountMenuTile(
+                        icon: Icons.account_circle_outlined,
+                        title: 'Professional profile',
+                        subtitle:
+                            'Credentials, role, skills, and contact details',
+                        onTap: () {
+                          Navigator.pop(dialogContext);
+                          _openScreen(const ProfileEditScreen());
+                        },
+                      ),
+                      _AccountMenuTile(
+                        icon: Icons.settings_outlined,
+                        title: 'Settings',
+                        subtitle:
+                            'Appearance, notifications, privacy, and support',
+                        onTap: () {
+                          Navigator.pop(dialogContext);
+                          _openScreen(const SettingsScreen());
+                        },
+                      ),
+                      _AccountMenuTile(
+                        icon: Icons.help_outline_rounded,
+                        title: 'Help and support',
+                        subtitle: 'Guides, safety notes, and liaison channels',
+                        onTap: () {
+                          Navigator.pop(dialogContext);
+                          _openScreen(const HelpScreen());
+                        },
+                      ),
+                      const Divider(height: 22),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppTheme.error,
+                            side: const BorderSide(color: AppTheme.error),
+                          ),
+                          onPressed: () async {
+                            Navigator.pop(dialogContext);
+                            await AuthService.instance.signOut();
+                            if (!mounted) return;
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const LoginScreen()),
+                              (route) => false,
+                            );
+                          },
+                          icon: const Icon(Icons.logout_rounded, size: 18),
+                          label: const Text('Sign out'),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -820,7 +868,15 @@ class _AccountMenuTile extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppTheme.divider),
+            color: Colors.white.withValues(alpha: 0.48),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.primary.withValues(alpha: 0.035),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
           child: Row(
             children: [
@@ -828,9 +884,10 @@ class _AccountMenuTile extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: AppTheme.muted,
+                  color: AppTheme.secondary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(9),
-                  border: Border.all(color: AppTheme.divider),
+                  border: Border.all(
+                      color: AppTheme.secondary.withValues(alpha: 0.1)),
                 ),
                 child: Icon(icon, color: AppTheme.secondary, size: 20),
               ),
@@ -872,3 +929,4 @@ class _AccountMenuTile extends StatelessWidget {
     );
   }
 }
+

@@ -12,7 +12,7 @@ class AssetService {
     final Map<String, dynamic> payload = {
       'model_name': asset.modelName,
       'serial_number': asset.serialNumber,
-      'location': '${asset.hospitalUnit} • ${asset.wardLocation}',
+      'location': '${asset.hospitalUnit} - ${asset.wardLocation}',
       'status': _mapStatusToSupabase(asset.status),
     };
 
@@ -52,7 +52,7 @@ class AssetService {
     final Map<String, dynamic> payload = {
       'model_name': asset.modelName,
       'serial_number': asset.serialNumber,
-      'location': '${asset.hospitalUnit} • ${asset.wardLocation}',
+      'location': '${asset.hospitalUnit} - ${asset.wardLocation}',
       'status': _mapStatusToSupabase(asset.status),
     };
 
@@ -138,7 +138,7 @@ class AssetService {
     final normalized = modelName.toLowerCase();
     if (normalized.contains('draeger') ||
         normalized.contains('drager') ||
-        normalized.contains('drã¤ger') ||
+        normalized.contains('drager') ||
         normalized.contains('mindray') ||
         normalized.contains('wato') ||
         normalized.contains('a5')) {
@@ -155,21 +155,21 @@ class AssetService {
   }) {
     final normalizedLocation = _normalizeLocationText(location);
     if (normalizedLocation.isNotEmpty) {
-      final parts = normalizedLocation.split(' • ');
+      final parts = normalizedLocation.split(' - ');
       return _ResolvedLocation(
         unit: parts.first.trim().isEmpty ? 'Unassigned' : parts.first.trim(),
-        ward: parts.skip(1).join(' • ').trim(),
+        ward: parts.skip(1).join(' - ').trim(),
       );
     }
 
     final normalizedUnit = _normalizeLocationText(hospitalUnit);
     final normalizedWard = _normalizeLocationText(wardLocation);
-    if (normalizedUnit.contains(' • ')) {
-      final parts = normalizedUnit.split(' • ');
-      final inheritedWard = parts.skip(1).join(' • ').trim();
+    if (normalizedUnit.contains(' - ')) {
+      final parts = normalizedUnit.split(' - ');
+      final inheritedWard = parts.skip(1).join(' - ').trim();
       final ward = [inheritedWard, normalizedWard]
           .where((value) => value.isNotEmpty)
-          .join(' • ');
+          .join(' - ');
       return _ResolvedLocation(
         unit: parts.first.trim().isEmpty ? 'Unassigned' : parts.first.trim(),
         ward: ward,
@@ -189,9 +189,9 @@ class AssetService {
     }
 
     return trimmed
-        .replaceAll('â€¢', '•')
-        .replaceAll('·', '•')
-        .replaceAll(RegExp(r'\s*•\s*'), ' • ');
+        .replaceAll('Ã¢â‚¬Â¢', '-')
+        .replaceAll('Â-', '-')
+        .replaceAll(RegExp(r'\s*-\s*'), ' - ');
   }
 
   String _mapStatusToSupabase(String status) {

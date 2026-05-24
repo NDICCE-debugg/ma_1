@@ -323,7 +323,7 @@ class _EquipmentListPanelState extends State<_EquipmentListPanel>
                               style:
                                   const TextStyle(fontWeight: FontWeight.bold)),
                           subtitle: Text(
-                              "ID: ${asset.serialNumber} • ${asset.wardLocation}"),
+                              "ID: ${asset.serialNumber} - ${asset.wardLocation}"),
                           trailing: Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 4),
@@ -551,3 +551,4 @@ class _EquipmentEntryFormState extends State<_EquipmentEntryForm> {
     );
   }
 }
+

@@ -4,20 +4,20 @@ import 'package:flutter/foundation.dart';
 class SoundService {
   static final SoundService instance = SoundService._init();
   final AudioPlayer _player = AudioPlayer();
-  
+
   SoundService._init();
-  
+
   // Internal helper to handle audio playback
   Future<void> _play(String path, {double volume = 0.5}) async {
     try {
       await _player.setVolume(volume);
       await _player.play(AssetSource(path));
-      debugPrint("🔊 CLINICAL AUDIO: $path");
+      debugPrint("Clinical audio: $path");
     } catch (e) {
       debugPrint("Audio Playback Error: $e");
     }
   }
-  
+
   // --- MODERN CLINICAL SOUND BANK ---
 
   /// Subtle click for tab navigation
@@ -36,9 +36,10 @@ class SoundService {
   void playInteraction() => _play('sounds/interaction_tap.mp3', volume: 0.2);
 
   // --- LEGACY ALIASES (Kept to prevent breaking screen code) ---
-  
+
   void playBoot() => playSystemReady();
   void playButtonPress() => playInteraction();
   void playError() => playAlert();
   void playTransmit() => playSuccess();
 }
+

@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ma_1/providers/theme_provider.dart';
@@ -197,8 +199,19 @@ class _SettingsHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppTheme.primary,
+        gradient: const LinearGradient(
+          colors: [AppTheme.primaryDark, AppTheme.secondary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.secondary.withValues(alpha: 0.22),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -257,36 +270,54 @@ class _SettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                color: AppTheme.textPrimary,
-                fontFamily: 'Outfit',
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            if (description != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                description!,
-                style: const TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontFamily: 'Outfit',
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.7)),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.primary.withValues(alpha: 0.05),
+                blurRadius: 18,
+                offset: const Offset(0, 10),
               ),
             ],
-            const SizedBox(height: 12),
-            ...children,
-          ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontFamily: 'Outfit',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                if (description != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    description!,
+                    style: const TextStyle(
+                      color: AppTheme.textSecondary,
+                      fontFamily: 'Outfit',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                ...children,
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -309,7 +340,16 @@ class _SettingsTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Icon(icon),
+      leading: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: AppTheme.secondary.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppTheme.secondary.withValues(alpha: 0.1)),
+        ),
+        child: Icon(icon, color: AppTheme.secondary, size: 19),
+      ),
       title: Text(title),
       subtitle: Text(subtitle),
       trailing: trailing,
@@ -367,3 +407,4 @@ class _ValuePill extends StatelessWidget {
     );
   }
 }
+

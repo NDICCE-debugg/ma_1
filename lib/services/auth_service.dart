@@ -266,3 +266,4 @@ class AuthService {
     return message.isEmpty ? 'Authentication failed. Please try again.' : message;
   }
 }
+

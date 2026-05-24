@@ -1,10 +1,11 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import 'package:ma_1/theme/app_theme.dart';
-import 'package:ma_1/screens/call_screen.dart';
 import 'package:ma_1/services/chat_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ChatScreen extends StatefulWidget {
   final String conversationId;
@@ -28,6 +29,7 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _msgCtrl = TextEditingController();
+  final FocusNode _msgFocus = FocusNode();
   final ScrollController _scrollCtrl = ScrollController();
   final List<Map<String, dynamic>> _messages = [];
   bool _isTyping = false;
@@ -38,6 +40,9 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _msgFocus.addListener(() {
+      if (mounted) setState(() {});
+    });
     ChatService.instance.joinRoom(widget.conversationId);
     ChatService.instance.incomingMessage.addListener(_onMessageReceived);
     ChatService.instance.typingIndicator.addListener(_onTyping);
@@ -59,6 +64,7 @@ class _ChatScreenState extends State<ChatScreen> {
     ChatService.instance.incomingMessage.removeListener(_onMessageReceived);
     ChatService.instance.typingIndicator.removeListener(_onTyping);
     _msgCtrl.dispose();
+    _msgFocus.dispose();
     _scrollCtrl.dispose();
     super.dispose();
   }
@@ -83,7 +89,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
     // Only update and scroll if the conversation stream has actually changed!
     if (messages.length != _messages.length ||
-        (messages.isNotEmpty && _messages.isNotEmpty && messages.last['id'] != _messages.last['id'])) {
+        (messages.isNotEmpty &&
+            _messages.isNotEmpty &&
+            messages.last['id'] != _messages.last['id'])) {
       setState(() {
         _messages
           ..clear()
@@ -210,39 +218,42 @@ class _ChatScreenState extends State<ChatScreen> {
     _sendMessage();
   }
 
-  void _startCall(bool isVideo) async {
-    final startTime = DateTime.now();
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CallScreen(
-          contactName: widget.contactName,
-          phoneNumber: widget.phoneNumber,
-          isVideoCall: isVideo,
-        ),
-      ),
-    );
-
-    // Dynamic modern Call Logs added directly to your chat feed upon call termination!
-    final duration = DateTime.now().difference(startTime);
-    if (duration.inSeconds > 2) {
-      final minutes = duration.inMinutes.toString().padLeft(2, '0');
-      final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
-      final callTypeLabel = isVideo ? "Video Call" : "Voice Call";
-      final localMessage = {
-        'id': 'system-call-${DateTime.now().microsecondsSinceEpoch}',
-        'conversation_id': widget.conversationId,
-        'sender_id': 'system',
-        'sender_name': 'System',
-        'message_text': '$callTypeLabel ended • $minutes:$seconds',
-        'message_type': 'system',
-        'timestamp': DateTime.now().toUtc().toIso8601String(),
-      };
-      setState(() {
-        _messages.add(localMessage);
-      });
-      _scrollToBottom();
+  Future<void> _placePhoneCall() async {
+    final phone = _normalizedPhone(widget.phoneNumber);
+    if (phone == null) {
+      _showCallMessage('No phone number is saved for ${widget.contactName}.');
+      return;
     }
+
+    final bool launched;
+    try {
+      launched = await launchUrl(
+        Uri(scheme: 'tel', path: phone),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      _showCallMessage('Could not open the phone dialer on this device.');
+      return;
+    }
+
+    if (!mounted) return;
+    _showCallMessage(
+      launched
+          ? 'Opening phone dialer for ${widget.contactName}.'
+          : 'Could not open the phone dialer on this device.',
+    );
+  }
+
+  String? _normalizedPhone(String? value) {
+    final phone = value?.replaceAll(RegExp(r'[^\d+]'), '').trim() ?? '';
+    return phone.isEmpty ? null : phone;
+  }
+
+  void _showCallMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
   }
 
   Widget _buildQuickSuggestions() {
@@ -307,7 +318,8 @@ class _ChatScreenState extends State<ChatScreen> {
               backgroundColor: Colors.white,
               elevation: 0,
               side: const BorderSide(color: AppTheme.border, width: 1),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
               label: Text(
                 text,
                 style: const TextStyle(
@@ -370,7 +382,8 @@ class _ChatScreenState extends State<ChatScreen> {
                     height: 7,
                     child: CircularProgressIndicator(
                       strokeWidth: 1.5,
-                      valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primary),
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(AppTheme.primary),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -442,17 +455,14 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         actions: [
           IconButton(
-              icon: const Icon(Icons.video_camera_front_outlined,
-                  color: AppTheme.primary),
-              onPressed: () => _startCall(true)),
-          IconButton(
               icon: const Icon(Icons.call_rounded, color: AppTheme.primary),
-              onPressed: () => _startCall(false)),
+              onPressed: _placePhoneCall),
           const SizedBox(width: 8),
         ],
       ),
       body: Column(
         children: [
+          _buildConversationContext(),
           // MESSAGES AREA
           Expanded(
             child: _isLoading
@@ -473,67 +483,307 @@ class _ChatScreenState extends State<ChatScreen> {
           // Dynamic Structured suggestions
           _buildQuickSuggestions(),
 
-          // INPUT BAR (Professional Style)
+          _buildMessageComposer(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConversationContext() {
+    final phone = widget.phoneNumber?.trim();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.iceBlue.withValues(alpha: 0.16),
+        border: const Border(bottom: BorderSide(color: AppTheme.divider)),
+      ),
+      child: Row(
+        children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(top: BorderSide(color: AppTheme.border)),
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: SafeArea(
-              child: Row(
-                children: [
-                  IconButton(
-                      icon: const Icon(Icons.add_box_outlined,
-                          color: AppTheme.primary, size: 28),
-                      onPressed: _showAttachmentOptions),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.background,
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      child: TextField(
-                        controller: _msgCtrl,
-                        onChanged: (val) {
-                          ChatService.instance.sendTyping(
-                              widget.conversationId, 'CURRENT-TECH');
-                          setState(() {});
-                        },
-                        style: const TextStyle(
-                            fontSize: 15, color: AppTheme.textPrimary),
-                        decoration: const InputDecoration(
-                          hintText: "Message...",
-                          hintStyle: TextStyle(color: AppTheme.textSecondary),
-                          border: InputBorder.none,
-                          isDense: true,
-                        ),
-                        onSubmitted: (_) => _sendMessage(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap:
-                        _msgCtrl.text.trim().isNotEmpty ? _sendMessage : null,
-                    child: CircleAvatar(
-                      radius: 20,
-                      backgroundColor: _msgCtrl.text.trim().isEmpty
-                          ? AppTheme.neutral.withValues(alpha: 0.3)
-                          : AppTheme.primary,
-                      child: const Icon(Icons.north_rounded,
-                          color: Colors.white, size: 20),
-                    ),
-                  ),
-                ],
+            child: const Icon(Icons.health_and_safety_outlined,
+                color: AppTheme.primary, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              [
+                'Clinical engineering chat',
+                if (phone != null && phone.isNotEmpty) phone,
+                'AI-simulated reply support'
+              ].join('  -  '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'Outfit',
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildMessageComposer() {
+    final focused = _msgFocus.hasFocus;
+    final canSend = _msgCtrl.text.trim().isNotEmpty && !_isSending;
+
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.92),
+            border: const Border(top: BorderSide(color: AppTheme.divider)),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.deepBlue.withValues(alpha: 0.08),
+                blurRadius: 24,
+                offset: const Offset(0, -10),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: focused || _msgCtrl.text.trim().isNotEmpty
+                      ? SizedBox(
+                          key: const ValueKey('composer-tools'),
+                          height: 34,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            children: [
+                              _composerTemplateChip(
+                                icon: Icons.qr_code_2_rounded,
+                                label: 'Asset ID',
+                                value: 'Asset ID: ',
+                              ),
+                              _composerTemplateChip(
+                                icon: Icons.error_outline_rounded,
+                                label: 'Fault code',
+                                value: 'Fault code: ',
+                              ),
+                              _composerTemplateChip(
+                                icon: Icons.health_and_safety_outlined,
+                                label: 'Safety',
+                                value: 'Patient safety status: ',
+                              ),
+                              _composerTemplateChip(
+                                icon: Icons.schedule_rounded,
+                                label: 'ETA',
+                                value: 'ETA to resolve: ',
+                              ),
+                            ],
+                          ),
+                        )
+                      : const SizedBox.shrink(key: ValueKey('composer-empty')),
+                ),
+                if (focused || _msgCtrl.text.trim().isNotEmpty)
+                  const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    _composerIconButton(
+                      tooltip: 'Attach evidence',
+                      icon: Icons.add_rounded,
+                      onTap: _showAttachmentOptions,
+                      filled: true,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOut,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(
+                          color: focused
+                              ? Colors.white
+                              : AppTheme.muted.withValues(alpha: 0.72),
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: focused
+                              ? [
+                                  BoxShadow(
+                                    color: AppTheme.secondary
+                                        .withValues(alpha: 0.16),
+                                    blurRadius: 18,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: TextField(
+                          controller: _msgCtrl,
+                          focusNode: _msgFocus,
+                          minLines: 1,
+                          maxLines: 4,
+                          textInputAction: TextInputAction.newline,
+                          onChanged: (val) {
+                            ChatService.instance.sendTyping(
+                                widget.conversationId, 'CURRENT-TECH');
+                            setState(() {});
+                          },
+                          style: const TextStyle(
+                            fontSize: 15,
+                            color: AppTheme.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          decoration: const InputDecoration(
+                            hintText: 'Asset, alarm code, action taken...',
+                            hintStyle: TextStyle(
+                              color: AppTheme.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          onSubmitted: (_) {
+                            if (canSend) _sendMessage();
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _composerIconButton(
+                      tooltip: 'Insert voice note marker',
+                      icon: Icons.mic_none_rounded,
+                      onTap: () => _insertComposerText('Voice note: '),
+                    ),
+                    const SizedBox(width: 8),
+                    AnimatedScale(
+                      duration: const Duration(milliseconds: 160),
+                      scale: canSend ? 1 : 0.96,
+                      child: Tooltip(
+                        message: canSend ? 'Send message' : 'Type a message',
+                        child: InkWell(
+                          onTap: canSend ? _sendMessage : null,
+                          borderRadius: BorderRadius.circular(16),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: canSend
+                                  ? AppTheme.primary
+                                  : AppTheme.neutral.withValues(alpha: 0.24),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: canSend
+                                  ? [
+                                      BoxShadow(
+                                        color: AppTheme.primary
+                                            .withValues(alpha: 0.24),
+                                        blurRadius: 14,
+                                        offset: const Offset(0, 8),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: _isSending
+                                ? const Padding(
+                                    padding: EdgeInsets.all(13),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.arrow_upward_rounded,
+                                    color: Colors.white,
+                                    size: 22,
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _composerIconButton({
+    required String tooltip,
+    required IconData icon,
+    required VoidCallback onTap,
+    bool filled = false,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: filled ? AppTheme.primary : AppTheme.muted,
+            borderRadius: BorderRadius.circular(14),
+            border:
+                filled ? null : Border.all(color: AppTheme.divider, width: 1),
+          ),
+          child: Icon(
+            icon,
+            color: filled ? Colors.white : AppTheme.secondary,
+            size: 22,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _composerTemplateChip({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ActionChip(
+        avatar: Icon(icon, size: 15, color: AppTheme.secondary),
+        label: Text(label),
+        labelStyle: const TextStyle(
+          color: AppTheme.textPrimary,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
+        backgroundColor: AppTheme.iceBlue.withValues(alpha: 0.42),
+        side: BorderSide(color: AppTheme.secondary.withValues(alpha: 0.12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        onPressed: () => _insertComposerText(value),
+      ),
+    );
+  }
+
+  void _insertComposerText(String text) {
+    final current = _msgCtrl.text;
+    final next = current.trim().isEmpty ? text : '$current $text';
+    _msgCtrl.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: next.length),
+    );
+    _msgFocus.requestFocus();
+    setState(() {});
   }
 
   Widget _buildEmptyState() {
@@ -567,7 +817,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildMessageBubble(Map<String, dynamic> msg) {
     final isSystem = msg['message_type'] == 'system';
-    
+
     // RENDER SYSTEM EVENT CHIPS BEAUTIFULLY
     if (isSystem) {
       final text = msg['message_text']?.toString() ?? '';
@@ -585,7 +835,9 @@ class _ChatScreenState extends State<ChatScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                isVideo ? Icons.video_camera_front_outlined : Icons.call_rounded,
+                isVideo
+                    ? Icons.video_camera_front_outlined
+                    : Icons.call_rounded,
                 size: 13,
                 color: AppTheme.textSecondary,
               ),
@@ -611,67 +863,112 @@ class _ChatScreenState extends State<ChatScreen> {
     final timestamp =
         DateTime.tryParse(msg['timestamp']?.toString() ?? '') ?? DateTime.now();
 
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        constraints:
-            BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-        decoration: BoxDecoration(
-          color: isMe ? AppTheme.primary : Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(isMe ? 16 : 4),
-            bottomRight: Radius.circular(isMe ? 4 : 16),
-          ),
-          boxShadow: [
-            if (!isMe)
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              )
-          ],
+    final bubble = Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      constraints:
+          BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+      decoration: BoxDecoration(
+        color: isMe ? AppTheme.primary : Colors.white,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(isMe ? 18 : 6),
+          topRight: Radius.circular(isMe ? 6 : 18),
+          bottomLeft: const Radius.circular(18),
+          bottomRight: const Radius.circular(18),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        border: isMe ? null : Border.all(color: AppTheme.divider),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primary.withValues(alpha: isMe ? 0.12 : 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment:
+            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          if (!isMe) ...[
             Text(
-              msg['message_text']?.toString() ?? '',
-              style: TextStyle(
-                  color: isMe ? Colors.white : AppTheme.textPrimary,
-                  fontSize: 15,
-                  height: 1.4),
+              msg['sender_name']?.toString() ?? widget.contactName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppTheme.primary,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Outfit',
+              ),
             ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  DateFormat('HH:mm').format(timestamp.toLocal()),
-                  style: TextStyle(
-                      fontSize: 10,
-                      color: isMe ? Colors.white70 : AppTheme.textSecondary),
-                ),
-                if (isMe)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4),
-                    child: Icon(
-                      deliveryState == 'queued'
-                          ? Icons.schedule_rounded
-                          : Icons.done_all,
-                      size: 14,
-                      color: deliveryState == 'queued'
-                          ? AppTheme.warning
-                          : Colors.white70,
-                    ),
-                  ),
-              ],
-            )
+            const SizedBox(height: 5),
           ],
-        ),
+          Text(
+            msg['message_text']?.toString() ?? '',
+            style: TextStyle(
+              color: isMe ? Colors.white : AppTheme.textPrimary,
+              fontSize: 14.5,
+              height: 1.42,
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 7),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                DateFormat('HH:mm').format(timestamp.toLocal()),
+                style: TextStyle(
+                  fontSize: 10,
+                  color: isMe ? Colors.white70 : AppTheme.textSecondary,
+                  fontFamily: 'Outfit',
+                ),
+              ),
+              if (isMe)
+                Padding(
+                  padding: const EdgeInsets.only(left: 5),
+                  child: Icon(
+                    deliveryState == 'queued'
+                        ? Icons.schedule_rounded
+                        : Icons.done_all_rounded,
+                    size: 14,
+                    color: deliveryState == 'queued'
+                        ? AppTheme.warning
+                        : Colors.white70,
+                  ),
+                ),
+            ],
+          )
+        ],
+      ),
+    );
+
+    return Padding(
+      padding: EdgeInsets.only(left: isMe ? 48 : 0, right: isMe ? 0 : 48),
+      child: Row(
+        mainAxisAlignment:
+            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (!isMe) ...[
+            CircleAvatar(
+              radius: 15,
+              backgroundColor: AppTheme.primary.withValues(alpha: 0.08),
+              child: Text(
+                widget.contactName.substring(0, 1).toUpperCase(),
+                style: const TextStyle(
+                  color: AppTheme.primary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Outfit',
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          bubble,
+        ],
       ),
     ).animate().fadeIn(duration: 200.ms).slideY(begin: 0.05, end: 0);
   }

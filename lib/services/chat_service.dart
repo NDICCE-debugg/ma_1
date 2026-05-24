@@ -217,8 +217,8 @@ class ChatService {
     if (_isCommsLoaded) return;
     try {
       final prefs = await SharedPreferences.getInstance();
-      
-      final callLogsStr = prefs.getString('local_call_logs_v2');
+
+      final callLogsStr = prefs.getString('local_call_logs_v3');
       if (callLogsStr != null) {
         _localCallLogs.clear();
         _localCallLogs.addAll(List<Map<String, dynamic>>.from(
@@ -240,7 +240,7 @@ class ChatService {
   Future<void> _saveCallLogs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('local_call_logs_v2', jsonEncode(_localCallLogs));
+      await prefs.setString('local_call_logs_v3', jsonEncode(_localCallLogs));
     } catch (e) {
       debugPrint("Error saving local call logs: $e");
     }
@@ -259,23 +259,23 @@ class ChatService {
   Future<List<Map<String, dynamic>>> getCallLogs() async {
     await _loadCommsData();
     if (_localCallLogs.isEmpty) {
-      // Seed high-fidelity starting logs dynamically
+      // Realistic clinical phone activity only. Video sessions are handled as meetings.
       _localCallLogs.addAll([
         {
           "name": "Dr. Chipo Moyo",
           "type": "voice",
           "direction": "incoming",
           "time": "Today, 10:45 AM",
-          "status": "Low O2 Alarm Fault (12m 4s)",
+          "status": "ICU VG70 low O2 alarm escalation (12m 04s)",
           "phone": "+263772123456",
           "online": true,
         },
         {
           "name": "Farai Gumbo",
-          "type": "video",
+          "type": "voice",
           "direction": "outgoing",
-          "time": "Yesterday, 15:30",
-          "status": "PEEP Valve Calibrated (8m 15s)",
+          "time": "Today, 08:20 AM",
+          "status": "Evita V500 service handover (6m 18s)",
           "phone": "+263773456789",
           "online": true,
         },
@@ -284,17 +284,17 @@ class ChatService {
           "type": "voice",
           "direction": "missed",
           "time": "Yesterday, 09:15",
-          "status": "Manifold Pressure Drop",
+          "status": "Oxygen manifold pressure callback required",
           "phone": "+263774567890",
           "online": true,
         },
         {
-          "name": "Dr. Sekai Nzenza",
+          "name": "Rufaro Moyo",
           "type": "voice",
-          "direction": "incoming",
+          "direction": "outgoing",
           "time": "May 22, 14:15",
-          "status": "Clinical Audit Check (5m 12s)",
-          "phone": "+263771987654",
+          "status": "Parts approval for turbine order (4m 46s)",
+          "phone": "+263782345678",
           "online": true,
         },
       ]);
@@ -378,7 +378,7 @@ class ChatService {
       }).toList();
 
       if (contacts.isEmpty) return fallbackContacts;
-      
+
       for (final fallback in fallbackContacts) {
         if (!contacts.any((c) => c['id'] == fallback['id'])) {
           contacts.add(fallback);
@@ -415,7 +415,8 @@ class ChatService {
 
         final localMsgs = _localSimulatedMessages[id];
         String lastMsg = row['last_message'] ?? 'Conversation started';
-        String lastTime = row['last_message_time'] ?? DateTime.now().toUtc().toIso8601String();
+        String lastTime = row['last_message_time'] ??
+            DateTime.now().toUtc().toIso8601String();
         if (localMsgs != null && localMsgs.isNotEmpty) {
           lastMsg = localMsgs.last['message_text'];
           lastTime = localMsgs.last['timestamp'];
@@ -465,7 +466,7 @@ class ChatService {
       }).toList();
     }
 
-    // Dynamic Google Chat Space Injection (Path B)!
+    // Optional Google Chat Space injection. Disabled unless explicitly configured.
     if (GoogleChatService.instance.isConfiguredForApi) {
       try {
         final List<Map<String, dynamic>> realMessages =
@@ -480,7 +481,7 @@ class ChatService {
 
         list.insert(0, {
           'id': 'google-chat-workspace',
-          'name': '💬 Pulse Workspace (Google Chat)',
+          'name': 'Pulse Workspace (Google Chat)',
           'last_message': lastMsg,
           'last_message_time': lastTime,
           'unread': 0,
@@ -512,8 +513,8 @@ class ChatService {
             'id': 'seed-1-$conversationId',
             'conversation_id': conversationId,
             'sender_id': conversationId,
-            'sender_name': fallbackContacts.firstWhere(
-                (c) => c['id'] == conversationId)['name'],
+            'sender_name': fallbackContacts
+                .firstWhere((c) => c['id'] == conversationId)['name'],
             'message_text': _getInitialSeedMessage(conversationId),
             'message_type': 'text',
             'timestamp': now
@@ -830,8 +831,8 @@ class ChatService {
       ...message,
       'sender_name': message['sender_name'] ??
           (isCurrentUser
-               ? currentUserName ?? 'Technician'
-               : _conversationName(senderId) ?? 'Clinical Team'),
+              ? currentUserName ?? 'Technician'
+              : _conversationName(senderId) ?? 'Clinical Team'),
       'message_type': message['message_type'] ?? 'text',
       'delivery_state': message['delivery_state'] ?? 'sent',
     };
@@ -858,3 +859,4 @@ class ChatService {
     return null;
   }
 }
+

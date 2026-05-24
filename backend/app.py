@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 # Load Supabase and OpenAI credentials from .env
 load_dotenv()
 
+from rag_service import RagError, answer_with_manuals, ingest_manual
+
 app = Flask(__name__)
 CORS(app)  # Enable Cross-Origin Resource Sharing
 
@@ -148,6 +150,50 @@ def ai_query():
         
     response_text = run_gemini_query(query)
     return jsonify({"answer": response_text})
+
+@app.route('/api/rag/ingest', methods=['POST'])
+def rag_ingest():
+    authorized, user_info = verify_supabase_token(request)
+    if not authorized:
+        return jsonify({"error": "Unauthorized. Missing or invalid token signature."}), 401
+
+    data = request.json or {}
+    required = ['title', 'machine_model', 'file_name', 'storage_path']
+    missing = [field for field in required if not data.get(field)]
+    if missing:
+        return jsonify({"error": f"Missing required fields: {', '.join(missing)}"}), 400
+
+    auth_header = request.headers.get("Authorization", "")
+    user_token = auth_header.split(" ", 1)[1] if auth_header.startswith("Bearer ") else None
+    user_id = user_info.get("id") if isinstance(user_info, dict) else None
+
+    try:
+        result = ingest_manual(data, user_token=user_token, user_id=user_id)
+        return jsonify(result)
+    except RagError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Manual indexing failed: {str(e)}"}), 500
+
+@app.route('/api/rag/query', methods=['POST'])
+def rag_query():
+    authorized, user_info = verify_supabase_token(request)
+    if not authorized:
+        return jsonify({"error": "Unauthorized. Missing or invalid token signature."}), 401
+
+    data = request.json or {}
+    query = (data.get('query') or '').strip()
+    machine_model = (data.get('machine_model') or '').strip() or None
+    if not query:
+        return jsonify({"error": "Query parameters empty"}), 400
+
+    try:
+        result = answer_with_manuals(query, machine_model=machine_model)
+        return jsonify(result)
+    except RagError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"RAG query failed: {str(e)}"}), 500
 
 @app.route('/api/predict', methods=['GET'])
 def predict_health():

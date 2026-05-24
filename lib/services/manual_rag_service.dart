@@ -177,3 +177,4 @@ class _RankedChunk {
 
   const _RankedChunk(this.text, this.score);
 }
+

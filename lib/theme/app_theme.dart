@@ -7,12 +7,13 @@ class AppTheme {
   static const Color softBlue = Color(0xFF8DA4AF);
   static const Color steelBlue = Color(0xFF64748B);
   static const Color classicBlue = Color(0xFF0F766E);
+  static const Color deepBlue = Color(0xFF0B2A5B);
   static const Color deepNavy = Color(0xFF111827);
   static const Color midnightBlue = Color(0xFF071013);
 
   static const primary = deepNavy;
   static const primaryDark = midnightBlue;
-  static const secondary = classicBlue;
+  static const secondary = deepBlue;
   static const success = Color(0xFF059669);
   static const warning = Color(0xFFD97706);
   static const error = Color(0xFFE11D48);
@@ -37,8 +38,28 @@ class AppTheme {
   static OutlinedBorder get _controlShape =>
       RoundedRectangleBorder(borderRadius: BorderRadius.circular(9));
 
+  static TextStyle? _withFontFallback(TextStyle? style) =>
+      style?.copyWith(fontFamilyFallback: const ['NotoSans']);
+
   static TextTheme _textTheme([TextTheme? base]) {
-    final textTheme = GoogleFonts.outfitTextTheme(base);
+    final outfit = GoogleFonts.outfitTextTheme(base);
+    final textTheme = outfit.copyWith(
+      displayLarge: _withFontFallback(outfit.displayLarge),
+      displayMedium: _withFontFallback(outfit.displayMedium),
+      displaySmall: _withFontFallback(outfit.displaySmall),
+      headlineLarge: _withFontFallback(outfit.headlineLarge),
+      headlineMedium: _withFontFallback(outfit.headlineMedium),
+      headlineSmall: _withFontFallback(outfit.headlineSmall),
+      titleLarge: _withFontFallback(outfit.titleLarge),
+      titleMedium: _withFontFallback(outfit.titleMedium),
+      titleSmall: _withFontFallback(outfit.titleSmall),
+      bodyLarge: _withFontFallback(outfit.bodyLarge),
+      bodyMedium: _withFontFallback(outfit.bodyMedium),
+      bodySmall: _withFontFallback(outfit.bodySmall),
+      labelLarge: _withFontFallback(outfit.labelLarge),
+      labelMedium: _withFontFallback(outfit.labelMedium),
+      labelSmall: _withFontFallback(outfit.labelSmall),
+    );
     return textTheme.copyWith(
       displayLarge: textTheme.displayLarge?.copyWith(
         color: textPrimary,

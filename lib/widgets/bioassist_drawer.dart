@@ -9,6 +9,7 @@ import 'package:ma_1/screens/settings_screens.dart';
 import 'package:ma_1/services/auth_service.dart';
 import 'package:ma_1/screens/login_screen.dart';
 import 'package:ma_1/services/database_helper.dart';
+import 'package:ma_1/services/rag_api_service.dart';
 
 class BioAssistDrawer extends StatefulWidget {
   const BioAssistDrawer({super.key});
@@ -69,16 +70,7 @@ class _BioAssistDrawerState extends State<BioAssistDrawer> {
       void Function(void Function()) setDialogState) async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: [
-        'pdf',
-        'doc',
-        'docx',
-        'txt',
-        'csv',
-        'png',
-        'jpg',
-        'jpeg'
-      ],
+      allowedExtensions: ['pdf'],
       withData: true,
     );
 
@@ -161,7 +153,7 @@ class _BioAssistDrawerState extends State<BioAssistDrawer> {
                       labelText: "Compatible Machine Model"),
                   items: [
                     "Aeonmed VG70",
-                    "Dräger Evita V500",
+                    "Drager Evita V500",
                     "Mindray A5",
                     "WATO EX-35"
                   ]
@@ -266,7 +258,7 @@ class _BioAssistDrawerState extends State<BioAssistDrawer> {
                           const Padding(
                             padding: EdgeInsets.only(top: 4),
                             child: Text(
-                              "PDF, Word, text, CSV, or equipment image",
+                              "PDF service manuals only",
                               style: TextStyle(
                                   fontSize: 10,
                                   color: AppTheme.neutral,
@@ -331,69 +323,94 @@ class _BioAssistDrawerState extends State<BioAssistDrawer> {
                       _attachedFileBytes == null ||
                       titleCtrl.text.trim().isEmpty)
                   ? null
-                  : () {
+                  : () async {
                       setDialogState(() {
                         _isUploading = true;
                         _uploadProgress = 0.0;
                       });
 
-                      // Animate high fidelity upload progress
-                      Timer.periodic(const Duration(milliseconds: 150),
-                          (timer) async {
-                        if (_uploadProgress < 1.0) {
-                          setDialogState(() {
-                            _uploadProgress =
-                                (_uploadProgress + 0.1).clamp(0.0, 1.0);
-                          });
-                        } else {
-                          timer.cancel();
-
-                          // Save to local manual_entries database
-                          final bytes = _attachedFileBytes!;
-                          await DatabaseHelper.instance.addManualEntry({
-                            'machine_model': selectedModel,
-                            'category': selectedCategory,
-                            'title': titleCtrl.text.trim(),
-                            'content': _manualContentSummary(
-                                bytes, _attachedFileType, _attachedFileName!),
-                            'file_name': _attachedFileName,
-                            'file_type': _attachedFileType,
-                            'file_size': bytes.length,
-                            'file_bytes': bytes,
-                            'uploaded_at':
-                                DateTime.now().toUtc().toIso8601String(),
-                          });
-
-                          if (ctx.mounted) {
-                            Navigator.pop(ctx);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                behavior: SnackBarBehavior.floating,
-                                backgroundColor: AppTheme.success,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12)),
-                                content: Row(
-                                  children: [
-                                    const Icon(Icons.check_circle,
-                                        color: Colors.white, size: 20),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        "Technical manual '${titleCtrl.text}' successfully uploaded and indexed for diagnostics!",
-                                        style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontFamily: 'Outfit',
-                                            fontSize: 13),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }
-                        }
+                      final progressTimer = Timer.periodic(
+                          const Duration(milliseconds: 220), (_) {
+                        if (!ctx.mounted) return;
+                        setDialogState(() {
+                          _uploadProgress =
+                              (_uploadProgress + 0.08).clamp(0.0, 0.92);
+                        });
                       });
+
+                      final bytes = _attachedFileBytes!;
+                      try {
+                        await DatabaseHelper.instance.addManualEntry({
+                          'machine_model': selectedModel,
+                          'category': selectedCategory,
+                          'title': titleCtrl.text.trim(),
+                          'content': _manualContentSummary(
+                              bytes, _attachedFileType, _attachedFileName!),
+                          'file_name': _attachedFileName,
+                          'file_type': _attachedFileType,
+                          'file_size': bytes.length,
+                          'file_bytes': bytes,
+                          'uploaded_at':
+                              DateTime.now().toUtc().toIso8601String(),
+                        });
+
+                        final result =
+                            await RagApiService.instance.uploadAndIndexManual(
+                          title: titleCtrl.text.trim(),
+                          machineModel: selectedModel,
+                          category: selectedCategory,
+                          fileName: _attachedFileName!,
+                          fileType: _attachedFileType,
+                          bytes: bytes,
+                        );
+
+                        progressTimer.cancel();
+                        if (!ctx.mounted) return;
+                        setDialogState(() => _uploadProgress = 1.0);
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            behavior: SnackBarBehavior.floating,
+                            backgroundColor: AppTheme.success,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            content: Row(
+                              children: [
+                                const Icon(Icons.check_circle,
+                                    color: Colors.white, size: 20),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    "Indexed '${titleCtrl.text}' with ${result.chunks} searchable manual chunks.",
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontFamily: 'Outfit',
+                                        fontSize: 13),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      } catch (e) {
+                        progressTimer.cancel();
+                        if (!ctx.mounted) return;
+                        setDialogState(() {
+                          _isUploading = false;
+                          _uploadProgress = 0.0;
+                        });
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            behavior: SnackBarBehavior.floating,
+                            backgroundColor: AppTheme.warning,
+                            content: Text(
+                              'Saved locally, but cloud RAG indexing failed: $e',
+                              style: const TextStyle(fontFamily: 'Outfit'),
+                            ),
+                          ),
+                        );
+                      }
                     },
               child: const Text("Index Manual",
                   style: TextStyle(
