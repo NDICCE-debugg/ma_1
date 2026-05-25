@@ -15,6 +15,7 @@ import 'package:ma_1/models/spare_part.dart';
 import 'package:ma_1/services/database_helper.dart';
 import 'package:ma_1/services/notification_service.dart';
 import 'package:ma_1/theme/app_theme.dart';
+import 'package:ma_1/screens/hospital_map_view.dart';
 
 // â”€â”€â”€ Supplier model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -329,6 +330,26 @@ class _AnalyticsViewState extends State<AnalyticsView>
     if (!mounted) return;
     _refreshInventory();
     _showStatusMessage('Record saved successfully', AppTheme.success);
+  }
+
+  void _showAddEquipmentSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => EquipmentEntryForm(
+        department: 'MAIN',
+        assetType: 'ventilator',
+        onComplete: (asset, isDeleted) {
+          Navigator.pop(ctx);
+          _refreshEquipment();
+          _showStatusMessage('Equipment added successfully', AppTheme.success);
+        },
+      ),
+    );
   }
 
   // ignore: unused_element
@@ -809,7 +830,23 @@ class _AnalyticsViewState extends State<AnalyticsView>
                     ),
                   ),
                 ),
-                if (isEquipment)
+                if (isEquipment) ...[
+                  Tooltip(
+                    message: 'Add New Equipment',
+                    child: IconButton.filled(
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppTheme.success,
+                        foregroundColor: Colors.white,
+                        fixedSize: const Size(42, 42),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () => _showAddEquipmentSheet(context),
+                      icon: const Icon(Icons.add_rounded, size: 20),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
                   Tooltip(
                     message: kIsWeb
                         ? 'QR scanning available on mobile'
@@ -827,6 +864,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
                       icon: const Icon(Icons.qr_code_scanner_rounded, size: 19),
                     ),
                   ),
+                ],
                 const SizedBox(width: 6),
                 PopupMenuButton<String>(
                   tooltip: 'Asset actions',
@@ -841,6 +879,9 @@ class _AnalyticsViewState extends State<AnalyticsView>
                     switch (value) {
                       case 'refresh':
                         _refreshActiveSection();
+                        break;
+                      case 'add-equipment':
+                        _showAddEquipmentSheet(context);
                         break;
                       case 'scan':
                         _openQrScanner();
@@ -861,7 +902,17 @@ class _AnalyticsViewState extends State<AnalyticsView>
                         ],
                       ),
                     ),
-                    if (isEquipment)
+                    if (isEquipment) ...[
+                      const PopupMenuItem<String>(
+                        value: 'add-equipment',
+                        child: Row(
+                          children: [
+                            Icon(Icons.add_circle_outline, size: 18),
+                            SizedBox(width: 10),
+                            Text('Add equipment'),
+                          ],
+                        ),
+                      ),
                       const PopupMenuItem<String>(
                         value: 'scan',
                         child: Row(
@@ -872,6 +923,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
                           ],
                         ),
                       ),
+                    ],
                     if (index == 1)
                       const PopupMenuItem<String>(
                         value: 'add-part',
@@ -1704,10 +1756,10 @@ class _AnalyticsViewState extends State<AnalyticsView>
                 clipBehavior: Clip.antiAlias,
                 child: asset.imageBytes != null
                     ? Image.memory(asset.imageBytes!, fit: BoxFit.cover)
-                    : (asset.imageFileName.isNotEmpty &&
-                            asset.imageFileName.startsWith('http'))
+                    : (asset.imageUrl.isNotEmpty &&
+                            asset.imageUrl.startsWith('http'))
                         ? Image.network(
-                            asset.imageFileName,
+                            asset.imageUrl,
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => const Icon(
                               Icons.monitor_heart_outlined,
@@ -1715,11 +1767,22 @@ class _AnalyticsViewState extends State<AnalyticsView>
                               size: 28,
                             ),
                           )
-                        : const Icon(
-                            Icons.monitor_heart_outlined,
-                            color: AppTheme.primary,
-                            size: 28,
-                          ),
+                        : (asset.imageFileName.isNotEmpty &&
+                                asset.imageFileName.startsWith('http'))
+                            ? Image.network(
+                                asset.imageFileName,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Icon(
+                                  Icons.monitor_heart_outlined,
+                                  color: AppTheme.primary,
+                                  size: 28,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.monitor_heart_outlined,
+                                color: AppTheme.primary,
+                                size: 28,
+                              ),
               ),
               const SizedBox(width: 16),
 
@@ -2762,7 +2825,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
   }
 }
 
-// â”€â”€â”€ QR SCANNER SHEET â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// —————————————————————————————————————————————————————————————————————————————— QR SCANNER SHEET ——————————————————————————————————————————————————————————————————————————————
 
 class _InventoryImage extends StatelessWidget {
   final SparePart part;
@@ -2865,6 +2928,40 @@ class _PartEditorDialogState extends State<_PartEditorDialog> {
     });
   }
 
+  Future<void> _selectDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.tryParse(_lastRestockCtrl.text) ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      builder: (context, child) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: isDark
+                ? const ColorScheme.dark(
+                    primary: AppTheme.ring,
+                    onPrimary: Colors.white,
+                    surface: Color(0xFF0A1518),
+                    onSurface: Colors.white,
+                  )
+                : const ColorScheme.light(
+                    primary: AppTheme.primary,
+                    onPrimary: Colors.white,
+                    onSurface: AppTheme.textPrimary,
+                  ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _lastRestockCtrl.text = DateFormat('yyyy-MM-dd').format(picked);
+      });
+    }
+  }
+
   void _save() {
     if (_nameCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2897,45 +2994,68 @@ class _PartEditorDialogState extends State<_PartEditorDialog> {
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.existingPart != null;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+      backgroundColor: isDark ? const Color(0xFF0A1518) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(
+          color: isDark ? const Color(0xFF24353A) : AppTheme.divider,
+          width: 1.5,
+        ),
+      ),
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: 720,
-          maxHeight: MediaQuery.of(context).size.height * 0.88,
+          maxWidth: 620,
+          maxHeight: MediaQuery.of(context).size.height * 0.90,
         ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header Section
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 20, 16),
+              child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(9),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppTheme.primary.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(8),
+                      color: (isDark ? AppTheme.ring : AppTheme.primary).withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                     child: Icon(
-                      isEditing
-                          ? Icons.inventory_2_outlined
-                          : Icons.add_box_outlined,
-                      color: AppTheme.primary,
-                      size: 20,
+                      isEditing ? Icons.inventory_2_outlined : Icons.add_box_outlined,
+                      color: isDark ? AppTheme.ring : AppTheme.primary,
+                      size: 22,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 16),
                   Expanded(
-                    child: Text(
-                      isEditing ? 'Edit inventory item' : 'Add inventory item',
-                      style: const TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        fontFamily: 'Outfit',
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isEditing ? 'Edit Inventory Item' : 'Add Inventory Item',
+                          style: TextStyle(
+                            color: isDark ? Colors.white : AppTheme.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            fontFamily: 'Outfit',
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Configure spare parts stocking profile details',
+                          style: TextStyle(
+                            color: isDark ? Colors.white60 : AppTheme.textSecondary,
+                            fontSize: 11,
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   IconButton(
@@ -2945,126 +3065,428 @@ class _PartEditorDialogState extends State<_PartEditorDialog> {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              InkWell(
-                onTap: _pickImage,
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  height: 150,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: AppTheme.muted,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.divider),
-                  ),
-                  child: _imageBytes == null && _imageUrl.isEmpty
-                      ? const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+            ),
+            const Divider(height: 1),
+            
+            // Scrollable Content
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSectionCard(
+                      context,
+                      title: 'Part Specs & Image',
+                      icon: Icons.settings_suggest_outlined,
+                      children: [
+                        // Immersive Photo Selection Banner
+                        InkWell(
+                          onTap: _pickImage,
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            height: 180,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF111F23) : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: isDark ? const Color(0xFF24353A) : AppTheme.divider,
+                                width: 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.015),
+                                  blurRadius: 10,
+                                )
+                              ],
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: _imageBytes == null && _imageUrl.isEmpty
+                                ? Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: (isDark ? AppTheme.ring : AppTheme.primary).withOpacity(0.05),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          Icons.add_photo_alternate_outlined,
+                                          color: isDark ? AppTheme.ring : AppTheme.primary,
+                                          size: 28,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        'Upload Spare Part Image',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          fontFamily: 'Outfit',
+                                          color: isDark ? Colors.white : AppTheme.textPrimary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Supports PNG, JPG, or WEBP up to 10MB',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: isDark ? Colors.white60 : AppTheme.textSecondary,
+                                          fontFamily: 'Outfit',
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      _imageBytes != null
+                                          ? Image.memory(_imageBytes!, fit: BoxFit.cover)
+                                          : Image.network(
+                                              _imageUrl,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) => const Icon(
+                                                Icons.broken_image_outlined,
+                                                color: AppTheme.textSecondary,
+                                              ),
+                                            ),
+                                      // Floating Actions Panel (Trash Icon Overlays)
+                                      Positioned(
+                                        top: 12,
+                                        right: 12,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withOpacity(0.65),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: IconButton(
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                            onPressed: () => setState(() {
+                                              _imageBytes = null;
+                                              _imageFileName = '';
+                                              _imageUrl = '';
+                                            }),
+                                            icon: const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 18),
+                                            tooltip: 'Remove photo',
+                                          ),
+                                        ),
+                                      ),
+                                      Positioned(
+                                        bottom: 12,
+                                        left: 12,
+                                        right: 12,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withOpacity(0.65),
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.refresh_rounded, color: Colors.white, size: 12),
+                                              const SizedBox(width: 6),
+                                              Expanded(
+                                                child: Text(
+                                                  _imageFileName.isNotEmpty
+                                                      ? _imageFileName
+                                                      : 'Change Image',
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontFamily: 'Outfit',
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        _input(
+                          'Part Name / Identifier',
+                          _nameCtrl,
+                          prefixIcon: Icons.badge_outlined,
+                        ),
+                        _input(
+                          'Compatible Machine Model',
+                          _modelCtrl,
+                          prefixIcon: Icons.monitor_heart_outlined,
+                        ),
+                      ],
+                    ),
+                    _buildSectionCard(
+                      context,
+                      title: 'Stocking Profile',
+                      icon: Icons.inventory_2_outlined,
+                      children: [
+                        Row(
                           children: [
-                            Icon(Icons.add_photo_alternate_outlined,
-                                color: AppTheme.textSecondary, size: 30),
-                            SizedBox(height: 8),
-                            Text(
-                              'Add item image',
-                              style: TextStyle(
-                                color: AppTheme.textSecondary,
-                                fontFamily: 'Outfit',
-                                fontWeight: FontWeight.w700,
+                            Expanded(
+                              child: _input(
+                                'Quantity',
+                                _qtyCtrl,
+                                isNumber: true,
+                                prefixIcon: Icons.unarchive_outlined,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _input(
+                                'Min. Threshold',
+                                _minCtrl,
+                                isNumber: true,
+                                prefixIcon: Icons.warning_amber_outlined,
                               ),
                             ),
                           ],
-                        )
-                      : ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: _imageBytes != null
-                              ? Image.memory(_imageBytes!, fit: BoxFit.cover)
-                              : Image.network(
-                                  _imageUrl,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => const Icon(
-                                    Icons.broken_image_outlined,
-                                    color: AppTheme.textSecondary,
-                                  ),
-                                ),
                         ),
-                ),
-              ),
-              if (_imageBytes != null || _imageUrl.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _imageFileName.isEmpty
-                            ? 'Image attached'
-                            : _imageFileName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppTheme.textSecondary,
-                          fontSize: 12,
-                          fontFamily: 'Outfit',
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _input(
+                                'Unit',
+                                _unitCtrl,
+                                prefixIcon: Icons.category_outlined,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _input(
+                                'Storage Location',
+                                _locationCtrl,
+                                prefixIcon: Icons.location_on_outlined,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
+                      ],
                     ),
-                    TextButton.icon(
-                      onPressed: () => setState(() {
-                        _imageBytes = null;
-                        _imageFileName = '';
-                        _imageUrl = '';
-                      }),
-                      icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                      label: const Text('Remove'),
+                    _buildSectionCard(
+                      context,
+                      title: 'Restock Details & Memo',
+                      icon: Icons.assignment_outlined,
+                      children: [
+                        _input(
+                          'Last Restocked',
+                          _lastRestockCtrl,
+                          prefixIcon: Icons.calendar_today_outlined,
+                          readOnly: true,
+                          onTap: _selectDate,
+                        ),
+                        _input(
+                          'Internal Notes / Memo',
+                          _notesCtrl,
+                          prefixIcon: Icons.note_alt_outlined,
+                          maxLines: 3,
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-              const SizedBox(height: 18),
-              _input('Part Name / Identifier', _nameCtrl),
-              _input('Compatible Machine Model', _modelCtrl),
-              Row(
+              ),
+            ),
+            
+            // Footer Section
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
+              child: Row(
                 children: [
-                  Expanded(child: _input('Quantity', _qtyCtrl, isNumber: true)),
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        side: BorderSide(
+                          color: isDark ? const Color(0xFF24353A) : AppTheme.divider,
+                        ),
+                        foregroundColor: isDark ? Colors.white70 : AppTheme.textSecondary,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
-                      child:
-                          _input('Min. Threshold', _minCtrl, isNumber: true)),
+                    flex: 2,
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: isDark ? AppTheme.ring : AppTheme.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      onPressed: _save,
+                      icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
+                      label: Text(
+                        isEditing ? 'Save Stock Profile' : 'Add to Bins',
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
-              Row(
-                children: [
-                  Expanded(child: _input('Unit', _unitCtrl)),
-                  const SizedBox(width: 12),
-                  Expanded(child: _input('Storage Location', _locationCtrl)),
-                ],
-              ),
-              _input('Last Restocked', _lastRestockCtrl),
-              _input('Internal Notes', _notesCtrl),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: FilledButton.icon(
-                  onPressed: _save,
-                  icon: const Icon(Icons.save_outlined, size: 18),
-                  label: Text(isEditing ? 'Save changes' : 'Add to inventory'),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _input(String label, TextEditingController controller,
-      {bool isNumber = false}) {
+  Widget _buildSectionCard(
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF111F23).withOpacity(0.3) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFF24353A) : AppTheme.divider,
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: isDark ? AppTheme.ring : AppTheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  color: isDark ? Colors.white : AppTheme.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Outfit',
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _input(
+    String label,
+    TextEditingController controller, {
+    bool isNumber = false,
+    IconData? prefixIcon,
+    bool readOnly = false,
+    VoidCallback? onTap,
+    int maxLines = 1,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextField(
         controller: controller,
         keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-        decoration: InputDecoration(labelText: label),
+        readOnly: readOnly,
+        onTap: onTap,
+        maxLines: maxLines,
+        style: TextStyle(
+          fontFamily: 'Outfit', 
+          fontSize: 14,
+          color: isDark ? Colors.white : AppTheme.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(
+            fontFamily: 'Outfit',
+            color: isDark ? Colors.white60 : AppTheme.textSecondary,
+            fontWeight: FontWeight.w500,
+            fontSize: 13,
+          ),
+          floatingLabelStyle: TextStyle(
+            fontFamily: 'Outfit',
+            color: isDark ? AppTheme.ring : AppTheme.primary,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+          filled: true,
+          fillColor: isDark ? const Color(0xFF0F1A1C) : Colors.white,
+          prefixIcon: prefixIcon != null
+              ? Icon(
+                  prefixIcon,
+                  color: isDark ? AppTheme.ring.withOpacity(0.8) : AppTheme.primary.withOpacity(0.7),
+                  size: 18,
+                )
+              : null,
+          suffixIcon: onTap != null
+              ? Icon(
+                  Icons.calendar_month_outlined,
+                  color: isDark ? AppTheme.ring : AppTheme.primary,
+                  size: 18,
+                )
+              : null,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: isDark ? const Color(0xFF24353A) : AppTheme.divider,
+              width: 1,
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: isDark ? const Color(0xFF1B2E33) : AppTheme.divider,
+              width: 1,
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: isDark ? AppTheme.ring : AppTheme.primary,
+              width: 1.5,
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:ma_1/models/hospital_asset.dart';
@@ -160,11 +159,10 @@ class _AiDiagnosticsSheetState extends State<AiDiagnosticsSheet> {
   @override
   Widget build(BuildContext context) {
     final HospitalAsset asset = widget.prog['asset'] as HospitalAsset;
-    final double healthScore = widget.prog['healthScore'] as double;
-    final String riskLevel = widget.prog['riskLevel'] as String;
-    final String warning = widget.prog['warningMessage'] as String;
-    final Map<String, dynamic> telemetry =
-        widget.prog['telemetry'] as Map<String, dynamic>;
+    final double healthScore = (widget.prog['healthScore'] as num?)?.toDouble() ?? 100.0;
+    final String riskLevel = widget.prog['riskLevel']?.toString() ?? 'LOW';
+    final String warning = widget.prog['warningMessage']?.toString() ?? 'All telemetry stable';
+    final Map<dynamic, dynamic> telemetry = widget.prog['telemetry'] as Map? ?? {};
 
     final bool isVent = asset.assetType == 'ventilator';
 
@@ -177,34 +175,29 @@ class _AiDiagnosticsSheetState extends State<AiDiagnosticsSheet> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final Color glassBg = isDark
-        ? const Color(0xFF0F172A).withValues(alpha: 0.93) // Tailwind slate-900 glass
-        : const Color(0xFFF8FAFC).withValues(alpha: 0.94); // Tailwind slate-50 glass
+    final Color solidBg = isDark
+        ? const Color(0xFF0F172A)
+        : const Color(0xFFF8FAFC);
     final Color borderCol = isDark
         ? const Color(0xFF334155).withValues(alpha: 0.8)
         : const Color(0xFFE2E8F0);
 
     final Color buttonPrimaryColor = isDark ? AppTheme.iceBlue : AppTheme.primary;
 
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          height: MediaQuery.of(context).size.height * 0.92,
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
-          decoration: BoxDecoration(
-            color: glassBg,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-            border: Border(
-              top: BorderSide(color: borderCol, width: 1.5),
-              left: BorderSide(color: borderCol.withValues(alpha: 0.4)),
-              right: BorderSide(color: borderCol.withValues(alpha: 0.4)),
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.92,
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
+      decoration: BoxDecoration(
+        color: solidBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        border: Border.all(
+          color: borderCol.withValues(alpha: 0.5),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
               // HUD Cybernetic Header Bar
               Row(
                 children: [
@@ -658,16 +651,14 @@ class _AiDiagnosticsSheetState extends State<AiDiagnosticsSheet> {
               ),
             ],
           ),
-        ),
-      ),
-    );
+        );
   }
 
-  Widget _buildVentTelemetry(Map<String, dynamic> tel) {
-    final int hours = tel['turbineHours'] as int;
-    final double o2 = tel['o2Drift'] as double;
-    final double pressure = tel['pressureVar'] as double;
-    final int batt = tel['batteryCycles'] as int;
+  Widget _buildVentTelemetry(Map<dynamic, dynamic> tel) {
+    final int hours = (tel['turbineHours'] as num?)?.toInt() ?? 0;
+    final double o2 = (tel['o2Drift'] as num?)?.toDouble() ?? 0.0;
+    final double pressure = (tel['pressureVar'] as num?)?.toDouble() ?? 0.0;
+    final int batt = (tel['batteryCycles'] as num?)?.toInt() ?? 0;
 
     return GridView.count(
       shrinkWrap: true,
@@ -689,10 +680,10 @@ class _AiDiagnosticsSheetState extends State<AiDiagnosticsSheet> {
     );
   }
 
-  Widget _buildAnesTelemetry(Map<String, dynamic> tel) {
-    final double gas = tel['gasDrift'] as double;
-    final double soda = tel['sodalimeSat'] as double;
-    final int comp = tel['compHours'] as int;
+  Widget _buildAnesTelemetry(Map<dynamic, dynamic> tel) {
+    final double gas = (tel['gasDrift'] as num?)?.toDouble() ?? 0.0;
+    final double soda = (tel['sodalimeSat'] as num?)?.toDouble() ?? 0.0;
+    final int comp = (tel['compHours'] as num?)?.toInt() ?? 0;
 
     return GridView.count(
       shrinkWrap: true,

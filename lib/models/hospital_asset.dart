@@ -92,19 +92,19 @@ class HospitalAsset {
         (map['image_file_name'] ?? map['image_url'] ?? '').toString();
     return HospitalAsset(
       id: (map['id'] as num?)?.toInt(),
-      assetType: map['asset_type'] ?? '',
-      modelName: map['model_name'] ?? '',
-      serialNumber: map['serial_number'] ?? '',
-      hospitalUnit: map['hospital_unit'] ?? '',
-      wardLocation: map['ward_location'] ?? '',
-      status: map['status'] ?? '',
-      dateAcquired: map['date_acquired'] ?? '',
-      lastServiceDate: map['last_service_date'] ?? '',
-      serviceInterval: map['service_interval'] ?? '',
-      notes: map['notes'] ?? '',
+      assetType: map['asset_type']?.toString() ?? '',
+      modelName: map['model_name']?.toString() ?? '',
+      serialNumber: map['serial_number']?.toString() ?? '',
+      hospitalUnit: map['hospital_unit']?.toString() ?? '',
+      wardLocation: map['ward_location']?.toString() ?? '',
+      status: map['status']?.toString() ?? '',
+      dateAcquired: map['date_acquired']?.toString() ?? '',
+      lastServiceDate: map['last_service_date']?.toString() ?? '',
+      serviceInterval: map['service_interval']?.toString() ?? '',
+      notes: map['notes']?.toString() ?? '',
       imageFileName: imageReference.startsWith('http') ? '' : imageReference,
-      imageUrl: (map['image_url'] ?? '').toString().isNotEmpty
-          ? map['image_url']
+      imageUrl: (map['image_url']?.toString() ?? '').isNotEmpty
+          ? map['image_url'].toString()
           : (imageReference.startsWith('http') ? imageReference : ''),
       imageBytes: map['image_bytes'] as Uint8List?,
     );

@@ -8,6 +8,8 @@ import 'package:ma_1/screens/repair_cockpit_screen.dart';
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/services/database_helper.dart';
 import 'package:ma_1/services/google_chat_service.dart';
+import 'package:ma_1/models/hospital_asset.dart';
+import 'package:ma_1/screens/hospital_map_view.dart';
 
 class AssetDetailView extends StatefulWidget {
   final Map<String, dynamic> assetData;
@@ -18,12 +20,69 @@ class AssetDetailView extends StatefulWidget {
 }
 
 class _AssetDetailViewState extends State<AssetDetailView> {
+  late Map<String, dynamic> _currentAssetData;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentAssetData = Map<String, dynamic>.from(widget.assetData);
+  }
+  void _showEditSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => EquipmentEntryForm(
+        department: _currentAssetData['hospital_unit']?.toString() ?? 'MAIN',
+        assetType: _currentAssetData['asset_type']?.toString() ?? 'ventilator',
+        existingAsset: HospitalAsset.fromMap(_currentAssetData),
+        onComplete: (asset, isDeleted) {
+          Navigator.pop(ctx);
+          if (isDeleted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: AppTheme.error,
+                content: Text(
+                  'Equipment successfully deleted.',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Outfit',
+                      color: Colors.white),
+                ),
+              ),
+            );
+          } else {
+            setState(() {
+              _currentAssetData = asset.toMap();
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: AppTheme.success,
+                content: Text(
+                  'Equipment details updated.',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Outfit',
+                      color: Colors.white),
+                ),
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
+
   void _showQrDialog() {
     final String qrJson = jsonEncode({
-      "asset_id": widget.assetData['id'] ?? widget.assetData['asset_id'],
-      "asset_type": widget.assetData['asset_type'] ?? "ventilator",
-      "model_name": widget.assetData['model_name'],
-      "serial_number": widget.assetData['serial_number']
+      "asset_id": _currentAssetData['id'] ?? _currentAssetData['asset_id'],
+      "asset_type": _currentAssetData['asset_type'] ?? "ventilator",
+      "model_name": _currentAssetData['model_name'],
+      "serial_number": _currentAssetData['serial_number']
     });
 
     showDialog(
@@ -56,12 +115,12 @@ class _AssetDetailViewState extends State<AssetDetailView> {
             ),
             const SizedBox(height: 20),
             Text(
-                widget.assetData['model_name']?.toString().toUpperCase() ??
+                _currentAssetData['model_name']?.toString().toUpperCase() ??
                     "MODEL",
                 style:
                     const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, fontFamily: 'Outfit')),
             const SizedBox(height: 4),
-            Text(widget.assetData['serial_number'] ?? "",
+            Text(_currentAssetData['serial_number'] ?? "",
                 style: const TextStyle(
                     color: AppTheme.textSecondary, fontSize: 13, fontFamily: 'RobotoMono')),
           ],
@@ -168,8 +227,8 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   onPressed: () async {
-                    final int assetId = widget.assetData['id'] ??
-                        widget.assetData['asset_id'] ??
+                    final int assetId = _currentAssetData['id'] ??
+                        _currentAssetData['asset_id'] ??
                         1;
                     await DatabaseHelper.instance.logFault(
                       assetId: assetId,
@@ -180,10 +239,10 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                     final sentToGoogleChat =
                         await GoogleChatService.instance.sendEmergencyPageCard(
                       assetModel:
-                          widget.assetData['model_name'] ?? 'Medical Asset',
+                          _currentAssetData['model_name'] ?? 'Medical Asset',
                       serialNumber:
-                          widget.assetData['serial_number'] ?? 'SN-N/A',
-                      wardLocation: widget.assetData['ward_location'] ??
+                          _currentAssetData['serial_number'] ?? 'SN-N/A',
+                      wardLocation: _currentAssetData['ward_location'] ??
                           'Hospital ICU Ward',
                       faultDescription: descCtrl.text,
                       severity: severity,
@@ -211,7 +270,7 @@ class _AssetDetailViewState extends State<AssetDetailView> {
   }
 
   Future<void> _showManualsSheet() async {
-    final modelName = (widget.assetData['model_name'] ?? '').toString();
+    final modelName = (_currentAssetData['model_name'] ?? '').toString();
     final manuals =
         (await DatabaseHelper.instance.getManualEntriesForModel(modelName))
             .map((entry) => ManualEntry.fromMap(entry))
@@ -415,7 +474,7 @@ class _AssetDetailViewState extends State<AssetDetailView> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => RepairCockpitScreen(assetData: widget.assetData),
+        builder: (_) => RepairCockpitScreen(assetData: _currentAssetData),
       ),
     );
   }
@@ -431,16 +490,16 @@ class _AssetDetailViewState extends State<AssetDetailView> {
       return s.isEmpty ? fallback : s;
     }
 
-    final String type = cleanVal(widget.assetData['asset_type'] ?? widget.assetData['assetType'], "Equipment");
-    final String status = cleanVal(widget.assetData['status'], "Operational");
-    final String model = cleanVal(widget.assetData['model_name'] ?? widget.assetData['modelName'], "Unknown Model");
-    final String serial = cleanVal(widget.assetData['serial_number'] ?? widget.assetData['serialNumber'], "N/A");
-    final String unit = cleanVal(widget.assetData['hospital_unit'] ?? widget.assetData['hospitalUnit'], "N/A");
-    final String ward = cleanVal(widget.assetData['ward_location'] ?? widget.assetData['wardLocation'], "N/A");
-    final String lastService = cleanVal(widget.assetData['last_service_date'] ?? widget.assetData['lastServiceDate'], "N/A");
-    final String acquired = cleanVal(widget.assetData['date_acquired'] ?? widget.assetData['dateAcquired'], "N/A");
-    final String interval = cleanVal(widget.assetData['service_interval'] ?? widget.assetData['serviceInterval'], "180");
-    final String notes = cleanVal(widget.assetData['notes'], "None logged");
+    final String type = cleanVal(_currentAssetData['asset_type'] ?? _currentAssetData['assetType'], "Equipment");
+    final String status = cleanVal(_currentAssetData['status'], "Operational");
+    final String model = cleanVal(_currentAssetData['model_name'] ?? _currentAssetData['modelName'], "Unknown Model");
+    final String serial = cleanVal(_currentAssetData['serial_number'] ?? _currentAssetData['serialNumber'], "N/A");
+    final String unit = cleanVal(_currentAssetData['hospital_unit'] ?? _currentAssetData['hospitalUnit'], "N/A");
+    final String ward = cleanVal(_currentAssetData['ward_location'] ?? _currentAssetData['wardLocation'], "N/A");
+    final String lastService = cleanVal(_currentAssetData['last_service_date'] ?? _currentAssetData['lastServiceDate'], "N/A");
+    final String acquired = cleanVal(_currentAssetData['date_acquired'] ?? _currentAssetData['dateAcquired'], "N/A");
+    final String interval = cleanVal(_currentAssetData['service_interval'] ?? _currentAssetData['serviceInterval'], "180");
+    final String notes = cleanVal(_currentAssetData['notes'], "None logged");
 
     final String intervalDisplay = interval == "N/A" ? "N/A" : "$interval Days";
 
@@ -450,10 +509,12 @@ class _AssetDetailViewState extends State<AssetDetailView> {
             ? AppTheme.error
             : AppTheme.warning);
 
-    final rawBytes = widget.assetData['image_bytes'] ?? widget.assetData['imageBytes'];
+    final rawBytes = _currentAssetData['image_bytes'] ?? _currentAssetData['imageBytes'];
     final Uint8List? imageBytes = rawBytes != null
         ? (rawBytes is String ? base64Decode(rawBytes) : Uint8List.fromList(List<int>.from(rawBytes)))
         : null;
+    final String imageUrl = cleanVal(_currentAssetData['image_url'] ?? _currentAssetData['imageUrl'], "");
+    final String imageFileName = cleanVal(_currentAssetData['image_file_name'] ?? _currentAssetData['imageFileName'], "");
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -465,6 +526,10 @@ class _AssetDetailViewState extends State<AssetDetailView> {
         ),
         actions: [
           IconButton(
+              tooltip: 'Edit equipment details',
+              onPressed: _showEditSheet,
+              icon: Icon(Icons.edit_rounded, color: isDark ? Colors.white : AppTheme.primary, size: 22)),
+          IconButton(
               tooltip: 'Equipment QR Identity tag',
               onPressed: _showQrDialog,
               icon: Icon(Icons.qr_code_2_rounded, color: isDark ? Colors.white : AppTheme.primary, size: 24)),
@@ -475,7 +540,7 @@ class _AssetDetailViewState extends State<AssetDetailView> {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         children: [
           // --- 1. Immersive Hero Product Showcase Banner ---
-          _buildHeroHeader(type, model, serial, status, statusColor, imageBytes)
+          _buildHeroHeader(type, model, serial, status, statusColor, imageBytes, imageUrl, imageFileName)
               .animate()
               .fadeIn(duration: 350.ms)
               .slideY(begin: 0.04, end: 0, curve: Curves.easeOutCubic),
@@ -560,6 +625,31 @@ class _AssetDetailViewState extends State<AssetDetailView> {
     );
   }
 
+  Widget _buildHeroFallbackIcon(String type, Color innerIconContainerBg, Color iconColor) {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: innerIconContainerBg,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 12,
+            ),
+          ],
+        ),
+        child: Icon(
+          type.toLowerCase() == 'ventilator'
+              ? Icons.air_outlined
+              : Icons.vaccines_outlined,
+          color: iconColor,
+          size: 48,
+        ),
+      ),
+    );
+  }
+
   Widget _buildHeroHeader(
     String type,
     String model,
@@ -567,6 +657,8 @@ class _AssetDetailViewState extends State<AssetDetailView> {
     String status,
     Color statusColor,
     Uint8List? imageBytes,
+    String imageUrl,
+    String imageFileName,
   ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF0A1518) : Colors.white;
@@ -621,28 +713,19 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                     imageBytes,
                     fit: BoxFit.contain,
                   )
-                : Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(22),
-                      decoration: BoxDecoration(
-                        color: innerIconContainerBg,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 12,
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        type.toLowerCase() == 'ventilator'
-                            ? Icons.air_outlined
-                            : Icons.vaccines_outlined,
-                        color: iconColor,
-                        size: 48,
-                      ),
-                    ),
-                  ),
+                : (imageUrl.isNotEmpty && imageUrl.startsWith('http'))
+                    ? Image.network(
+                        imageUrl,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => _buildHeroFallbackIcon(type, innerIconContainerBg, iconColor),
+                      )
+                    : (imageFileName.isNotEmpty && imageFileName.startsWith('http'))
+                        ? Image.network(
+                            imageFileName,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => _buildHeroFallbackIcon(type, innerIconContainerBg, iconColor),
+                          )
+                        : _buildHeroFallbackIcon(type, innerIconContainerBg, iconColor),
           ),
           // Details block
           Padding(

@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:ma_1/theme/app_theme.dart';
@@ -237,12 +238,13 @@ class _EquipmentListPanelState extends State<_EquipmentListPanel>
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => _EquipmentEntryForm(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => EquipmentEntryForm(
           department: widget.department,
           assetType: _tabCtrl.index == 0 ? 'ventilator' : 'anaesthetic_machine',
           existingAsset: existing,
-          onComplete: () {
+          onComplete: (asset, isDeleted) {
             Navigator.pop(ctx);
             setState(() {});
           }),
@@ -359,23 +361,25 @@ class _EquipmentListPanelState extends State<_EquipmentListPanel>
 }
 
 // --- PROFESSIONAL ENTRY FORM ---
-class _EquipmentEntryForm extends StatefulWidget {
+class EquipmentEntryForm extends StatefulWidget {
   final String department;
   final String assetType;
   final HospitalAsset? existingAsset;
-  final VoidCallback onComplete;
+  final Function(HospitalAsset asset, bool isDeleted)? onComplete;
 
-  const _EquipmentEntryForm(
-      {required this.department,
-      required this.assetType,
-      this.existingAsset,
-      required this.onComplete});
+  const EquipmentEntryForm({
+    super.key,
+    this.department = 'MAIN',
+    this.assetType = 'ventilator',
+    this.existingAsset,
+    this.onComplete,
+  });
 
   @override
-  State<_EquipmentEntryForm> createState() => _EquipmentEntryFormState();
+  State<EquipmentEntryForm> createState() => EquipmentEntryFormState();
 }
 
-class _EquipmentEntryFormState extends State<_EquipmentEntryForm> {
+class EquipmentEntryFormState extends State<EquipmentEntryForm> {
   late TextEditingController _modelCtrl,
       _serialCtrl,
       _wardCtrl,
@@ -384,6 +388,9 @@ class _EquipmentEntryFormState extends State<_EquipmentEntryForm> {
   String _status = 'OPERATIONAL';
   Uint8List? _imageBytes;
   String _imageFileName = '';
+  String _imageUrl = '';
+  late String _department;
+  late String _assetType;
 
   @override
   void initState() {
@@ -401,6 +408,32 @@ class _EquipmentEntryFormState extends State<_EquipmentEntryForm> {
     if (widget.existingAsset != null) _status = widget.existingAsset!.status;
     _imageBytes = widget.existingAsset?.imageBytes;
     _imageFileName = widget.existingAsset?.imageFileName ?? '';
+    _imageUrl = widget.existingAsset?.imageUrl ?? '';
+    if (_imageUrl.isEmpty && _imageFileName.startsWith('http')) {
+      _imageUrl = _imageFileName;
+    }
+
+    // Normalize raw department names (e.g. 'MAIN - ICU 1') to the exact dropdown values.
+    final rawDept = (widget.existingAsset?.hospitalUnit ?? widget.department).trim().toUpperCase();
+    if (rawDept.startsWith('MAIN')) {
+      _department = 'MAIN';
+    } else if (rawDept.startsWith('PAED') || rawDept.startsWith('PEDI')) {
+      _department = 'PAEDIATRIC';
+    } else if (rawDept.startsWith('MAT')) {
+      _department = 'MATERNITY';
+    } else {
+      _department = 'MAIN';
+    }
+
+    // Normalize raw asset types to the exact dropdown values.
+    final rawType = (widget.existingAsset?.assetType ?? widget.assetType).trim().toLowerCase();
+    if (rawType.contains('vent')) {
+      _assetType = 'ventilator';
+    } else if (rawType.contains('anes') || rawType.contains('anae') || rawType.contains('machine')) {
+      _assetType = 'anaesthetic_machine';
+    } else {
+      _assetType = 'ventilator';
+    }
   }
 
   Future<void> _pickImage() async {
@@ -413,157 +446,760 @@ class _EquipmentEntryFormState extends State<_EquipmentEntryForm> {
     setState(() {
       _imageBytes = file.bytes;
       _imageFileName = file.name;
+      _imageUrl = '';
     });
+  }
+
+  Future<void> _selectServiceDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.tryParse(_svcCtrl.text) ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      builder: (context, child) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: isDark
+                ? const ColorScheme.dark(
+                    primary: AppTheme.ring,
+                    onPrimary: Colors.white,
+                    surface: Color(0xFF0A1518),
+                    onSurface: Colors.white,
+                  )
+                : const ColorScheme.light(
+                    primary: AppTheme.primary,
+                    onPrimary: Colors.white,
+                    onSurface: AppTheme.textPrimary,
+                  ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _svcCtrl.text = DateFormat('yyyy-MM-dd').format(picked);
+      });
+    }
+  }
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    final asset = widget.existingAsset;
+    if (asset == null) return;
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF0A1518) : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: isDark ? const Color(0xFF24353A) : AppTheme.divider,
+            width: 1,
+          ),
+        ),
+        title: const Text(
+          "Confirm Deletion", 
+          style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)
+        ),
+        content: Text(
+          "Are you sure you want to permanently delete this ${asset.modelName} (SN: ${asset.serialNumber})? This action cannot be undone.",
+          style: const TextStyle(fontFamily: 'Outfit'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              "Cancel",
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white70 : AppTheme.textSecondary,
+              ),
+            ),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.error,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              "Delete",
+              style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await AssetService.instance.deleteAsset(asset);
+      widget.onComplete?.call(asset, true);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-          left: 20,
-          right: 20,
-          top: 20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-              widget.existingAsset == null ? "Add Equipment" : "Update Details",
-              style:
-                  const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 20),
-          InkWell(
-            onTap: _pickImage,
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              height: 128,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: AppTheme.muted,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.divider),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: _imageBytes == null
-                  ? const Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.add_photo_alternate_outlined,
-                            color: AppTheme.textSecondary),
-                        SizedBox(height: 8),
-                        Text('Add machine image'),
-                      ],
-                    )
-                  : Image.memory(_imageBytes!, fit: BoxFit.cover),
-            ),
-          ),
-          if (_imageBytes != null)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () => setState(() {
-                  _imageBytes = null;
-                  _imageFileName = '';
-                }),
-                icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                label: Text(_imageFileName.isEmpty ? 'Remove image' : 'Remove'),
-              ),
-            ),
-          const SizedBox(height: 16),
-          TextField(
-              controller: _modelCtrl,
-              decoration: const InputDecoration(labelText: "Model Name")),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                  child: TextField(
-                      controller: _serialCtrl,
-                      decoration:
-                          const InputDecoration(labelText: "Serial Number"))),
-              const SizedBox(width: 12),
-              Expanded(
-                  child: TextField(
-                      controller: _wardCtrl,
-                      decoration:
-                          const InputDecoration(labelText: "Room/Ward"))),
-            ],
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _status,
-            decoration: const InputDecoration(labelText: "Current Status"),
-            items: ['OPERATIONAL', 'MAINTENANCE', 'OFFLINE', 'DECOMMISSIONED']
-                .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                .toList(),
-            onChanged: (v) => setState(() => _status = v!),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                  child: TextField(
-                      controller: _svcCtrl,
-                      decoration:
-                          const InputDecoration(labelText: "Last Service"))),
-              const SizedBox(width: 12),
-              Expanded(
-                  child: TextField(
-                      controller: _intCtrl,
-                      decoration:
-                          const InputDecoration(labelText: "Interval"))),
-            ],
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () async {
-                String finalImageFileName = _imageFileName;
-                if (finalImageFileName.isEmpty && _imageBytes == null) {
-                  final model = _modelCtrl.text.toLowerCase();
-                  final isAnaesthetic = widget.assetType == 'anaesthetic_machine' ||
-                      model.contains('anaesthetic') ||
-                      model.contains('wato') ||
-                      model.contains('a5') ||
-                      model.contains('theatre');
-                  if (isAnaesthetic) {
-                    finalImageFileName = 'https://images.unsplash.com/photo-1516613975432-f22787d55f07?w=500&auto=format&fit=crop&q=60';
-                  } else {
-                    finalImageFileName = 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=500&auto=format&fit=crop&q=60';
-                  }
-                }
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isEditing = widget.existingAsset != null;
 
-                final asset = HospitalAsset(
-                  id: widget.existingAsset?.id,
-                  assetType: widget.assetType,
-                  modelName: _modelCtrl.text,
-                  serialNumber: _serialCtrl.text,
-                  hospitalUnit: widget.department.toUpperCase(),
-                  wardLocation: _wardCtrl.text,
-                  status: _status,
-                  dateAcquired:
-                      widget.existingAsset?.dateAcquired ?? '2024-01-01',
-                  lastServiceDate: _svcCtrl.text,
-                  serviceInterval: _intCtrl.text,
-                  notes: '',
-                  imageFileName: finalImageFileName,
-                  imageBytes: _imageBytes,
-                );
-                if (widget.existingAsset == null) {
-                  await AssetService.instance.registerAsset(asset);
-                } else {
-                  await AssetService.instance.updateAsset(asset);
-                }
-                widget.onComplete();
-              },
-              child: const Text("Save Changes"),
-            ),
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0A1518) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              left: 20,
+              right: 20,
+              top: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Bottom Sheet Swipe Indicator handle
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF24353A) : AppTheme.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              
+              // Custom Dialog/Sheet Header
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: (isDark ? AppTheme.ring : AppTheme.primary).withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      !isEditing ? Icons.add_box_outlined : Icons.edit_note_rounded,
+                      color: isDark ? AppTheme.ring : AppTheme.primary,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          !isEditing ? "Add New Equipment" : "Update Equipment Details",
+                          style: TextStyle(
+                            fontSize: 18, 
+                            fontWeight: FontWeight.w900,
+                            fontFamily: 'Outfit',
+                            color: isDark ? Colors.white : AppTheme.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          "Configure biomedical assets and status logging",
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Outfit',
+                            color: isDark ? Colors.white60 : AppTheme.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Divider(height: 1),
+              const SizedBox(height: 16),
+
+              _buildSectionCard(
+                context,
+                title: "Machine specs & Image",
+                icon: Icons.settings_suggest_outlined,
+                children: [
+                  // Immersive Photo Selection Banner
+                  InkWell(
+                    onTap: _pickImage,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      height: 160,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF111F23) : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isDark ? const Color(0xFF24353A) : AppTheme.divider,
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.015),
+                            blurRadius: 10,
+                          )
+                        ],
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: _imageBytes == null && _imageUrl.isEmpty
+                          ? Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: (isDark ? AppTheme.ring : AppTheme.primary).withOpacity(0.05),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.add_photo_alternate_outlined,
+                                    color: isDark ? AppTheme.ring : AppTheme.primary,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  'Add Machine Photo',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: 'Outfit',
+                                    color: isDark ? Colors.white : AppTheme.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Supports PNG or JPG up to 10MB',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: isDark ? Colors.white60 : AppTheme.textSecondary,
+                                    fontFamily: 'Outfit',
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                _imageBytes != null
+                                    ? Image.memory(_imageBytes!, fit: BoxFit.cover)
+                                    : Image.network(
+                                        _imageUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => const Icon(
+                                          Icons.broken_image_outlined,
+                                          color: AppTheme.textSecondary,
+                                        ),
+                                      ),
+                                // Floating Actions Panel (Trash Icon Overlays)
+                                Positioned(
+                                  top: 12,
+                                  right: 12,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.65),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: IconButton(
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                      onPressed: () => setState(() {
+                                        _imageBytes = null;
+                                        _imageFileName = '';
+                                        _imageUrl = '';
+                                      }),
+                                      icon: const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 18),
+                                      tooltip: 'Remove photo',
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: 12,
+                                  left: 12,
+                                  right: 12,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.65),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.refresh_rounded, color: Colors.white, size: 12),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            _imageFileName.isNotEmpty
+                                                ? _imageFileName
+                                                : 'Change Image',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              fontFamily: 'Outfit',
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _input(
+                    'Model Name',
+                    _modelCtrl,
+                    prefixIcon: Icons.dns_outlined,
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _dropdown<String>(
+                          label: 'Department',
+                          value: _department,
+                          prefixIcon: Icons.corporate_fare_outlined,
+                          items: ['MAIN', 'PAEDIATRIC', 'MATERNITY']
+                              .map((d) => DropdownMenuItem(value: d, child: Text(d)))
+                              .toList(),
+                          onChanged: (v) => setState(() => _department = v!),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _dropdown<String>(
+                          label: 'Asset Type',
+                          value: _assetType,
+                          prefixIcon: Icons.medical_services_outlined,
+                          items: const [
+                            DropdownMenuItem(value: 'ventilator', child: Text('Ventilator')),
+                            DropdownMenuItem(value: 'anaesthetic_machine', child: Text('Anaesthetic')),
+                          ],
+                          onChanged: (v) => setState(() => _assetType = v!),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+
+              _buildSectionCard(
+                context,
+                title: "Identification & Location",
+                icon: Icons.location_on_outlined,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _input(
+                          'Serial Number',
+                          _serialCtrl,
+                          prefixIcon: Icons.fingerprint_outlined,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _input(
+                          'Room/Ward',
+                          _wardCtrl,
+                          prefixIcon: Icons.meeting_room_outlined,
+                        ),
+                      ),
+                    ],
+                  ),
+                  _dropdown<String>(
+                    label: 'Current Status',
+                    value: _status,
+                    prefixIcon: Icons.health_and_safety_outlined,
+                    items: ['OPERATIONAL', 'MAINTENANCE', 'OFFLINE', 'DECOMMISSIONED']
+                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _status = v!),
+                  ),
+                ],
+              ),
+
+              _buildSectionCard(
+                context,
+                title: "Maintenance timeline",
+                icon: Icons.calendar_today_outlined,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _input(
+                          'Last Service Date',
+                          _svcCtrl,
+                          prefixIcon: Icons.calendar_month_outlined,
+                          readOnly: true,
+                          onTap: _selectServiceDate,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _input(
+                          'Service Interval',
+                          _intCtrl,
+                          prefixIcon: Icons.update_outlined,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+              const Divider(height: 1),
+              const SizedBox(height: 20),
+
+              // Action Buttons Section
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        side: BorderSide(
+                          color: isDark ? const Color(0xFF24353A) : AppTheme.divider,
+                        ),
+                        foregroundColor: isDark ? Colors.white70 : AppTheme.textSecondary,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: isDark ? AppTheme.ring : AppTheme.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      onPressed: () async {
+                        String finalImageFileName = _imageFileName;
+                        if (finalImageFileName.isEmpty && _imageBytes == null) {
+                          final model = _modelCtrl.text.toLowerCase();
+                          final isAnaesthetic = _assetType == 'anaesthetic_machine' ||
+                              model.contains('anaesthetic') ||
+                              model.contains('wato') ||
+                              model.contains('a5') ||
+                              model.contains('theatre');
+                          if (isAnaesthetic) {
+                            finalImageFileName = 'https://images.unsplash.com/photo-1516613975432-f22787d55f07?w=500&auto=format&fit=crop&q=60';
+                          } else {
+                            finalImageFileName = 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=500&auto=format&fit=crop&q=60';
+                          }
+                        }
+
+                        final asset = HospitalAsset(
+                          id: widget.existingAsset?.id,
+                          assetType: _assetType,
+                          modelName: _modelCtrl.text,
+                          serialNumber: _serialCtrl.text,
+                          hospitalUnit: _department,
+                          wardLocation: _wardCtrl.text,
+                          status: _status,
+                          dateAcquired:
+                              widget.existingAsset?.dateAcquired ?? '2024-01-01',
+                          lastServiceDate: _svcCtrl.text,
+                          serviceInterval: _intCtrl.text,
+                          notes: widget.existingAsset?.notes ?? '',
+                          imageFileName: finalImageFileName,
+                          imageUrl: _imageUrl,
+                          imageBytes: _imageBytes,
+                        );
+
+                        late HospitalAsset savedAsset;
+                        if (widget.existingAsset == null) {
+                          savedAsset = await AssetService.instance.registerAsset(asset);
+                        } else {
+                          savedAsset = await AssetService.instance.updateAsset(asset);
+                        }
+                        widget.onComplete?.call(savedAsset, false);
+                      },
+                      icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
+                      label: Text(
+                        isEditing ? "Save Changes" : "Register Device",
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              if (widget.existingAsset != null) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.error,
+                      side: const BorderSide(color: AppTheme.error, width: 1.5),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () => _confirmDelete(context),
+                    icon: const Icon(Icons.delete_forever_rounded, size: 18),
+                    label: const Text(
+                      "Delete Equipment", 
+                      style: TextStyle(
+                        fontFamily: 'Outfit', 
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      )
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+            ],
           ),
-          const SizedBox(height: 20),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionCard(
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF111F23).withOpacity(0.3) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFF24353A) : AppTheme.divider,
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: isDark ? AppTheme.ring : AppTheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                title.toUpperCase(),
+                style: TextStyle(
+                  color: isDark ? Colors.white : AppTheme.textPrimary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.0,
+                  fontFamily: 'Outfit',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ...children,
         ],
       ),
     );
   }
-}
 
+  Widget _input(
+    String label,
+    TextEditingController controller, {
+    bool isNumber = false,
+    IconData? prefixIcon,
+    bool readOnly = false,
+    VoidCallback? onTap,
+    int maxLines = 1,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: TextField(
+        controller: controller,
+        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+        readOnly: readOnly,
+        onTap: onTap,
+        maxLines: maxLines,
+        style: TextStyle(
+          fontFamily: 'Outfit', 
+          fontSize: 14,
+          color: isDark ? Colors.white : AppTheme.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(
+            fontFamily: 'Outfit',
+            color: isDark ? Colors.white60 : AppTheme.textSecondary,
+            fontWeight: FontWeight.w500,
+            fontSize: 13,
+          ),
+          floatingLabelStyle: TextStyle(
+            fontFamily: 'Outfit',
+            color: isDark ? AppTheme.ring : AppTheme.primary,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+          filled: true,
+          fillColor: isDark ? const Color(0xFF0F1A1C) : Colors.white,
+          prefixIcon: prefixIcon != null
+              ? Icon(
+                  prefixIcon,
+                  color: isDark ? AppTheme.ring.withOpacity(0.8) : AppTheme.primary.withOpacity(0.7),
+                  size: 18,
+                )
+              : null,
+          suffixIcon: onTap != null
+              ? Icon(
+                  Icons.calendar_month_outlined,
+                  color: isDark ? AppTheme.ring : AppTheme.primary,
+                  size: 18,
+                )
+              : null,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: isDark ? const Color(0xFF24353A) : AppTheme.divider,
+              width: 1,
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: isDark ? const Color(0xFF1B2E33) : AppTheme.divider,
+              width: 1,
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: isDark ? AppTheme.ring : AppTheme.primary,
+              width: 1.5,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _dropdown<T>({
+    required String label,
+    required T value,
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T?> onChanged,
+    IconData? prefixIcon,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DropdownButtonFormField<T>(
+        value: value,
+        items: items,
+        onChanged: onChanged,
+        style: TextStyle(
+          fontFamily: 'Outfit', 
+          fontSize: 14,
+          color: isDark ? Colors.white : AppTheme.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(
+            fontFamily: 'Outfit',
+            color: isDark ? Colors.white60 : AppTheme.textSecondary,
+            fontWeight: FontWeight.w500,
+            fontSize: 13,
+          ),
+          floatingLabelStyle: TextStyle(
+            fontFamily: 'Outfit',
+            color: isDark ? AppTheme.ring : AppTheme.primary,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+          filled: true,
+          fillColor: isDark ? const Color(0xFF0F1A1C) : Colors.white,
+          prefixIcon: prefixIcon != null
+              ? Icon(
+                  prefixIcon,
+                  color: isDark ? AppTheme.ring.withOpacity(0.8) : AppTheme.primary.withOpacity(0.7),
+                  size: 18,
+                )
+              : null,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: isDark ? const Color(0xFF24353A) : AppTheme.divider,
+              width: 1,
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: isDark ? const Color(0xFF1B2E33) : AppTheme.divider,
+              width: 1,
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: isDark ? AppTheme.ring : AppTheme.primary,
+              width: 1.5,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

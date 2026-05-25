@@ -435,12 +435,27 @@ class DatabaseHelper {
   Future<void> cacheAssets(List<HospitalAsset> assets) async {
     final db = await instance.database;
     await db.transaction((txn) async {
-      // Clear out obsolete cache items safely
+      // 1. Query existing machines to preserve local imageBytes
+      final existingRows = await txn.query('machines', columns: ['serial_number', 'image_bytes']);
+      final Map<String, Uint8List> localImageBytesMap = {};
+      for (var row in existingRows) {
+        final sn = row['serial_number']?.toString();
+        final bytes = row['image_bytes'] as Uint8List?;
+        if (sn != null && bytes != null) {
+          localImageBytesMap[sn] = bytes;
+        }
+      }
+
+      // 2. Clear out obsolete cache items safely
       await txn.delete('machines');
       for (var asset in assets) {
+        var finalAsset = asset;
+        if (asset.imageBytes == null && localImageBytesMap.containsKey(asset.serialNumber)) {
+          finalAsset = asset.copyWith(imageBytes: localImageBytesMap[asset.serialNumber]);
+        }
         await txn.insert(
           'machines',
-          asset.toMap(),
+          finalAsset.toMap(),
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
       }
@@ -451,9 +466,22 @@ class DatabaseHelper {
     final db = await instance.database;
     await db.transaction((txn) async {
       for (var asset in assets) {
+        Uint8List? existingBytes = asset.imageBytes;
+        if (existingBytes == null) {
+          final existing = await txn.query(
+            'machines',
+            columns: ['image_bytes'],
+            where: 'serial_number = ?',
+            whereArgs: [asset.serialNumber],
+          );
+          if (existing.isNotEmpty && existing.first['image_bytes'] != null) {
+            existingBytes = existing.first['image_bytes'] as Uint8List?;
+          }
+        }
+        final finalAsset = asset.copyWith(imageBytes: existingBytes);
         await txn.insert(
           'machines',
-          asset.toMap(),
+          finalAsset.toMap(),
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
       }
