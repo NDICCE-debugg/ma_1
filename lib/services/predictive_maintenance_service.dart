@@ -245,6 +245,8 @@ Please generate a professional, structured Biomedical Engineering Prognostic Rep
     buffer.writeln('# Biomedical Engineering Prognostic Report');
     buffer.writeln('**Generated Offline by Clinical Rules Engine** • Telemetry verified');
     buffer.writeln('\n---');
+    buffer.writeln('**System Warning Flags**: *$warningMessage*');
+    buffer.writeln('\n---');
     
     buffer.writeln('\n## 1. Audited Risk Analysis');
     if (isVent) {
