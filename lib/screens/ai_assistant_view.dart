@@ -14,6 +14,7 @@ import 'package:ma_1/services/database_helper.dart';
 import 'package:ma_1/services/gemini_service.dart';
 import 'package:ma_1/services/manual_rag_service.dart';
 import 'package:ma_1/services/rag_api_service.dart';
+import 'package:ma_1/screens/manuals_library_screen.dart';
 import 'package:ma_1/widgets/pulse_logo.dart';
 
 // â”€â”€â”€ Chat message model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -213,17 +214,25 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     // Add an empty streaming assistant message
     final assistantMsg = _ChatMessage(
       role: _Role.assistant,
-      text: '',
+      text: 'Preparing a safe answer...',
       isStreaming: true,
     );
     setState(() => _messages.add(assistantMsg));
 
     try {
-      if (files.isEmpty) {
+      final shouldUseBackendRag =
+          files.isEmpty && _shouldUseBackendRag(technicianQuestion);
+      if (shouldUseBackendRag) {
         try {
-          final ragAnswer = await RagApiService.instance.queryManuals(
-            query: technicianQuestion,
-          );
+          setState(() {
+            assistantMsg.text =
+                'Checking indexed manuals and calibration references...';
+          });
+          final ragAnswer = await RagApiService.instance
+              .queryManuals(
+                query: technicianQuestion,
+              )
+              .timeout(const Duration(seconds: 18));
           if (ragAnswer.hasManualContext &&
               ragAnswer.answer.trim().isNotEmpty) {
             assistantMsg.text = _formatRagAnswer(ragAnswer);
@@ -244,16 +253,27 @@ class _AIAssistantViewState extends State<AIAssistantView> {
         }
       }
 
+      setState(() {
+        assistantMsg.text = 'Contacting Pulse AI securely...';
+      });
       final stream = GeminiService.instance
           .streamMessage(prompt, attachments: modelAttachments);
+      var receivedFirstChunk = false;
       await for (final chunk in stream) {
         if (_cancelRequested) break;
+        if (!receivedFirstChunk) {
+          assistantMsg.text = '';
+          receivedFirstChunk = true;
+        }
         assistantMsg.text += chunk;
         setState(() {});
         _scrollToBottom();
       }
       if (_cancelRequested && assistantMsg.text.trim().isEmpty) {
         assistantMsg.text = 'Response stopped.';
+      } else if (assistantMsg.text.trim().isEmpty) {
+        assistantMsg.text =
+            'Pulse AI did not return text. Check backend logs and retry.';
       }
       assistantMsg.isStreaming = false;
       setState(() {
@@ -293,6 +313,37 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     }
 
     _scrollToBottom();
+  }
+
+  bool _shouldUseBackendRag(String query) {
+    final lower = query.toLowerCase();
+    const manualTerms = [
+      'manual',
+      'procedure',
+      'calibration',
+      'calibrate',
+      'service',
+      'schematic',
+      'fault code',
+      'error code',
+      'alarm code',
+      'maintenance',
+      'pm schedule',
+      'section',
+      'page',
+      'manufacturer',
+    ];
+    const modelTerms = [
+      'vg70',
+      'evita',
+      'v500',
+      'mindray',
+      'wato',
+      'drager',
+      'draeger',
+      'aeonmed',
+    ];
+    return manualTerms.any(lower.contains) || modelTerms.any(lower.contains);
   }
 
   String _formatRagAnswer(RagQueryResult result) {
@@ -588,6 +639,12 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     ));
   }
 
+  Future<void> _openManualLibrary() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ManualsLibraryScreen()),
+    );
+  }
+
   // â”€â”€â”€ BUILD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @override
@@ -677,8 +734,8 @@ class _AIAssistantViewState extends State<AIAssistantView> {
           const SizedBox(width: 10),
           const Expanded(
             child: Text(
-              'Gemini API key not set. '
-              'Open lib/utils/app_config.dart and paste your key into geminiApiKey.',
+              'Backend AI key not available. '
+              'Set GEMINI_API_KEY in backend/.env and restart the Flask service.',
               style: TextStyle(
                   color: AppTheme.warning,
                   fontSize: 12,
@@ -688,9 +745,8 @@ class _AIAssistantViewState extends State<AIAssistantView> {
           ),
           TextButton(
             onPressed: () {
-              Clipboard.setData(
-                  const ClipboardData(text: 'lib/utils/app_config.dart'));
-              _showSnack('Path copied to clipboard');
+              Clipboard.setData(const ClipboardData(text: 'backend/.env'));
+              _showSnack('Backend env path copied to clipboard');
             },
             child: const Text('Copy path',
                 style: TextStyle(
@@ -796,6 +852,46 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                           fontFamily: 'Outfit')),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          InkWell(
+            onTap: _openManualLibrary,
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppTheme.secondary,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.secondary.withValues(alpha: 0.16),
+                    blurRadius: 14,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.menu_book_outlined, color: Colors.white, size: 18),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Manuals library',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'Outfit',
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.arrow_forward_rounded,
+                      color: Colors.white, size: 17),
                 ],
               ),
             ),
@@ -1159,6 +1255,20 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                     fontFamily: 'Outfit')),
           ],
           const Spacer(),
+          if (MediaQuery.of(context).size.width > 620)
+            FilledButton.tonalIcon(
+              onPressed: _openManualLibrary,
+              icon: const Icon(Icons.menu_book_outlined, size: 17),
+              label: const Text('Manuals'),
+            )
+          else
+            IconButton(
+              tooltip: 'Manuals library',
+              icon: const Icon(Icons.menu_book_outlined,
+                  size: 18, color: Color(0xFF475569)),
+              onPressed: _openManualLibrary,
+            ),
+          const SizedBox(width: 4),
           IconButton(
             tooltip: 'Conversation history',
             icon: const Icon(Icons.history_rounded,

@@ -14,6 +14,7 @@ class HospitalAsset {
   final String serviceInterval;
   final String notes;
   final String imageFileName;
+  final String imageUrl;
   final Uint8List? imageBytes;
 
   HospitalAsset({
@@ -29,6 +30,7 @@ class HospitalAsset {
     required this.serviceInterval,
     required this.notes,
     this.imageFileName = '',
+    this.imageUrl = '',
     this.imageBytes,
   });
 
@@ -46,24 +48,64 @@ class HospitalAsset {
       'service_interval': serviceInterval,
       'notes': notes,
       'image_file_name': imageFileName,
+      'image_url': imageUrl,
       'image_bytes': imageBytes,
     };
   }
 
-  factory HospitalAsset.fromMap(Map<String, dynamic> map) {
+  HospitalAsset copyWith({
+    int? id,
+    String? assetType,
+    String? modelName,
+    String? serialNumber,
+    String? hospitalUnit,
+    String? wardLocation,
+    String? status,
+    String? dateAcquired,
+    String? lastServiceDate,
+    String? serviceInterval,
+    String? notes,
+    String? imageFileName,
+    String? imageUrl,
+    Uint8List? imageBytes,
+  }) {
     return HospitalAsset(
-      id: map['id'],
-      assetType: map['asset_type'],
-      modelName: map['model_name'],
-      serialNumber: map['serial_number'],
-      hospitalUnit: map['hospital_unit'],
-      wardLocation: map['ward_location'],
-      status: map['status'],
-      dateAcquired: map['date_acquired'],
-      lastServiceDate: map['last_service_date'],
-      serviceInterval: map['service_interval'],
-      notes: map['notes'],
-      imageFileName: map['image_file_name'] ?? '',
+      id: id ?? this.id,
+      assetType: assetType ?? this.assetType,
+      modelName: modelName ?? this.modelName,
+      serialNumber: serialNumber ?? this.serialNumber,
+      hospitalUnit: hospitalUnit ?? this.hospitalUnit,
+      wardLocation: wardLocation ?? this.wardLocation,
+      status: status ?? this.status,
+      dateAcquired: dateAcquired ?? this.dateAcquired,
+      lastServiceDate: lastServiceDate ?? this.lastServiceDate,
+      serviceInterval: serviceInterval ?? this.serviceInterval,
+      notes: notes ?? this.notes,
+      imageFileName: imageFileName ?? this.imageFileName,
+      imageUrl: imageUrl ?? this.imageUrl,
+      imageBytes: imageBytes ?? this.imageBytes,
+    );
+  }
+
+  factory HospitalAsset.fromMap(Map<String, dynamic> map) {
+    final imageReference =
+        (map['image_file_name'] ?? map['image_url'] ?? '').toString();
+    return HospitalAsset(
+      id: (map['id'] as num?)?.toInt(),
+      assetType: map['asset_type'] ?? '',
+      modelName: map['model_name'] ?? '',
+      serialNumber: map['serial_number'] ?? '',
+      hospitalUnit: map['hospital_unit'] ?? '',
+      wardLocation: map['ward_location'] ?? '',
+      status: map['status'] ?? '',
+      dateAcquired: map['date_acquired'] ?? '',
+      lastServiceDate: map['last_service_date'] ?? '',
+      serviceInterval: map['service_interval'] ?? '',
+      notes: map['notes'] ?? '',
+      imageFileName: imageReference.startsWith('http') ? '' : imageReference,
+      imageUrl: (map['image_url'] ?? '').toString().isNotEmpty
+          ? map['image_url']
+          : (imageReference.startsWith('http') ? imageReference : ''),
       imageBytes: map['image_bytes'] as Uint8List?,
     );
   }

@@ -3,30 +3,30 @@
     "short_name": "Pulse",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#071013",
-    "theme_color": "#071013",
-    "description": "Pulse clinical equipment intelligence.",
+    "background_color": "#0B2A5B",
+    "theme_color": "#0B2A5B",
+    "description": "Pulse is a clinical equipment maintenance platform powered by Pulse AI.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
         {
-            "src": "icons/Icon-192.png",
+            "src": "icons/pulse-icon-192.png",
             "sizes": "192x192",
             "type": "image/png"
         },
         {
-            "src": "icons/Icon-512.png",
+            "src": "icons/pulse-icon-512.png",
             "sizes": "512x512",
             "type": "image/png"
         },
         {
-            "src": "icons/Icon-maskable-192.png",
+            "src": "icons/pulse-icon-maskable-192.png",
             "sizes": "192x192",
             "type": "image/png",
             "purpose": "maskable"
         },
         {
-            "src": "icons/Icon-maskable-512.png",
+            "src": "icons/pulse-icon-maskable-512.png",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"

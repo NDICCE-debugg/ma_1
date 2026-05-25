@@ -11,14 +11,14 @@ import 'package:ma_1/screens/login_screen.dart';
 import 'package:ma_1/services/database_helper.dart';
 import 'package:ma_1/services/rag_api_service.dart';
 
-class BioAssistDrawer extends StatefulWidget {
-  const BioAssistDrawer({super.key});
+class PulseAccountDrawer extends StatefulWidget {
+  const PulseAccountDrawer({super.key});
 
   @override
-  State<BioAssistDrawer> createState() => _BioAssistDrawerState();
+  State<PulseAccountDrawer> createState() => _PulseAccountDrawerState();
 }
 
-class _BioAssistDrawerState extends State<BioAssistDrawer> {
+class _PulseAccountDrawerState extends State<PulseAccountDrawer> {
   // Dialog upload states
   bool _isUploading = false;
   double _uploadProgress = 0.0;

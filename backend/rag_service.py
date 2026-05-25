@@ -17,7 +17,7 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get(
     "SUPABASE_KEY", ""
 )
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("OPENAI_API_KEY")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 MANUAL_BUCKET = os.environ.get("MANUAL_BUCKET", "manuals")
 EMBEDDING_MODEL = os.environ.get("RAG_EMBEDDING_MODEL", "gemini-embedding-001")
@@ -71,8 +71,14 @@ def download_manual_pdf(storage_path: str, user_token: Optional[str] = None) -> 
 
 
 def extract_pdf_pages(pdf_bytes: bytes) -> List[Dict[str, Any]]:
+    global fitz
     if fitz is None:
-        raise RagError("PyMuPDF is not installed. Run: pip install -r backend/requirements.txt")
+        try:
+            import fitz as pymupdf  # type: ignore
+
+            fitz = pymupdf
+        except ImportError:
+            raise RagError("PyMuPDF is not installed. Run: pip install -r backend/requirements.txt")
 
     pages: List[Dict[str, Any]] = []
     with fitz.open(stream=io.BytesIO(pdf_bytes), filetype="pdf") as doc:
@@ -104,8 +110,8 @@ def section_title_for(text: str) -> str:
 
 def chunk_pages(
     pages: List[Dict[str, Any]],
-    max_words: int = 650,
-    overlap_words: int = 90,
+    max_words: int = 1050,
+    overlap_words: int = 80,
 ) -> List[ManualChunk]:
     chunks: List[ManualChunk] = []
     chunk_index = 0
@@ -166,7 +172,11 @@ def gemini_embedding(text: str, task_type: str = "RETRIEVAL_DOCUMENT") -> List[f
     return values
 
 
-def create_manual_record(metadata: Dict[str, Any], user_id: Optional[str]) -> Dict[str, Any]:
+def create_manual_record(
+    metadata: Dict[str, Any],
+    user_id: Optional[str],
+    user_token: Optional[str] = None,
+) -> Dict[str, Any]:
     body = {
         "title": metadata["title"],
         "machine_model": metadata["machine_model"],
@@ -181,7 +191,7 @@ def create_manual_record(metadata: Dict[str, Any], user_id: Optional[str]) -> Di
     }
     response = requests.post(
         _rest_url("manuals"),
-        headers={**_supabase_headers(), "Prefer": "return=representation"},
+        headers={**_supabase_headers(user_token), "Prefer": "return=representation"},
         json=body,
         timeout=20,
     )
@@ -195,6 +205,7 @@ def update_manual_status(
     status: str,
     chunk_count: int = 0,
     error_message: Optional[str] = None,
+    user_token: Optional[str] = None,
 ) -> None:
     body: Dict[str, Any] = {
         "indexed_status": status,
@@ -207,7 +218,7 @@ def update_manual_status(
 
     requests.patch(
         _rest_url(f"manuals?id=eq.{manual_id}"),
-        headers=_supabase_headers(),
+        headers=_supabase_headers(user_token),
         json=body,
         timeout=20,
     )
@@ -217,6 +228,7 @@ def insert_chunks(
     manual_id: str,
     chunks: List[ManualChunk],
     metadata: Dict[str, Any],
+    user_token: Optional[str] = None,
 ) -> int:
     rows = []
     for chunk in chunks:
@@ -241,19 +253,22 @@ def insert_chunks(
         )
 
         if len(rows) == 25:
-            _insert_chunk_batch(rows)
+            _insert_chunk_batch(rows, user_token=user_token)
             rows = []
 
     if rows:
-        _insert_chunk_batch(rows)
+        _insert_chunk_batch(rows, user_token=user_token)
 
     return len(chunks)
 
 
-def _insert_chunk_batch(rows: List[Dict[str, Any]]) -> None:
+def _insert_chunk_batch(
+    rows: List[Dict[str, Any]],
+    user_token: Optional[str] = None,
+) -> None:
     response = requests.post(
         _rest_url("manual_chunks"),
-        headers=_supabase_headers(),
+        headers=_supabase_headers(user_token),
         json=rows,
         timeout=60,
     )
@@ -271,7 +286,7 @@ def retrieval_text(metadata: Dict[str, Any], text: str) -> str:
 
 
 def ingest_manual(metadata: Dict[str, Any], user_token: Optional[str], user_id: Optional[str]) -> Dict[str, Any]:
-    manual = create_manual_record(metadata, user_id)
+    manual = create_manual_record(metadata, user_id, user_token=user_token)
     manual_id = manual["id"]
     try:
         pdf_bytes = download_manual_pdf(metadata["storage_path"], user_token=user_token)
@@ -281,8 +296,13 @@ def ingest_manual(metadata: Dict[str, Any], user_token: Optional[str], user_id: 
         chunks = chunk_pages(pages)
         if not chunks:
             raise RagError("PDF text was extracted, but no useful chunks were created.")
-        chunk_count = insert_chunks(manual_id, chunks, metadata)
-        update_manual_status(manual_id, "indexed", chunk_count=chunk_count)
+        chunk_count = insert_chunks(manual_id, chunks, metadata, user_token=user_token)
+        update_manual_status(
+            manual_id,
+            "indexed",
+            chunk_count=chunk_count,
+            user_token=user_token,
+        )
         return {
             "manual_id": manual_id,
             "status": "indexed",
@@ -290,7 +310,7 @@ def ingest_manual(metadata: Dict[str, Any], user_token: Optional[str], user_id: 
             "chunks": chunk_count,
         }
     except Exception as exc:
-        update_manual_status(manual_id, "failed", error_message=str(exc))
+        update_manual_status(manual_id, "failed", error_message=str(exc), user_token=user_token)
         raise
 
 

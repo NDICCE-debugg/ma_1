@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -780,18 +779,6 @@ class _CollaborationViewState extends State<CollaborationView>
     );
   }
 
-  String _generateRandomMeetingCode() {
-    final rand = math.Random();
-    const chars = 'abcdefghijklmnopqrstuvwxyz';
-    String part1 =
-        List.generate(3, (index) => chars[rand.nextInt(chars.length)]).join();
-    String part2 =
-        List.generate(4, (index) => chars[rand.nextInt(chars.length)]).join();
-    String part3 =
-        List.generate(3, (index) => chars[rand.nextInt(chars.length)]).join();
-    return "$part1-$part2-$part3";
-  }
-
   void _generateClinicalMeetLink() async {
     setState(() {
       _isGenerating = true;
@@ -799,10 +786,9 @@ class _CollaborationViewState extends State<CollaborationView>
 
     await Future.delayed(const Duration(milliseconds: 1600));
 
-    final code = _generateRandomMeetingCode();
     setState(() {
       _isGenerating = false;
-      _generatedMeetLink = "https://meet.google.com/med-$code";
+      _generatedMeetLink = "https://meet.google.com/new";
     });
   }
 
@@ -1076,7 +1062,7 @@ class _CollaborationViewState extends State<CollaborationView>
                     const SizedBox(height: 20),
                     if (!_isGenerating && _generatedMeetLink == null) ...[
                       const Text(
-                        "Need to consult with team experts immediately? Generate a secure Google Meet space with single-click provisioning.",
+                        "Need to consult with team experts immediately? Open Google Meet and let Google create the live consultation room.",
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 13,
@@ -1098,7 +1084,7 @@ class _CollaborationViewState extends State<CollaborationView>
                           onPressed: _generateClinicalMeetLink,
                           icon: const Icon(Icons.flash_on_rounded, size: 20),
                           label: const Text(
-                            "Generate Instant Meeting Link",
+                            "Prepare Google Meet",
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
@@ -1251,16 +1237,10 @@ class _CollaborationViewState extends State<CollaborationView>
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                               ),
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const MeetingRoomView(
-                                      meetingTopic: "Instant HD Consultation",
-                                    ),
-                                  ),
-                                );
-                              },
+                              onPressed: () => _openGoogleMeet(
+                                meetingUrl: _generatedMeetLink,
+                                topic: 'Instant HD Consultation',
+                              ),
                               icon: const Icon(Icons.video_call_rounded,
                                   size: 18),
                               label: const Text(

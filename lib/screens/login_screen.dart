@@ -35,7 +35,8 @@ class _LoginScreenState extends State<LoginScreen> {
   void _checkActiveSession() async {
     // Allow Supabase cache initialization
     await Future.delayed(const Duration(milliseconds: 100));
-    if (AuthService.instance.currentUser != null && mounted) {
+    final hasValidSession = await AuthService.instance.checkSession();
+    if (hasValidSession && mounted) {
       Navigator.pushReplacement(
           context, MaterialPageRoute(builder: (_) => const HomeScreen()));
     }
@@ -192,7 +193,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           .slideY(begin: 0.2, end: 0),
 
                       const Text(
-                        "Clinical Equipment Intelligence",
+                        "Pulse AI Equipment Intelligence",
                         style: TextStyle(
                           color: Color(0xFF475569),
                           fontSize: 13,
@@ -443,4 +444,3 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-

@@ -28,7 +28,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Pulse'), findsOneWidget);
-    expect(find.text('Clinical Equipment Intelligence'), findsOneWidget);
+    expect(find.text('Pulse AI Equipment Intelligence'), findsOneWidget);
     expect(find.byType(Image), findsWidgets);
 
     await tester.pumpWidget(const SizedBox.shrink());

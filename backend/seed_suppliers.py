@@ -4,11 +4,17 @@ Run with: py backend/seed_suppliers.py
 Seeds the public.suppliers table with clinical device vendors.
 """
 import sys
+import os
 import requests
+from dotenv import load_dotenv
 sys.stdout.reconfigure(encoding='utf-8')
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=True)
 
-SUPABASE_URL = "https://awswkatcjffcsobusvic.supabase.co"
-SUPABASE_KEY = "sb_publishable_JS_DyaON4AC8FoJMcEkOwg_6aYjl6d2"
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise SystemExit("Set SUPABASE_URL and SUPABASE_KEY in backend/.env before seeding suppliers.")
 
 headers = {
     "apikey": SUPABASE_KEY,

@@ -13,6 +13,7 @@ import 'package:ma_1/services/notification_service.dart';
 import 'package:ma_1/services/sync_service.dart';
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/widgets/pulse_logo.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,6 +25,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   Timer? _syncTimer;
+  StreamSubscription<AuthState>? _authSubscription;
 
   final List<Widget> _views = const [
     DashboardView(),
@@ -41,12 +43,33 @@ class _HomeScreenState extends State<HomeScreen> {
     _syncTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       SyncService.instance.syncData();
     });
+    _authSubscription =
+        Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      if (data.event == AuthChangeEvent.signedOut || data.session == null) {
+        _returnToSignIn();
+      }
+    }, onError: (Object error, StackTrace stackTrace) {
+      debugPrint('Supabase auth stream error: $error');
+      _returnToSignIn();
+    });
   }
 
   @override
   void dispose() {
     _syncTimer?.cancel();
+    _authSubscription?.cancel();
     super.dispose();
+  }
+
+  void _returnToSignIn() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (_) => false,
+      );
+    });
   }
 
   @override
@@ -359,11 +382,15 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (dialogContext) {
         final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
         final dialogBg = isDark ? const Color(0xFF0A1518) : Colors.white;
-        final dialogBorder = isDark ? const Color(0xFF24353A) : const Color(0xFFE2E8F0);
-        final badgeBg = isDark ? const Color(0xFF111F23) : const Color(0xFFF8FAFC);
-        final badgeBorder = isDark ? const Color(0xFF24353A) : const Color(0xFFE2E8F0);
+        final dialogBorder =
+            isDark ? const Color(0xFF24353A) : const Color(0xFFE2E8F0);
+        final badgeBg =
+            isDark ? const Color(0xFF111F23) : const Color(0xFFF8FAFC);
+        final badgeBorder =
+            isDark ? const Color(0xFF24353A) : const Color(0xFFE2E8F0);
         final textPrimaryColor = isDark ? Colors.white : AppTheme.textPrimary;
-        final textSecondaryColor = isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary;
+        final textSecondaryColor =
+            isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary;
 
         return Dialog(
           backgroundColor: Colors.transparent,
@@ -410,8 +437,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
-                              color:
-                                  AppTheme.secondary.withValues(alpha: 0.2),
+                              color: AppTheme.secondary.withValues(alpha: 0.2),
                               blurRadius: 16,
                               offset: const Offset(0, 8),
                             ),
@@ -500,8 +526,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   _AccountMenuTile(
                     icon: Icons.account_circle_outlined,
                     title: 'Professional profile',
-                    subtitle:
-                        'Credentials, role, skills, and contact details',
+                    subtitle: 'Credentials, role, skills, and contact details',
                     onTap: () {
                       Navigator.pop(dialogContext);
                       _openScreen(const ProfileEditScreen());
@@ -510,8 +535,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   _AccountMenuTile(
                     icon: Icons.settings_outlined,
                     title: 'Settings',
-                    subtitle:
-                        'Appearance, notifications, privacy, and support',
+                    subtitle: 'Appearance, notifications, privacy, and support',
                     onTap: () {
                       Navigator.pop(dialogContext);
                       _openScreen(const SettingsScreen());
@@ -578,7 +602,7 @@ class _HomeScreenState extends State<HomeScreen> {
           activeIcon: Icons.precision_manufacturing_rounded,
         ),
         _NavItem(
-          label: 'AI Help',
+          label: 'Pulse AI',
           description: 'Diagnostic support',
           icon: Icons.auto_awesome_outlined,
           activeIcon: Icons.auto_awesome_rounded,
@@ -595,7 +619,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return switch (index) {
       0 => 'Ops Dashboard',
       1 => 'Asset Control',
-      2 => 'AI Help Desk',
+      2 => 'Pulse AI',
       3 => 'Clinical Comms',
       _ => 'Pulse',
     };
@@ -605,7 +629,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return switch (index) {
       0 => 'Maintenance signals, risk queue, and fleet readiness',
       1 => 'Equipment records, inventory, and service controls',
-      2 => 'Technician prompts, manuals, images, and audio context',
+      2 => 'Manual-aware diagnostics, images, and audio context',
       3 => 'Chats, calls, meetings, and field coordination',
       _ => 'Clinical engineering workspace',
     };
@@ -855,9 +879,11 @@ class _AccountMenuTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final tileBg = isDark ? const Color(0xFF111F23) : Colors.white;
-    final tileBorder = isDark ? const Color(0xFF24353A) : const Color(0xFFE2E8F0);
+    final tileBorder =
+        isDark ? const Color(0xFF24353A) : const Color(0xFFE2E8F0);
     final textPrimaryColor = isDark ? Colors.white : AppTheme.textPrimary;
-    final textSecondaryColor = isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary;
+    final textSecondaryColor =
+        isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -922,8 +948,7 @@ class _AccountMenuTile extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right_rounded,
-                  color: textSecondaryColor),
+              Icon(Icons.chevron_right_rounded, color: textSecondaryColor),
             ],
           ),
         ),
@@ -931,4 +956,3 @@ class _AccountMenuTile extends StatelessWidget {
     );
   }
 }
-

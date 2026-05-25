@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:ma_1/services/api_client.dart';
+import 'package:ma_1/services/auth_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class RagSource {
@@ -93,20 +94,38 @@ class RagApiService {
     required String? fileType,
     required Uint8List bytes,
   }) async {
-    final userId = Supabase.instance.client.auth.currentUser?.id ?? 'local';
+    final hasValidSession = await AuthService.instance.checkSession();
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null || userId.isEmpty) {
+      throw Exception(
+        'Sign in again before indexing manuals. Supabase Storage requires an authenticated user folder.',
+      );
+    }
+    if (!hasValidSession) {
+      throw Exception(
+        'Your Pulse session expired. Please sign in again before indexing manuals.',
+      );
+    }
     final storagePath =
         '$userId/${DateTime.now().millisecondsSinceEpoch}_${_safeFileName(fileName)}';
     final contentType = _contentTypeFor(fileName, fileType);
 
-    await Supabase.instance.client.storage.from(manualBucket).uploadBinary(
-          storagePath,
-          bytes,
-          fileOptions: FileOptions(
-            contentType: contentType,
-            upsert: true,
-            cacheControl: '3600',
-          ),
-        );
+    try {
+      await Supabase.instance.client.storage.from(manualBucket).uploadBinary(
+            storagePath,
+            bytes,
+            fileOptions: FileOptions(
+              contentType: contentType,
+              upsert: true,
+              cacheControl: '3600',
+            ),
+          );
+    } on StorageException catch (e) {
+      throw Exception(
+        'Supabase Storage upload failed: ${e.statusCode ?? 'unknown'} '
+        '${e.error ?? ''} ${e.message}',
+      );
+    }
 
     final response = await ApiClient.instance.post('/rag/ingest', {
       'title': title,
@@ -122,6 +141,30 @@ class RagApiService {
       throw Exception(body['error'] ?? 'Manual indexing failed');
     }
     return RagIngestResult.fromJson(body);
+  }
+
+  Future<String> checkManualStorage() async {
+    final hasValidSession = await AuthService.instance.checkSession();
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null || userId.isEmpty) {
+      return 'Not signed in. Supabase Storage requires an authenticated user.';
+    }
+    if (!hasValidSession) {
+      return 'Your Pulse session expired. Sign in again so Supabase can provide a fresh storage token.';
+    }
+
+    try {
+      await Supabase.instance.client.storage.from(manualBucket).list(
+            path: userId,
+            searchOptions: const SearchOptions(limit: 1),
+          );
+      return 'Storage bucket is reachable for this user.';
+    } on StorageException catch (e) {
+      return 'Storage check failed: ${e.statusCode ?? 'unknown'} '
+          '${e.error ?? ''} ${e.message}';
+    } catch (e) {
+      return 'Storage check failed: $e';
+    }
   }
 
   Future<RagQueryResult> queryManuals({
@@ -159,4 +202,3 @@ class RagApiService {
     };
   }
 }
-

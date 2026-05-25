@@ -23,7 +23,8 @@ class SyncService {
         return;
       }
 
-      debugPrint("Sync Service: Initiating replay of ${queue.length} offline transactions...");
+      debugPrint(
+          "Sync Service: Initiating replay of ${queue.length} offline transactions...");
 
       for (var item in queue) {
         final int id = item['id'];
@@ -46,26 +47,42 @@ class SyncService {
               });
             }
             replaySuccess = true;
-          } 
-          else if (targetTable == 'machines') {
+          } else if (targetTable == 'machines') {
             if (action == 'UPDATE') {
               await _client.from('machines').update({
+                'asset_type': payload['asset_type'],
                 'model_name': payload['model_name'],
                 'serial_number': payload['serial_number'],
                 'location': payload['location'],
+                'hospital_unit': payload['hospital_unit'],
+                'ward_location': payload['ward_location'],
                 'status': payload['status'],
+                'date_acquired': payload['date_acquired'],
+                'last_service_date': payload['last_service_date'],
+                'service_interval': payload['service_interval'],
+                'notes': payload['notes'],
+                'image_file_name': payload['image_file_name'],
               }).eq('id', recordId);
             } else if (action == 'INSERT') {
               await _client.from('machines').insert({
+                'asset_type': payload['asset_type'],
                 'model_name': payload['model_name'],
                 'serial_number': payload['serial_number'],
                 'location': payload['location'],
+                'hospital_unit': payload['hospital_unit'],
+                'ward_location': payload['ward_location'],
                 'status': payload['status'],
+                'date_acquired': payload['date_acquired'],
+                'last_service_date': payload['last_service_date'],
+                'service_interval': payload['service_interval'],
+                'notes': payload['notes'],
+                'image_file_name': payload['image_file_name'],
               });
+            } else if (action == 'DELETE') {
+              await _client.from('machines').delete().eq('id', recordId);
             }
             replaySuccess = true;
-          } 
-          else if (targetTable == 'spare_parts') {
+          } else if (targetTable == 'spare_parts') {
             if (action == 'UPDATE') {
               await _client.from('spare_parts').update({
                 'name': payload['name'],
@@ -76,6 +93,7 @@ class SyncService {
                 'unit': payload['unit'],
                 'last_restocked': payload['last_restocked'],
                 'notes': payload['notes'],
+                'image_file_name': payload['image_file_name'],
               }).eq('id', recordId);
             } else if (action == 'INSERT') {
               await _client.from('spare_parts').insert({
@@ -87,6 +105,7 @@ class SyncService {
                 'unit': payload['unit'],
                 'last_restocked': payload['last_restocked'],
                 'notes': payload['notes'],
+                'image_file_name': payload['image_file_name'],
               });
             }
             replaySuccess = true;
@@ -95,7 +114,8 @@ class SyncService {
           if (replaySuccess) {
             // 3. Delete replayed transaction from local queue
             await DatabaseHelper.instance.deleteQueueItem(id);
-            debugPrint("Sync Service: Successfully replayed $targetTable $action transaction.");
+            debugPrint(
+                "Sync Service: Successfully replayed $targetTable $action transaction.");
           }
         } on PostgrestException catch (pe) {
           // If it's a conflict or table error, we log it and skip to prevent deadlocks

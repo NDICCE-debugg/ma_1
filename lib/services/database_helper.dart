@@ -12,6 +12,7 @@ import 'package:ma_1/models/hospital_asset.dart';
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
+  static const String _inventoryImagesBucket = 'inventory-images';
   final _client = sb.Supabase.instance.client;
 
   DatabaseHelper._init();
@@ -111,7 +112,8 @@ class DatabaseHelper {
             'last_service_date': '2024-04-01',
             'service_interval': '6 Months',
             'notes': 'Operational',
-            'image_file_name': 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=500&auto=format&fit=crop&q=60',
+            'image_file_name':
+                'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=500&auto=format&fit=crop&q=60',
             'image_bytes': vg70Bytes,
           },
           conflictAlgorithm: ConflictAlgorithm.ignore);
@@ -128,7 +130,8 @@ class DatabaseHelper {
             'last_service_date': '2024-04-01',
             'service_interval': '6 Months',
             'notes': 'Needs Maintenance',
-            'image_file_name': 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=500&auto=format&fit=crop&q=60',
+            'image_file_name':
+                'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=500&auto=format&fit=crop&q=60',
             'image_bytes': vg70Bytes,
           },
           conflictAlgorithm: ConflictAlgorithm.ignore);
@@ -145,7 +148,8 @@ class DatabaseHelper {
             'last_service_date': '2024-04-01',
             'service_interval': '6 Months',
             'notes': 'Operational',
-            'image_file_name': 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=500&auto=format&fit=crop&q=60',
+            'image_file_name':
+                'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=500&auto=format&fit=crop&q=60',
             'image_bytes': evitaBytes,
           },
           conflictAlgorithm: ConflictAlgorithm.ignore);
@@ -162,7 +166,8 @@ class DatabaseHelper {
             'last_service_date': '2024-04-01',
             'service_interval': '6 Months',
             'notes': 'Operational',
-            'image_file_name': 'https://images.unsplash.com/photo-1516613975432-f22787d55f07?w=500&auto=format&fit=crop&q=60',
+            'image_file_name':
+                'https://images.unsplash.com/photo-1516613975432-f22787d55f07?w=500&auto=format&fit=crop&q=60',
             'image_bytes': mindrayBytes,
           },
           conflictAlgorithm: ConflictAlgorithm.ignore);
@@ -179,7 +184,8 @@ class DatabaseHelper {
             'last_service_date': '2024-04-01',
             'service_interval': '6 Months',
             'notes': 'Needs Maintenance',
-            'image_file_name': 'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=500&auto=format&fit=crop&q=60',
+            'image_file_name':
+                'https://images.unsplash.com/photo-1516549655169-df83a0774514?w=500&auto=format&fit=crop&q=60',
             'image_bytes': watoBytes,
           },
           conflictAlgorithm: ConflictAlgorithm.ignore);
@@ -219,7 +225,7 @@ class DatabaseHelper {
     final path = join(dbPath, filePath);
     return await openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -244,7 +250,8 @@ class DatabaseHelper {
     CREATE TABLE spare_parts (
       id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, compatible_model TEXT,
       quantity INTEGER, reorder_threshold INTEGER, location TEXT, unit TEXT,
-      last_restocked TEXT, notes TEXT, image_file_name TEXT, image_bytes BLOB
+      last_restocked TEXT, notes TEXT, image_file_name TEXT, image_url TEXT,
+      image_bytes BLOB
     )''');
 
     await db.execute('''
@@ -308,6 +315,7 @@ class DatabaseHelper {
       service_interval TEXT,
       notes TEXT,
       image_file_name TEXT,
+      image_url TEXT,
       image_bytes BLOB
     )''');
   }
@@ -337,6 +345,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 8) {
       await _ensureAiConversationTables(db);
+    }
+    if (oldVersion < 9) {
+      await _ensureImageColumns(db);
     }
   }
 
@@ -380,10 +391,12 @@ class DatabaseHelper {
 
     await addMissingColumns('spare_parts', {
       'image_file_name': 'TEXT',
+      'image_url': 'TEXT',
       'image_bytes': 'BLOB',
     });
     await addMissingColumns('machines', {
       'image_file_name': 'TEXT',
+      'image_url': 'TEXT',
       'image_bytes': 'BLOB',
     });
   }
@@ -463,6 +476,18 @@ class DatabaseHelper {
       'machines',
       asset.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<int> deleteCachedAsset(HospitalAsset asset) async {
+    final db = await instance.database;
+    if (asset.id != null) {
+      return db.delete('machines', where: 'id = ?', whereArgs: [asset.id]);
+    }
+    return db.delete(
+      'machines',
+      where: 'serial_number = ?',
+      whereArgs: [asset.serialNumber],
     );
   }
 
@@ -616,8 +641,9 @@ class DatabaseHelper {
           return result.map((json) => SparePart.fromMap(json)).toList();
         }
       }
-      final remote =
-          response.map<SparePart>((json) => SparePart.fromMap(json)).toList();
+      final remote = await _attachInventoryImageUrls(
+        response.map<SparePart>((json) => SparePart.fromMap(json)).toList(),
+      );
       final db = await instance.database;
       final local = (await db.query('spare_parts'))
           .map((json) => SparePart.fromMap(json))
@@ -650,6 +676,8 @@ class DatabaseHelper {
       if (localMatch?.imageBytes == null) return part;
       return part.copyWith(
         imageFileName: localMatch!.imageFileName,
+        imageUrl:
+            part.imageUrl.isNotEmpty ? part.imageUrl : localMatch.imageUrl,
         imageBytes: localMatch.imageBytes,
       );
     }).toList();
@@ -657,6 +685,7 @@ class DatabaseHelper {
 
   Future<int> updateSparePart(SparePart part) async {
     try {
+      final imageReference = await _prepareInventoryImageReference(part);
       await _client.from('spare_parts').update({
         'name': part.name,
         'compatible_model': part.compatibleModel,
@@ -666,12 +695,17 @@ class DatabaseHelper {
         'unit': part.unit,
         'last_restocked': part.lastRestocked,
         'notes': part.notes,
+        'image_file_name': imageReference,
       }).eq('id', part.id!);
 
       // Update local cache as well
       final db = await instance.database;
-      await db.update('spare_parts', part.toMap(),
-          where: 'id = ?', whereArgs: [part.id]);
+      await db.update(
+          'spare_parts',
+          part.copyWith(imageFileName: imageReference).toMap()
+            ..remove('image_url'),
+          where: 'id = ?',
+          whereArgs: [part.id]);
       return 1;
     } catch (e) {
       // Local only write if offline (will be synced later)
@@ -685,26 +719,101 @@ class DatabaseHelper {
 
   Future<int> addSparePart(SparePart part) async {
     try {
-      await _client.from('spare_parts').insert({
-        'name': part.name,
-        'compatible_model': part.compatibleModel,
-        'quantity': part.quantity,
-        'reorder_threshold': part.reorderThreshold,
-        'location': part.location,
-        'unit': part.unit,
-        'last_restocked': part.lastRestocked,
-        'notes': part.notes,
-      });
+      final imageReference = await _prepareInventoryImageReference(part);
+      final inserted = await _client
+          .from('spare_parts')
+          .insert({
+            'name': part.name,
+            'compatible_model': part.compatibleModel,
+            'quantity': part.quantity,
+            'reorder_threshold': part.reorderThreshold,
+            'location': part.location,
+            'unit': part.unit,
+            'last_restocked': part.lastRestocked,
+            'notes': part.notes,
+            'image_file_name': imageReference,
+          })
+          .select()
+          .maybeSingle();
 
       // Insert into local cache
       final db = await instance.database;
-      return await db.insert('spare_parts', part.toMap());
+      final cachedPart = part.copyWith(
+        id: (inserted?['id'] as num?)?.toInt(),
+        imageFileName: imageReference,
+      );
+      return await db.insert(
+        'spare_parts',
+        cachedPart.toMap()..remove('image_url'),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
     } catch (e) {
       final db = await instance.database;
       await enqueueChange(
           'INSERT', 'spare_parts', part.id.toString(), part.toMap());
-      return await db.insert('spare_parts', part.toMap());
+      return await db.insert('spare_parts', part.toMap()..remove('image_url'));
     }
+  }
+
+  Future<List<SparePart>> _attachInventoryImageUrls(
+      List<SparePart> parts) async {
+    return Future.wait(parts.map((part) async {
+      final ref = part.imageFileName.trim();
+      if (ref.isEmpty || ref.startsWith('http')) return part;
+      try {
+        final signedUrl = await _client.storage
+            .from(_inventoryImagesBucket)
+            .createSignedUrl(ref, 60 * 60);
+        return part.copyWith(imageUrl: signedUrl);
+      } catch (_) {
+        return part;
+      }
+    }));
+  }
+
+  Future<String> _prepareInventoryImageReference(SparePart part) async {
+    final currentReference = part.imageFileName.trim();
+    final hasNewLocalImage =
+        part.imageBytes != null && !_isStorageImageReference(currentReference);
+    if (!hasNewLocalImage) return currentReference;
+
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null || userId.isEmpty) return currentReference;
+
+    final fileName = _safeStorageFileName(
+      currentReference.isEmpty ? '${part.name}.jpg' : currentReference,
+    );
+    final storagePath =
+        '$userId/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+    await _client.storage.from(_inventoryImagesBucket).uploadBinary(
+          storagePath,
+          part.imageBytes!,
+          fileOptions: sb.FileOptions(
+            upsert: true,
+            contentType: _imageContentType(fileName),
+            cacheControl: '3600',
+          ),
+        );
+    return storagePath;
+  }
+
+  bool _isStorageImageReference(String value) =>
+      value.isNotEmpty && !value.startsWith('http') && value.contains('/');
+
+  String _safeStorageFileName(String value) {
+    final safe = value
+        .trim()
+        .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_');
+    return safe.isEmpty ? 'inventory_item.jpg' : safe;
+  }
+
+  String _imageContentType(String fileName) {
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    return 'image/jpeg';
   }
 
   // --- SERVICE LOGS - DIRECT SUPABASE ---

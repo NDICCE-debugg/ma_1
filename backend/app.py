@@ -1,22 +1,41 @@
 import os
 import random
 import requests
+import base64
+import binascii
+from pathlib import Path
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 
-# Load Supabase and OpenAI credentials from .env
-load_dotenv()
+# Load backend credentials from backend/.env regardless of launch directory.
+load_dotenv(Path(__file__).with_name(".env"), override=True)
 
 from rag_service import RagError, answer_with_manuals, ingest_manual
 
 app = Flask(__name__)
-CORS(app)  # Enable Cross-Origin Resource Sharing
+cors_origins = [
+    origin.strip()
+    for origin in os.environ.get(
+        "CORS_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000",
+    ).split(",")
+    if origin.strip()
+]
+CORS(app, origins=cors_origins)
+
+MAX_ATTACHMENT_COUNT = int(os.environ.get("MAX_AI_ATTACHMENT_COUNT", "3"))
+MAX_ATTACHMENT_BYTES = int(os.environ.get("MAX_AI_ATTACHMENT_BYTES", str(6 * 1024 * 1024)))
+MAX_TOTAL_ATTACHMENT_BYTES = int(
+    os.environ.get("MAX_TOTAL_AI_ATTACHMENT_BYTES", str(10 * 1024 * 1024))
+)
+GEMINI_CONNECT_TIMEOUT = int(os.environ.get("GEMINI_CONNECT_TIMEOUT", "15"))
+GEMINI_READ_TIMEOUT = int(os.environ.get("GEMINI_READ_TIMEOUT", "120"))
 
 # --- ENV VALS ---
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://awswkatcjffcsobusvic.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_JS_DyaON4AC8FoJMcEkOwg_6aYjl6d2")
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 # --- TOKEN SECURE VERIFICATION ---
 def verify_supabase_token(request):
@@ -45,10 +64,9 @@ def verify_supabase_token(request):
     return False, None
 
 # --- GEMINI 2.5 FLASH AI ENGINE ---
-def run_gemini_query(query_text):
-    # Try finding GEMINI_API_KEY, fallback to OPENAI_API_KEY if configured
-    gemini_key = os.environ.get("GEMINI_API_KEY", OPENAI_API_KEY)
-    
+def run_gemini_query(query_text, system_instruction=None, attachments=None):
+    gemini_key = os.environ.get("GEMINI_API_KEY") or GEMINI_API_KEY
+
     if not gemini_key or "api-key" in gemini_key.lower():
         return f"GEMINI UPLINK SECURED. RAG Pipeline online. (Awaiting GEMINI_API_KEY in backend/.env to analyze: '{query_text}')"
         
@@ -58,27 +76,84 @@ def run_gemini_query(query_text):
         headers = {"Content-Type": "application/json"}
         
         # Expert clinical engineering system instructions combined with user query
-        system_instruction = (
+        instruction = system_instruction or (
             "You are Pulse, an industry-standard AI clinical equipment assistant. "
             "Provide extremely precise, technical, and safe guidelines for repairing or servicing medical machinery."
         )
-        
+        parts = [{"text": f"{instruction}\n\nTechnician Query: {query_text}"}]
+        for attachment in attachments or []:
+            mime_type = attachment.get("mime_type") or attachment.get("mimeType")
+            data = attachment.get("data")
+            if mime_type and data:
+                parts.append({"inlineData": {"mimeType": mime_type, "data": data}})
+
         payload = {
             "contents": [{
-                "parts": [{"text": f"{system_instruction}\n\nTechnician Query: {query_text}"}]
+                "parts": parts
             }]
         }
         
-        res = requests.post(url, json=payload, headers=headers, timeout=10)
+        res = requests.post(
+            url,
+            json=payload,
+            headers=headers,
+            timeout=(GEMINI_CONNECT_TIMEOUT, GEMINI_READ_TIMEOUT),
+        )
         if res.status_code == 200:
             data = res.json()
             # Extract text safely from Gemini schema: candidates[0].content.parts[0].text
             answer = data['candidates'][0]['content']['parts'][0]['text']
             return answer.strip()
         else:
-            return f"Gemini API returned status code {res.status_code}. Using local clinical fallback to process: '{query_text}'"
+            detail = res.text[:500]
+            raise RuntimeError(f"Gemini API returned status code {res.status_code}: {detail}")
     except Exception as e:
-        return f"Gemini pipeline online. Fallback parsing context: {str(e)}"
+        raise RuntimeError(str(e))
+
+
+def _validated_attachments(raw_attachments):
+    if not isinstance(raw_attachments, list):
+        raise ValueError("Attachments must be a list.")
+    if len(raw_attachments) > MAX_ATTACHMENT_COUNT:
+        raise ValueError(f"Too many attachments. Limit is {MAX_ATTACHMENT_COUNT}.")
+
+    attachments = []
+    total_bytes = 0
+    for attachment in raw_attachments:
+        if not isinstance(attachment, dict):
+            raise ValueError("Invalid attachment payload.")
+        mime_type = attachment.get("mime_type") or attachment.get("mimeType")
+        data = attachment.get("data")
+        name = attachment.get("name") or "attachment"
+        if not mime_type or not data:
+            continue
+        if not isinstance(data, str):
+            raise ValueError(f"Attachment {name} is not base64 encoded.")
+        try:
+            decoded_size = len(base64.b64decode(data, validate=True))
+        except binascii.Error:
+            raise ValueError(f"Attachment {name} is not valid base64.")
+        if decoded_size > MAX_ATTACHMENT_BYTES:
+            raise ValueError(
+                f"Attachment {name} is too large. Limit is {MAX_ATTACHMENT_BYTES // (1024 * 1024)} MB."
+            )
+        total_bytes += decoded_size
+        if total_bytes > MAX_TOTAL_ATTACHMENT_BYTES:
+            raise ValueError(
+                f"Attachments are too large. Total limit is {MAX_TOTAL_ATTACHMENT_BYTES // (1024 * 1024)} MB."
+            )
+        attachments.append({"name": name, "mime_type": mime_type, "data": data})
+    return attachments
+
+
+@app.route('/api/health', methods=['GET'])
+def health():
+    return jsonify({
+        "status": "ok",
+        "service": "Pulse backend",
+        "gemini_configured": bool(os.environ.get("GEMINI_API_KEY") or GEMINI_API_KEY),
+        "cors_origins": cors_origins,
+    })
 
 # --- PREDICTIVE DIAGNOSTICS ALGORITHM (Telemetry-Driven) ---
 def compute_predictive_health(machine_id):
@@ -150,6 +225,32 @@ def ai_query():
         
     response_text = run_gemini_query(query)
     return jsonify({"answer": response_text})
+
+@app.route('/api/gemini/generate', methods=['POST'])
+def gemini_generate():
+    authorized, user_info = verify_supabase_token(request)
+    if not authorized:
+        return jsonify({"error": "Unauthorized. Missing or invalid token signature."}), 401
+
+    data = request.json or {}
+    query = (data.get('query') or '').strip()
+    if not query:
+        return jsonify({"error": "Query parameters empty"}), 400
+
+    try:
+        attachments = _validated_attachments(data.get("attachments") or [])
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    try:
+        answer = run_gemini_query(
+            query,
+            system_instruction=data.get("system_instruction"),
+            attachments=attachments,
+        )
+        return jsonify({"answer": answer})
+    except Exception as e:
+        return jsonify({"error": f"Gemini generation failed: {str(e)}"}), 500
 
 @app.route('/api/rag/ingest', methods=['POST'])
 def rag_ingest():

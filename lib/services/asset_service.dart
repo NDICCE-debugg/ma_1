@@ -4,68 +4,87 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AssetService {
   static final AssetService instance = AssetService._init();
+  static const String _imageBucket = 'inventory-images';
   final _client = Supabase.instance.client;
 
   AssetService._init();
 
-  Future<void> registerAsset(HospitalAsset asset) async {
-    final Map<String, dynamic> payload = {
-      'model_name': asset.modelName,
-      'serial_number': asset.serialNumber,
-      'location': '${asset.hospitalUnit} - ${asset.wardLocation}',
-      'status': _mapStatusToSupabase(asset.status),
-    };
+  Future<HospitalAsset> registerAsset(HospitalAsset asset) async {
+    final imageReference = await _prepareAssetImageReference(asset);
+    final assetToSave = asset.copyWith(imageFileName: imageReference);
+    final payload = _toSupabasePayload(assetToSave);
 
     try {
       final response =
           await _client.from('machines').insert(payload).select().single();
-      final insertedId = response['id'] as int;
-
-      final cachedAsset = HospitalAsset(
-        id: insertedId,
-        assetType: asset.assetType,
-        modelName: asset.modelName,
-        serialNumber: asset.serialNumber,
-        hospitalUnit: asset.hospitalUnit,
-        wardLocation: asset.wardLocation,
-        status: asset.status,
-        dateAcquired: asset.dateAcquired,
-        lastServiceDate: asset.lastServiceDate,
-        serviceInterval: asset.serviceInterval,
-        notes: asset.notes,
-        imageFileName: asset.imageFileName,
-        imageBytes: asset.imageBytes,
+      final cachedAsset = assetToSave.copyWith(
+        id: (response['id'] as num?)?.toInt(),
       );
       await DatabaseHelper.instance.addCachedAsset(cachedAsset);
-    } catch (e) {
-      await DatabaseHelper.instance.addCachedAsset(asset);
+      return cachedAsset;
+    } catch (_) {
+      await DatabaseHelper.instance.addCachedAsset(assetToSave);
       await DatabaseHelper.instance.enqueueChange(
         'INSERT',
         'machines',
-        asset.serialNumber,
+        assetToSave.serialNumber,
         payload,
       );
+      return assetToSave;
     }
   }
 
-  Future<void> updateAsset(HospitalAsset asset) async {
-    final Map<String, dynamic> payload = {
-      'model_name': asset.modelName,
-      'serial_number': asset.serialNumber,
-      'location': '${asset.hospitalUnit} - ${asset.wardLocation}',
-      'status': _mapStatusToSupabase(asset.status),
-    };
+  Future<HospitalAsset> updateAsset(HospitalAsset asset) async {
+    final imageReference = await _prepareAssetImageReference(asset);
+    final assetToSave = asset.copyWith(imageFileName: imageReference);
+    final payload = _toSupabasePayload(assetToSave);
 
     try {
-      await _client.from('machines').update(payload).eq('id', asset.id!);
-      await DatabaseHelper.instance.updateCachedAsset(asset);
-    } catch (e) {
-      await DatabaseHelper.instance.updateCachedAsset(asset);
+      if (assetToSave.id != null) {
+        await _client.from('machines').update(payload).eq('id', assetToSave.id!);
+      } else {
+        await _client
+            .from('machines')
+            .update(payload)
+            .eq('serial_number', assetToSave.serialNumber);
+      }
+      await DatabaseHelper.instance.updateCachedAsset(assetToSave);
+      return assetToSave;
+    } catch (_) {
+      await DatabaseHelper.instance.updateCachedAsset(assetToSave);
       await DatabaseHelper.instance.enqueueChange(
         'UPDATE',
         'machines',
-        asset.id.toString(),
+        (assetToSave.id ?? assetToSave.serialNumber).toString(),
         payload,
+      );
+      return assetToSave;
+    }
+  }
+
+  Future<void> retireAsset(HospitalAsset asset) async {
+    await updateAsset(asset.copyWith(status: 'DECOMMISSIONED'));
+  }
+
+  Future<void> deleteAsset(HospitalAsset asset) async {
+    try {
+      if (asset.id != null) {
+        await _client.from('machines').delete().eq('id', asset.id!);
+      } else {
+        await _client
+            .from('machines')
+            .delete()
+            .eq('serial_number', asset.serialNumber);
+      }
+      await _deleteStoredImage(asset.imageFileName);
+      await DatabaseHelper.instance.deleteCachedAsset(asset);
+    } catch (_) {
+      await DatabaseHelper.instance.deleteCachedAsset(asset);
+      await DatabaseHelper.instance.enqueueChange(
+        'DELETE',
+        'machines',
+        (asset.id ?? asset.serialNumber).toString(),
+        _toSupabasePayload(asset),
       );
     }
   }
@@ -84,23 +103,110 @@ class AssetService {
 
       if (response.isEmpty) {
         final cached = await DatabaseHelper.instance.getCachedAssets();
-        if (cached.isNotEmpty) {
-          return cached;
-        }
+        if (cached.isNotEmpty) return cached;
       }
 
       final assets = (response as List)
           .map<HospitalAsset>(
               (json) => _assetFromRecord(json as Map<String, dynamic>))
           .toList();
+      final displayAssets = await _attachSignedImageUrls(assets);
 
-      if (assets.isNotEmpty) {
-        await DatabaseHelper.instance.cacheAssets(assets);
+      if (displayAssets.isNotEmpty) {
+        await DatabaseHelper.instance.cacheAssets(displayAssets);
       }
-      return assets;
-    } catch (e) {
-      return await DatabaseHelper.instance.getCachedAssets();
+      return displayAssets;
+    } catch (_) {
+      return DatabaseHelper.instance.getCachedAssets();
     }
+  }
+
+  Map<String, dynamic> _toSupabasePayload(HospitalAsset asset) {
+    return {
+      'asset_type': asset.assetType,
+      'model_name': asset.modelName,
+      'serial_number': asset.serialNumber,
+      'location': '${asset.hospitalUnit} - ${asset.wardLocation}',
+      'hospital_unit': asset.hospitalUnit,
+      'ward_location': asset.wardLocation,
+      'status': _mapStatusToSupabase(asset.status),
+      'date_acquired': asset.dateAcquired,
+      'last_service_date': asset.lastServiceDate,
+      'service_interval': asset.serviceInterval,
+      'notes': asset.notes,
+      'image_file_name': asset.imageFileName,
+    };
+  }
+
+  Future<List<HospitalAsset>> _attachSignedImageUrls(
+      List<HospitalAsset> assets) async {
+    return Future.wait(assets.map((asset) async {
+      final ref = asset.imageFileName.trim();
+      if (ref.isEmpty || ref.startsWith('http')) {
+        return ref.startsWith('http') ? asset.copyWith(imageUrl: ref) : asset;
+      }
+      try {
+        final signedUrl =
+            await _client.storage.from(_imageBucket).createSignedUrl(ref, 3600);
+        return asset.copyWith(imageUrl: signedUrl);
+      } catch (_) {
+        return asset;
+      }
+    }));
+  }
+
+  Future<String> _prepareAssetImageReference(HospitalAsset asset) async {
+    final currentReference = asset.imageFileName.trim();
+    final hasNewLocalImage =
+        asset.imageBytes != null && !_isStorageImageReference(currentReference);
+    if (!hasNewLocalImage) return currentReference;
+
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null || userId.isEmpty) return currentReference;
+
+    final fileName = _safeStorageFileName(
+      currentReference.isEmpty
+          ? '${asset.serialNumber}_${asset.modelName}.jpg'
+          : currentReference,
+    );
+    final storagePath =
+        '$userId/equipment/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+    await _client.storage.from(_imageBucket).uploadBinary(
+          storagePath,
+          asset.imageBytes!,
+          fileOptions: FileOptions(
+            upsert: true,
+            contentType: _imageContentType(fileName),
+            cacheControl: '3600',
+          ),
+        );
+    return storagePath;
+  }
+
+  Future<void> _deleteStoredImage(String imageReference) async {
+    if (!_isStorageImageReference(imageReference)) return;
+    try {
+      await _client.storage.from(_imageBucket).remove([imageReference]);
+    } catch (_) {}
+  }
+
+  bool _isStorageImageReference(String value) =>
+      value.isNotEmpty && !value.startsWith('http') && value.contains('/');
+
+  String _safeStorageFileName(String value) {
+    final safe = value
+        .trim()
+        .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_');
+    return safe.isEmpty ? 'equipment.jpg' : safe;
+  }
+
+  String _imageContentType(String fileName) {
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    return 'image/jpeg';
   }
 
   HospitalAsset _assetFromRecord(Map<String, dynamic> json) {
@@ -131,20 +237,16 @@ class AssetService {
   }
 
   String _resolveAssetType(String? rawAssetType, String modelName) {
-    if (rawAssetType != null && rawAssetType.isNotEmpty) {
-      return rawAssetType;
-    }
+    if (rawAssetType != null && rawAssetType.isNotEmpty) return rawAssetType;
 
     final normalized = modelName.toLowerCase();
     if (normalized.contains('draeger') ||
-        normalized.contains('drager') ||
         normalized.contains('drager') ||
         normalized.contains('mindray') ||
         normalized.contains('wato') ||
         normalized.contains('a5')) {
       return 'anaesthetic_machine';
     }
-
     return 'ventilator';
   }
 
@@ -184,49 +286,33 @@ class AssetService {
 
   String _normalizeLocationText(String? value) {
     final trimmed = value?.trim() ?? '';
-    if (trimmed.isEmpty) {
-      return '';
-    }
+    if (trimmed.isEmpty) return '';
 
     return trimmed
-        .replaceAll('Ã¢â‚¬Â¢', '-')
-        .replaceAll('Â-', '-')
+        .replaceAll('ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢', '-')
+        .replaceAll('Ã‚-', '-')
         .replaceAll(RegExp(r'\s*-\s*'), ' - ');
   }
 
   String _mapStatusToSupabase(String status) {
-    switch (status) {
-      case 'OPERATIONAL':
-        return 'Operational';
-      case 'MAINTENANCE':
-        return 'Needs Maintenance';
-      case 'OFFLINE':
-        return 'Out of Order';
-      case 'DECOMMISSIONED':
-        return 'Decommissioned';
-      default:
-        return 'Operational';
-    }
+    return switch (status) {
+      'OPERATIONAL' => 'Operational',
+      'MAINTENANCE' => 'Needs Maintenance',
+      'OFFLINE' => 'Out of Order',
+      'DECOMMISSIONED' => 'Decommissioned',
+      _ => 'Operational',
+    };
   }
 
   String _mapStatusToClient(String status) {
-    switch (status) {
-      case 'Operational':
-        return 'OPERATIONAL';
-      case 'Needs Maintenance':
-        return 'MAINTENANCE';
-      case 'Out of Order':
-        return 'OFFLINE';
-      case 'Decommissioned':
-        return 'DECOMMISSIONED';
-      case 'OPERATIONAL':
-      case 'MAINTENANCE':
-      case 'OFFLINE':
-      case 'DECOMMISSIONED':
-        return status;
-      default:
-        return 'OPERATIONAL';
-    }
+    return switch (status) {
+      'Operational' => 'OPERATIONAL',
+      'Needs Maintenance' => 'MAINTENANCE',
+      'Out of Order' => 'OFFLINE',
+      'Decommissioned' => 'DECOMMISSIONED',
+      'OPERATIONAL' || 'MAINTENANCE' || 'OFFLINE' || 'DECOMMISSIONED' => status,
+      _ => 'OPERATIONAL',
+    };
   }
 }
 

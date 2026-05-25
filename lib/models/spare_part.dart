@@ -11,6 +11,7 @@ class SparePart {
   final String lastRestocked;
   final String notes;
   final String imageFileName;
+  final String imageUrl;
   final Uint8List? imageBytes;
 
   SparePart({
@@ -24,6 +25,7 @@ class SparePart {
     this.lastRestocked = 'UNKNOWN',
     this.notes = '',
     this.imageFileName = '',
+    this.imageUrl = '',
     this.imageBytes,
   });
 
@@ -39,6 +41,7 @@ class SparePart {
       'last_restocked': lastRestocked,
       'notes': notes,
       'image_file_name': imageFileName,
+      'image_url': imageUrl,
       'image_bytes': imageBytes,
     };
   }
@@ -54,6 +57,7 @@ class SparePart {
     String? lastRestocked,
     String? notes,
     String? imageFileName,
+    String? imageUrl,
     Uint8List? imageBytes,
   }) {
     return SparePart(
@@ -67,11 +71,14 @@ class SparePart {
       lastRestocked: lastRestocked ?? this.lastRestocked,
       notes: notes ?? this.notes,
       imageFileName: imageFileName ?? this.imageFileName,
+      imageUrl: imageUrl ?? this.imageUrl,
       imageBytes: imageBytes ?? this.imageBytes,
     );
   }
 
   factory SparePart.fromMap(Map<String, dynamic> map) {
+    final imageReference =
+        (map['image_file_name'] ?? map['image_url'] ?? '').toString();
     return SparePart(
       id: map['id'],
       name: map['name'] ?? '',
@@ -82,9 +89,9 @@ class SparePart {
       unit: map['unit'] ?? 'units',
       lastRestocked: map['last_restocked'] ?? 'UNKNOWN',
       notes: map['notes'] ?? '',
-      imageFileName: map['image_file_name'] ?? '',
+      imageFileName: imageReference,
+      imageUrl: imageReference.startsWith('http') ? imageReference : '',
       imageBytes: map['image_bytes'] as Uint8List?,
     );
   }
 }
-

@@ -11,8 +11,30 @@ class AuthService {
 
   AuthService._init();
 
-  Future<bool> checkSession() async =>
-      _mockUser != null || _client.auth.currentSession != null;
+  Future<bool> checkSession() async {
+    if (_mockUser != null) return true;
+
+    final session = _client.auth.currentSession;
+    if (session == null || session.accessToken.isEmpty) return false;
+
+    try {
+      final response = await _client.auth
+          .getUser(session.accessToken)
+          .timeout(const Duration(seconds: 8));
+      return response.user != null;
+    } on AuthException catch (e) {
+      debugPrint('Cached Supabase session is not valid: ${e.message}');
+      await _clearInvalidSession();
+      return false;
+    } on TimeoutException {
+      debugPrint(
+          'Supabase session validation timed out; using cached session.');
+      return true;
+    } catch (e) {
+      debugPrint('Supabase session validation failed: $e');
+      return true;
+    }
+  }
 
   User? get currentUser => _mockUser ?? _client.auth.currentUser;
 
@@ -35,9 +57,9 @@ class AuthService {
       final normalizedEmail = email.trim().toLowerCase();
       final response = await _client.auth
           .signInWithPassword(
-        email: normalizedEmail,
-        password: password,
-      )
+            email: normalizedEmail,
+            password: password,
+          )
           .timeout(const Duration(seconds: 20));
 
       if (response.user != null && response.session != null) {
@@ -71,16 +93,14 @@ class AuthService {
       String name, String email, String password, String reg) async {
     try {
       final normalizedEmail = email.trim().toLowerCase();
-      final response = await _client.auth
-          .signUp(
+      final response = await _client.auth.signUp(
         email: normalizedEmail,
         password: password,
         data: {
           'name': name.trim(),
           'reg_number': reg.trim(),
         },
-      )
-          .timeout(const Duration(seconds: 20));
+      ).timeout(const Duration(seconds: 20));
 
       if (response.user != null) {
         await _syncUserProfile(
@@ -151,7 +171,7 @@ class AuthService {
   Future<User?> signInWithGoogle() async {
     try {
       if (kIsWeb) {
-        // On Web, use standard Supabase OAuth redirect. This is extremely robust, 
+        // On Web, use standard Supabase OAuth redirect. This is extremely robust,
         // official, and avoids the Google identity services 'idToken' deprecation trap.
         await _client.auth.signInWithOAuth(
           OAuthProvider.google,
@@ -225,6 +245,15 @@ class AuthService {
     await _client.auth.signOut();
   }
 
+  Future<void> clearInvalidSession() => _clearInvalidSession();
+
+  Future<void> _clearInvalidSession() async {
+    _mockUser = null;
+    try {
+      await _client.auth.signOut();
+    } catch (_) {}
+  }
+
   Future<void> _syncUserProfile(
     User user, {
     String? name,
@@ -263,7 +292,8 @@ class AuthService {
     if (normalized.contains('password')) {
       return message;
     }
-    return message.isEmpty ? 'Authentication failed. Please try again.' : message;
+    return message.isEmpty
+        ? 'Authentication failed. Please try again.'
+        : message;
   }
 }
-

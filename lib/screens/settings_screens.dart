@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ma_1/providers/theme_provider.dart';
 import 'package:ma_1/theme/app_theme.dart';
-import 'package:ma_1/services/gemini_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -272,9 +270,11 @@ class _SettingsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF0A1518) : Colors.white;
-    final cardBorder = isDark ? const Color(0xFF24353A) : const Color(0xFFE8EEF1);
+    final cardBorder =
+        isDark ? const Color(0xFF24353A) : const Color(0xFFE8EEF1);
     final textPrimaryColor = isDark ? Colors.white : AppTheme.textPrimary;
-    final textSecondaryColor = isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary;
+    final textSecondaryColor =
+        isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary;
 
     return Material(
       type: MaterialType.card,
@@ -403,123 +403,3 @@ class _ValuePill extends StatelessWidget {
     );
   }
 }
-
-class _GeminiApiKeySection extends StatefulWidget {
-  const _GeminiApiKeySection();
-
-  @override
-  State<_GeminiApiKeySection> createState() => _GeminiApiKeySectionState();
-}
-
-class _GeminiApiKeySectionState extends State<_GeminiApiKeySection> {
-  final _keyController = TextEditingController();
-  bool _obscureKey = true;
-  bool _isSaving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadKey();
-  }
-
-  Future<void> _loadKey() async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = prefs.getString('custom_gemini_api_key') ?? '';
-    if (mounted) {
-      setState(() {
-        _keyController.text = key;
-      });
-    }
-  }
-
-  Future<void> _saveKey() async {
-    setState(() => _isSaving = true);
-    final prefs = await SharedPreferences.getInstance();
-    final newKey = _keyController.text.trim();
-    if (newKey.isNotEmpty) {
-      await prefs.setString('custom_gemini_api_key', newKey);
-    } else {
-      await prefs.remove('custom_gemini_api_key');
-    }
-    GeminiService.instance.resetModel();
-    if (mounted) {
-      setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: AppTheme.success,
-          content: Text(
-            newKey.isNotEmpty
-                ? 'Gemini API key updated successfully. Models re-initialised.'
-                : 'Custom API key cleared. Using default fallback.',
-            style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
-          ),
-        ),
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _keyController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _SettingsSection(
-      title: 'AI Diagnostics & API Configuration',
-      description: 'Configure custom Google Gemini API access for real-time telemetry diagnostics.',
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: _keyController,
-                obscureText: _obscureKey,
-                style: const TextStyle(fontFamily: 'Outfit', fontSize: 13, fontWeight: FontWeight.w600),
-                decoration: InputDecoration(
-                  hintText: 'Enter your Gemini API key (AIzaSy...)',
-                  prefixIcon: const Icon(Icons.key_rounded, size: 20),
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscureKey ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 20),
-                    onPressed: () => setState(() => _obscureKey = !_obscureKey),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  if (_keyController.text.isNotEmpty) ...[
-                    TextButton(
-                      onPressed: () {
-                        _keyController.clear();
-                        _saveKey();
-                      },
-                      child: const Text('Clear Key'),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  FilledButton.icon(
-                    onPressed: _isSaving ? null : _saveKey,
-                    icon: _isSaving
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Icon(Icons.save_rounded, size: 18),
-                    label: const Text('Save Key'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-

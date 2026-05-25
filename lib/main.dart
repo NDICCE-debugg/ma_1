@@ -7,31 +7,47 @@ import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 import 'package:ma_1/utils/supabase_config.dart';
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/providers/theme_provider.dart';
+import 'package:ma_1/services/auth_service.dart';
 import 'package:ma_1/screens/login_screen.dart';
 import 'package:ma_1/screens/home_screen.dart';
+import 'package:ma_1/utils/web_url_cleaner.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   if (kIsWeb) {
     databaseFactory = databaseFactoryFfiWeb;
+    cleanStaleSupabaseCallbackUrl();
   }
-  
+  final shouldExchangeAuthCallback =
+      kIsWeb && hasSupabaseAuthCallback() && hasSupabasePkceVerifier();
+
   // Initialize Supabase securely
   try {
     await Supabase.initialize(
       url: SupabaseConfig.url,
       anonKey: SupabaseConfig.anonKey,
+      authOptions: const FlutterAuthClientOptions(
+        authFlowType: AuthFlowType.pkce,
+        detectSessionInUri: false,
+      ),
     );
+    if (shouldExchangeAuthCallback) {
+      try {
+        await Supabase.instance.client.auth.getSessionFromUrl(Uri.base);
+      } on AuthException catch (e) {
+        debugPrint('Supabase auth callback ignored: ${e.message}');
+      } finally {
+        clearSupabaseCallbackUrl();
+      }
+    }
   } catch (e) {
     debugPrint("Supabase initialization failed: $e");
   }
 
-  // Detect cached active session
-  final bool hasSession = Supabase.instance.client.auth.currentSession != null;
-  
+  // Validate the cached session before allowing protected screens to load.
+  final bool hasSession = await AuthService.instance.checkSession();
 
-  
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),
@@ -58,4 +74,3 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-

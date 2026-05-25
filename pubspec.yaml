@@ -1,5 +1,5 @@
 name: ma_1
-description: "Pulse: Clinical Equipment & Maintenance Assistant"
+description: "Pulse: Clinical Equipment Maintenance Platform powered by Pulse AI"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -78,6 +78,19 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/icon.png"
   min_sdk_android: 21
+  remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: "assets/icon.png"
+    background_color: "#0B2A5B"
+    theme_color: "#0B2A5B"
+  windows:
+    generate: true
+    image_path: "assets/icon.png"
+    icon_size: 256
+  macos:
+    generate: true
+    image_path: "assets/icon.png"
 
 flutter:
   uses-material-design: true

@@ -3,6 +3,20 @@
 
 create extension if not exists vector with schema extensions;
 
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'manuals',
+  'manuals',
+  false,
+  52428800,
+  array['application/pdf']
+)
+on conflict (id) do update
+set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
 create table if not exists public.manuals (
   id uuid primary key default gen_random_uuid(),
   title text not null,
@@ -95,15 +109,41 @@ create policy "manuals authenticated read"
   to authenticated
   using (true);
 
+drop policy if exists "manuals authenticated insert own records" on public.manuals;
+create policy "manuals authenticated insert own records"
+  on public.manuals for insert
+  to authenticated
+  with check (uploaded_by = auth.uid());
+
+drop policy if exists "manuals authenticated update own records" on public.manuals;
+create policy "manuals authenticated update own records"
+  on public.manuals for update
+  to authenticated
+  using (uploaded_by = auth.uid())
+  with check (uploaded_by = auth.uid());
+
 drop policy if exists "manual chunks authenticated read" on public.manual_chunks;
 create policy "manual chunks authenticated read"
   on public.manual_chunks for select
   to authenticated
   using (true);
 
--- Backend ingestion should use SUPABASE_SERVICE_ROLE_KEY.
--- Keep insert/update policies closed to the Flutter client unless you explicitly
--- want users to write these tables directly.
+drop policy if exists "manual chunks authenticated insert own manual chunks" on public.manual_chunks;
+create policy "manual chunks authenticated insert own manual chunks"
+  on public.manual_chunks for insert
+  to authenticated
+  with check (
+    exists (
+      select 1
+      from public.manuals
+      where manuals.id = manual_chunks.manual_id
+        and manuals.uploaded_by = auth.uid()
+    )
+  );
+
+-- Production note: a backend with SUPABASE_SERVICE_ROLE_KEY bypasses RLS.
+-- These authenticated insert/update policies let the local backend work safely
+-- when it forwards the signed-in technician's Supabase access token instead.
 
 drop policy if exists "manual pdfs authenticated upload own folder" on storage.objects;
 create policy "manual pdfs authenticated upload own folder"

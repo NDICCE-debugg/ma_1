@@ -12,53 +12,38 @@ class PulseLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double iconSize = size * 0.56;
-
     return Container(
       width: size,
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF0F766E), // teal-700
-            Color(0xFF0D9488), // teal-600
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: const Color(0xFF0B2A5B),
         borderRadius: BorderRadius.circular(borderRadius),
         border: Border.all(
-          color: const Color(0xFF14B8A6).withValues(alpha: 0.4),
+          color: Colors.white.withValues(alpha: 0.12),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF14B8A6).withValues(alpha: 0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: const Color(0xFF0B2A5B).withValues(alpha: 0.26),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: size * 0.72,
-            height: size * 0.72,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withValues(alpha: 0.06),
-            ),
-          ),
-          Icon(
-            Icons.monitor_heart_rounded,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: Image.asset(
+          'assets/pulse_logo.png',
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => const Icon(
+            Icons.graphic_eq_rounded,
             color: Colors.white,
-            size: iconSize,
           ),
-        ],
+        ),
       ),
     );
   }
 }
-

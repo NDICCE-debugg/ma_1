@@ -564,6 +564,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
                       lastRestocked: dateCtrl.text,
                       notes: part.notes,
                       imageFileName: part.imageFileName,
+                      imageUrl: part.imageUrl,
                       imageBytes: part.imageBytes,
                     ));
                     await NotificationService.checkInventoryAlerts();
@@ -961,7 +962,8 @@ class _AnalyticsViewState extends State<AnalyticsView>
     required VoidCallback onTap,
   }) {
     return ActionChip(
-      backgroundColor: isActive ? AppTheme.primary.withValues(alpha: 0.08) : Colors.white,
+      backgroundColor:
+          isActive ? AppTheme.primary.withValues(alpha: 0.08) : Colors.white,
       elevation: 0,
       side: BorderSide(
         color: isActive ? AppTheme.primary : const Color(0xFFE2E8F0),
@@ -992,27 +994,39 @@ class _AnalyticsViewState extends State<AnalyticsView>
         children: [
           const SizedBox(height: 16),
           const Text('Filter by Equipment Type',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Outfit')),
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  fontFamily: 'Outfit')),
           const Divider(),
           ListTile(
-            title: const Text('All Equipment', style: TextStyle(fontFamily: 'Outfit')),
-            trailing: _filterType == null ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            title: const Text('All Equipment',
+                style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterType == null
+                ? const Icon(Icons.check, color: AppTheme.primary)
+                : null,
             onTap: () {
               setState(() => _filterType = null);
               Navigator.pop(ctx);
             },
           ),
           ListTile(
-            title: const Text('Ventilators', style: TextStyle(fontFamily: 'Outfit')),
-            trailing: _filterType == 'ventilator' ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            title: const Text('Ventilators',
+                style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterType == 'ventilator'
+                ? const Icon(Icons.check, color: AppTheme.primary)
+                : null,
             onTap: () {
               setState(() => _filterType = 'ventilator');
               Navigator.pop(ctx);
             },
           ),
           ListTile(
-            title: const Text('Anaesthetic Machines', style: TextStyle(fontFamily: 'Outfit')),
-            trailing: _filterType == 'anaesthetic_machine' ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            title: const Text('Anaesthetic Machines',
+                style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterType == 'anaesthetic_machine'
+                ? const Icon(Icons.check, color: AppTheme.primary)
+                : null,
             onTap: () {
               setState(() => _filterType = 'anaesthetic_machine');
               Navigator.pop(ctx);
@@ -1035,35 +1049,50 @@ class _AnalyticsViewState extends State<AnalyticsView>
         children: [
           const SizedBox(height: 16),
           const Text('Filter by Machine Status',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Outfit')),
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  fontFamily: 'Outfit')),
           const Divider(),
           ListTile(
-            title: const Text('All Status', style: TextStyle(fontFamily: 'Outfit')),
-            trailing: _filterStatus == null ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            title: const Text('All Status',
+                style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterStatus == null
+                ? const Icon(Icons.check, color: AppTheme.primary)
+                : null,
             onTap: () {
               setState(() => _filterStatus = null);
               Navigator.pop(ctx);
             },
           ),
           ListTile(
-            title: const Text('Active (Operational)', style: TextStyle(fontFamily: 'Outfit')),
-            trailing: _filterStatus == 'OPERATIONAL' ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            title: const Text('Active (Operational)',
+                style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterStatus == 'OPERATIONAL'
+                ? const Icon(Icons.check, color: AppTheme.primary)
+                : null,
             onTap: () {
               setState(() => _filterStatus = 'OPERATIONAL');
               Navigator.pop(ctx);
             },
           ),
           ListTile(
-            title: const Text('Maintenance Due', style: TextStyle(fontFamily: 'Outfit')),
-            trailing: _filterStatus == 'MAINTENANCE' ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            title: const Text('Maintenance Due',
+                style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterStatus == 'MAINTENANCE'
+                ? const Icon(Icons.check, color: AppTheme.primary)
+                : null,
             onTap: () {
               setState(() => _filterStatus = 'MAINTENANCE');
               Navigator.pop(ctx);
             },
           ),
           ListTile(
-            title: const Text('Offline / Faulty', style: TextStyle(fontFamily: 'Outfit')),
-            trailing: _filterStatus == 'OFFLINE' ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            title: const Text('Offline / Faulty',
+                style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterStatus == 'OFFLINE'
+                ? const Icon(Icons.check, color: AppTheme.primary)
+                : null,
             onTap: () {
               setState(() => _filterStatus = 'OFFLINE');
               Navigator.pop(ctx);
@@ -1086,35 +1115,50 @@ class _AnalyticsViewState extends State<AnalyticsView>
         children: [
           const SizedBox(height: 16),
           const Text('Filter by Hospital Department',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Outfit')),
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  fontFamily: 'Outfit')),
           const Divider(),
           ListTile(
-            title: const Text('All Locations', style: TextStyle(fontFamily: 'Outfit')),
-            trailing: _filterLocation == null ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            title: const Text('All Locations',
+                style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterLocation == null
+                ? const Icon(Icons.check, color: AppTheme.primary)
+                : null,
             onTap: () {
               setState(() => _filterLocation = null);
               Navigator.pop(ctx);
             },
           ),
           ListTile(
-            title: const Text('Main Ward (MAIN)', style: TextStyle(fontFamily: 'Outfit')),
-            trailing: _filterLocation == 'MAIN' ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            title: const Text('Main Ward (MAIN)',
+                style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterLocation == 'MAIN'
+                ? const Icon(Icons.check, color: AppTheme.primary)
+                : null,
             onTap: () {
               setState(() => _filterLocation = 'MAIN');
               Navigator.pop(ctx);
             },
           ),
           ListTile(
-            title: const Text('Pediatrics (PAEDIATRIC)', style: TextStyle(fontFamily: 'Outfit')),
-            trailing: _filterLocation == 'PAEDIATRIC' ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            title: const Text('Pediatrics (PAEDIATRIC)',
+                style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterLocation == 'PAEDIATRIC'
+                ? const Icon(Icons.check, color: AppTheme.primary)
+                : null,
             onTap: () {
               setState(() => _filterLocation = 'PAEDIATRIC');
               Navigator.pop(ctx);
             },
           ),
           ListTile(
-            title: const Text('Maternity (MATERNITY)', style: TextStyle(fontFamily: 'Outfit')),
-            trailing: _filterLocation == 'MATERNITY' ? const Icon(Icons.check, color: AppTheme.primary) : null,
+            title: const Text('Maternity (MATERNITY)',
+                style: TextStyle(fontFamily: 'Outfit')),
+            trailing: _filterLocation == 'MATERNITY'
+                ? const Icon(Icons.check, color: AppTheme.primary)
+                : null,
             onTap: () {
               setState(() => _filterLocation = 'MATERNITY');
               Navigator.pop(ctx);
@@ -1209,7 +1253,9 @@ class _AnalyticsViewState extends State<AnalyticsView>
           _buildFilterPill(
             label: _filterType == null
                 ? 'All Equipment'
-                : (_filterType == 'ventilator' ? 'Ventilators' : 'Anaesthetic Machines'),
+                : (_filterType == 'ventilator'
+                    ? 'Ventilators'
+                    : 'Anaesthetic Machines'),
             isActive: _filterType != null,
             onTap: () => _showFilterMenuType(),
           ),
@@ -1219,7 +1265,9 @@ class _AnalyticsViewState extends State<AnalyticsView>
                 ? 'All Status'
                 : (_filterStatus == 'OPERATIONAL'
                     ? 'Active'
-                    : (_filterStatus == 'MAINTENANCE' ? 'Maintenance Due' : 'Offline')),
+                    : (_filterStatus == 'MAINTENANCE'
+                        ? 'Maintenance Due'
+                        : 'Offline')),
             isActive: _filterStatus != null,
             onTap: () => _showFilterMenuStatus(),
           ),
@@ -1230,7 +1278,9 @@ class _AnalyticsViewState extends State<AnalyticsView>
             onTap: () => _showFilterMenuLocation(),
           ),
           const SizedBox(width: 8),
-          if (_filterType != null || _filterStatus != null || _filterLocation != null)
+          if (_filterType != null ||
+              _filterStatus != null ||
+              _filterLocation != null)
             TextButton(
               onPressed: () {
                 setState(() {
@@ -1469,31 +1519,48 @@ class _AnalyticsViewState extends State<AnalyticsView>
         }
 
         final all = snapshot.data!;
-        
+
         // Dynamically compute Summary metrics
         final totalCount = all.length;
         final activeCount = all.where((a) => a.status == 'OPERATIONAL').length;
-        final inServiceCount = all.where((a) => a.status != 'OFFLINE' && a.status != 'DECOMMISSIONED').length;
-        final maintenanceCount = all.where((a) => a.status == 'MAINTENANCE').length;
+        final inServiceCount = all
+            .where((a) => a.status != 'OFFLINE' && a.status != 'DECOMMISSIONED')
+            .length;
+        final maintenanceCount =
+            all.where((a) => a.status == 'MAINTENANCE').length;
 
-        final activePct = totalCount > 0 ? (activeCount / totalCount * 100).toStringAsFixed(1) : '0';
-        final inServicePct = totalCount > 0 ? (inServiceCount / totalCount * 100).toStringAsFixed(1) : '0';
-        final maintenancePct = totalCount > 0 ? (maintenanceCount / totalCount * 100).toStringAsFixed(1) : '0';
+        final activePct = totalCount > 0
+            ? (activeCount / totalCount * 100).toStringAsFixed(1)
+            : '0';
+        final inServicePct = totalCount > 0
+            ? (inServiceCount / totalCount * 100).toStringAsFixed(1)
+            : '0';
+        final maintenancePct = totalCount > 0
+            ? (maintenanceCount / totalCount * 100).toStringAsFixed(1)
+            : '0';
 
         final assets = all.where((asset) {
           if (_searchQuery.isNotEmpty) {
             final query = _searchQuery;
-            final matchesQuery = asset.modelName.toLowerCase().contains(query) ||
-                asset.serialNumber.toLowerCase().contains(query) ||
-                asset.hospitalUnit.toLowerCase().contains(query) ||
-                asset.wardLocation.toLowerCase().contains(query) ||
-                asset.status.toLowerCase().contains(query);
+            final matchesQuery =
+                asset.modelName.toLowerCase().contains(query) ||
+                    asset.serialNumber.toLowerCase().contains(query) ||
+                    asset.hospitalUnit.toLowerCase().contains(query) ||
+                    asset.wardLocation.toLowerCase().contains(query) ||
+                    asset.status.toLowerCase().contains(query);
             if (!matchesQuery) return false;
           }
 
-          if (_filterType != null && asset.assetType != _filterType) return false;
-          if (_filterStatus != null && asset.status != _filterStatus) return false;
-          if (_filterLocation != null && asset.hospitalUnit != _filterLocation) return false;
+          if (_filterType != null && asset.assetType != _filterType) {
+            return false;
+          }
+          if (_filterStatus != null && asset.status != _filterStatus) {
+            return false;
+          }
+          if (_filterLocation != null &&
+              asset.hospitalUnit != _filterLocation) {
+            return false;
+          }
 
           return true;
         }).toList();
@@ -1637,7 +1704,8 @@ class _AnalyticsViewState extends State<AnalyticsView>
                 clipBehavior: Clip.antiAlias,
                 child: asset.imageBytes != null
                     ? Image.memory(asset.imageBytes!, fit: BoxFit.cover)
-                    : (asset.imageFileName.isNotEmpty && asset.imageFileName.startsWith('http'))
+                    : (asset.imageFileName.isNotEmpty &&
+                            asset.imageFileName.startsWith('http'))
                         ? Image.network(
                             asset.imageFileName,
                             fit: BoxFit.cover,
@@ -1704,10 +1772,13 @@ class _AnalyticsViewState extends State<AnalyticsView>
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.calendar_today_outlined, size: 11, color: Color(0xFF94A3B8)),
+                      const Icon(Icons.calendar_today_outlined,
+                          size: 11, color: Color(0xFF94A3B8)),
                       const SizedBox(width: 4),
                       Text(
-                        asset.lastServiceDate.isEmpty ? 'Pending' : asset.lastServiceDate,
+                        asset.lastServiceDate.isEmpty
+                            ? 'Pending'
+                            : asset.lastServiceDate,
                         style: const TextStyle(
                           color: Color(0xFF64748B),
                           fontSize: 11,
@@ -1783,7 +1854,6 @@ class _AnalyticsViewState extends State<AnalyticsView>
             ),
           ),
         ),
-
         Expanded(
           child: FutureBuilder<List<SparePart>>(
             future: _inventoryFuture,
@@ -1949,10 +2019,7 @@ class _AnalyticsViewState extends State<AnalyticsView>
                       border: Border.all(color: AppTheme.divider),
                     ),
                     clipBehavior: Clip.antiAlias,
-                    child: part.imageBytes == null
-                        ? const Icon(Icons.inventory_2_outlined,
-                            color: AppTheme.textSecondary, size: 22)
-                        : Image.memory(part.imageBytes!, fit: BoxFit.cover),
+                    child: _InventoryImage(part: part),
                   ),
                   Expanded(
                     child: Column(
@@ -2357,7 +2424,8 @@ class _AnalyticsViewState extends State<AnalyticsView>
         final all = snapshot.data!;
 
         return FutureBuilder<List<Map<String, dynamic>>>(
-          future: Future.wait(all.map((a) => PredictiveMaintenanceService.instance.getPrognostics(a))),
+          future: Future.wait(all.map(
+              (a) => PredictiveMaintenanceService.instance.getPrognostics(a))),
           builder: (context, progSnapshot) {
             if (!progSnapshot.hasData) {
               return const Center(
@@ -2368,11 +2436,15 @@ class _AnalyticsViewState extends State<AnalyticsView>
             final progList = progSnapshot.data!;
 
             // Sort by health score ascending (highest risk first)
-            progList.sort((a, b) => (a['healthScore'] as double).compareTo(b['healthScore'] as double));
+            progList.sort((a, b) => (a['healthScore'] as double)
+                .compareTo(b['healthScore'] as double));
 
-            final highCount = progList.where((p) => p['riskLevel'] == 'HIGH').length;
-            final medCount = progList.where((p) => p['riskLevel'] == 'MEDIUM').length;
-            final lowCount = progList.where((p) => p['riskLevel'] == 'LOW').length;
+            final highCount =
+                progList.where((p) => p['riskLevel'] == 'HIGH').length;
+            final medCount =
+                progList.where((p) => p['riskLevel'] == 'MEDIUM').length;
+            final lowCount =
+                progList.where((p) => p['riskLevel'] == 'LOW').length;
 
             return RefreshIndicator(
               color: AppTheme.primary,
@@ -2394,7 +2466,8 @@ class _AnalyticsViewState extends State<AnalyticsView>
                             Icon(
                               Icons.auto_awesome_outlined,
                               size: 56,
-                              color: AppTheme.textSecondary.withValues(alpha: 0.4),
+                              color:
+                                  AppTheme.textSecondary.withValues(alpha: 0.4),
                             ),
                             const SizedBox(height: 16),
                             const Text(
@@ -2586,7 +2659,8 @@ class _AnalyticsViewState extends State<AnalyticsView>
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Icon(Icons.warning_amber_rounded, size: 12, color: statusColor),
+                      Icon(Icons.warning_amber_rounded,
+                          size: 12, color: statusColor),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
@@ -2646,7 +2720,8 @@ class _AnalyticsViewState extends State<AnalyticsView>
                     ),
                     onPressed: () async {
                       // Get compatible parts for this model
-                      final parts = await PredictiveMaintenanceService.instance.getMatchingParts(asset.modelName);
+                      final parts = await PredictiveMaintenanceService.instance
+                          .getMatchingParts(asset.modelName);
                       if (!mounted) return;
                       showModalBottomSheet(
                         context: context,
@@ -2689,6 +2764,35 @@ class _AnalyticsViewState extends State<AnalyticsView>
 
 // â”€â”€â”€ QR SCANNER SHEET â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+class _InventoryImage extends StatelessWidget {
+  final SparePart part;
+
+  const _InventoryImage({required this.part});
+
+  @override
+  Widget build(BuildContext context) {
+    if (part.imageBytes != null) {
+      return Image.memory(part.imageBytes!, fit: BoxFit.cover);
+    }
+    if (part.imageUrl.isNotEmpty) {
+      return Image.network(
+        part.imageUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _placeholder(),
+      );
+    }
+    return _placeholder();
+  }
+
+  Widget _placeholder() {
+    return const Icon(
+      Icons.inventory_2_outlined,
+      color: AppTheme.textSecondary,
+      size: 22,
+    );
+  }
+}
+
 class _PartEditorDialog extends StatefulWidget {
   final SparePart? existingPart;
   final SparePart? prefill;
@@ -2710,6 +2814,7 @@ class _PartEditorDialogState extends State<_PartEditorDialog> {
   late final TextEditingController _notesCtrl;
   Uint8List? _imageBytes;
   String _imageFileName = '';
+  String _imageUrl = '';
 
   @override
   void initState() {
@@ -2730,6 +2835,7 @@ class _PartEditorDialogState extends State<_PartEditorDialog> {
     _notesCtrl = TextEditingController(text: src?.notes ?? '');
     _imageBytes = src?.imageBytes;
     _imageFileName = src?.imageFileName ?? '';
+    _imageUrl = src?.imageUrl ?? '';
   }
 
   @override
@@ -2755,6 +2861,7 @@ class _PartEditorDialogState extends State<_PartEditorDialog> {
     setState(() {
       _imageBytes = file.bytes;
       _imageFileName = file.name;
+      _imageUrl = '';
     });
   }
 
@@ -2781,6 +2888,7 @@ class _PartEditorDialogState extends State<_PartEditorDialog> {
         lastRestocked: _lastRestockCtrl.text.trim(),
         notes: _notesCtrl.text.trim(),
         imageFileName: _imageFileName,
+        imageUrl: _imageUrl,
         imageBytes: _imageBytes,
       ),
     );
@@ -2849,7 +2957,7 @@ class _PartEditorDialogState extends State<_PartEditorDialog> {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: AppTheme.divider),
                   ),
-                  child: _imageBytes == null
+                  child: _imageBytes == null && _imageUrl.isEmpty
                       ? const Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -2868,11 +2976,20 @@ class _PartEditorDialogState extends State<_PartEditorDialog> {
                         )
                       : ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: Image.memory(_imageBytes!, fit: BoxFit.cover),
+                          child: _imageBytes != null
+                              ? Image.memory(_imageBytes!, fit: BoxFit.cover)
+                              : Image.network(
+                                  _imageUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const Icon(
+                                    Icons.broken_image_outlined,
+                                    color: AppTheme.textSecondary,
+                                  ),
+                                ),
                         ),
                 ),
               ),
-              if (_imageBytes != null) ...[
+              if (_imageBytes != null || _imageUrl.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -2894,6 +3011,7 @@ class _PartEditorDialogState extends State<_PartEditorDialog> {
                       onPressed: () => setState(() {
                         _imageBytes = null;
                         _imageFileName = '';
+                        _imageUrl = '';
                       }),
                       icon: const Icon(Icons.delete_outline_rounded, size: 16),
                       label: const Text('Remove'),

@@ -46,3 +46,15 @@ app.*.map.json
 
 # Keep credentials out of git tracking
 lib/utils/app_config.dart
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+**/__pycache__/
+*.py[cod]
+
+# Local Google/Firebase client config. Use restricted keys and local copies.
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist

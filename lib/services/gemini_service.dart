@@ -1,7 +1,6 @@
+import 'dart:convert';
 import 'dart:typed_data';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
-import 'package:ma_1/utils/app_config.dart';
+import 'package:ma_1/services/api_client.dart';
 
 class GeminiAttachment {
   final String name;
@@ -23,22 +22,10 @@ class GeminiAttachment {
 /// conversation history, and streaming support.
 class GeminiService {
   static final GeminiService instance = GeminiService._init();
-  
-  GeminiService._init() {
-    _loadInitialKey();
-  }
 
-  Future<void> _loadInitialKey() async {
-    final prefs = await SharedPreferences.getInstance();
-    final customKey = prefs.getString('custom_gemini_api_key');
-    _activeApiKey = (customKey != null && customKey.isNotEmpty) ? customKey : AppConfig.geminiApiKey;
-  }
+  GeminiService._init();
 
-  GenerativeModel? _model;
-  ChatSession? _chat;
-  String _activeApiKey = AppConfig.geminiApiKey;
-
-  bool get isConfigured => _activeApiKey.isNotEmpty && _activeApiKey != 'YOUR_GEMINI_API_KEY_HERE';
+  bool get isConfigured => true;
 
   // System instruction tuned for biomedical equipment technicians
   static const String _systemPrompt = '''
@@ -68,37 +55,10 @@ RULES:
 ''';
 
   /// Clear the model and chat session to force re-initialisation when key changes
-  void resetModel() {
-    _model = null;
-    _chat = null;
-    _loadInitialKey();
-  }
-
-  /// Initialises the model and starts a new chat session dynamically.
-  Future<void> _ensureInitialized() async {
-    if (_model != null) return;
-
-    final prefs = await SharedPreferences.getInstance();
-    final customKey = prefs.getString('custom_gemini_api_key');
-    final activeKey = (customKey != null && customKey.isNotEmpty) ? customKey : AppConfig.geminiApiKey;
-
-    _model = GenerativeModel(
-      model: 'gemini-2.5-flash',
-      apiKey: activeKey,
-      systemInstruction: Content.system(_systemPrompt),
-      generationConfig: GenerationConfig(
-        temperature: 0.4,
-        maxOutputTokens: 2048,
-        topP: 0.95,
-      ),
-    );
-    _chat = _model!.startChat();
-  }
+  void resetModel() {}
 
   /// Starts a fresh conversation (clears history).
-  void newChat() {
-    _chat = _model?.startChat();
-  }
+  void newChat() {}
 
   /// Sends a message and returns the full response text.
   /// Throws [GeminiException] on API errors.
@@ -106,29 +66,32 @@ RULES:
     String userMessage, {
     List<GeminiAttachment> attachments = const [],
   }) async {
-    final prefs = await SharedPreferences.getInstance();
-    final customKey = prefs.getString('custom_gemini_api_key');
-    final activeKey = (customKey != null && customKey.isNotEmpty) ? customKey : AppConfig.geminiApiKey;
-
-    if (activeKey.isEmpty || activeKey == 'YOUR_GEMINI_API_KEY_HERE') {
-      throw GeminiException(
-        'Gemini API key not configured. '
-        'Enter a valid key in Settings or AppConfig.',
-      );
-    }
-    await _ensureInitialized();
-
     try {
-      final response = await _chat!.sendMessage(
-        _buildUserContent(userMessage, attachments),
-      );
-      final text = response.text;
-      if (text == null || text.trim().isEmpty) {
+      final response = await ApiClient.instance.post('/gemini/generate', {
+        'query': userMessage,
+        'system_instruction': _systemPrompt,
+        'attachments': [
+          for (final attachment in attachments)
+            {
+              'name': attachment.name,
+              'mime_type': attachment.mimeType,
+              'data': base64Encode(attachment.bytes),
+            }
+        ],
+      });
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode >= 400) {
+        throw GeminiException(body['error']?.toString() ?? 'Backend AI error');
+      }
+      final text = body['answer']?.toString().trim();
+      if (text == null || text.isEmpty) {
         return 'No response received. Please try rephrasing your question.';
       }
-      return text.trim();
-    } on GenerativeAIException catch (e) {
-      throw GeminiException('Gemini API error: ${e.message}');
+      return text;
+    } on AuthRequiredException catch (e) {
+      throw GeminiException(e.message);
+    } on GeminiException {
+      rethrow;
     } catch (e) {
       throw GeminiException('Unexpected error: $e');
     }
@@ -139,43 +102,20 @@ RULES:
     String userMessage, {
     List<GeminiAttachment> attachments = const [],
   }) async* {
-    final prefs = await SharedPreferences.getInstance();
-    final customKey = prefs.getString('custom_gemini_api_key');
-    final activeKey = (customKey != null && customKey.isNotEmpty) ? customKey : AppConfig.geminiApiKey;
-
-    if (activeKey.isEmpty || activeKey == 'YOUR_GEMINI_API_KEY_HERE') {
-      throw GeminiException(
-        'Gemini API key not configured. '
-        'Enter a valid key in Settings or AppConfig.',
-      );
-    }
-    await _ensureInitialized();
-
-    try {
-      final stream =
-          _chat!.sendMessageStream(_buildUserContent(userMessage, attachments));
-      await for (final chunk in stream) {
-        final text = chunk.text;
-        if (text != null && text.isNotEmpty) yield text;
+    final text = await sendMessage(userMessage, attachments: attachments);
+    final parts = RegExp(r'\S+\s*').allMatches(text).map((m) => m.group(0)!);
+    final buffer = StringBuffer();
+    var count = 0;
+    for (final part in parts) {
+      buffer.write(part);
+      count++;
+      if (count >= 10) {
+        yield buffer.toString();
+        buffer.clear();
+        count = 0;
       }
-    } on GenerativeAIException catch (e) {
-      throw GeminiException('Gemini API error: ${e.message}');
-    } catch (e) {
-      throw GeminiException('Unexpected error: $e');
     }
-  }
-
-  Content _buildUserContent(
-    String userMessage,
-    List<GeminiAttachment> attachments,
-  ) {
-    if (attachments.isEmpty) return Content.text(userMessage);
-
-    return Content.multi([
-      TextPart(userMessage),
-      for (final attachment in attachments)
-        DataPart(attachment.mimeType, attachment.bytes),
-    ]);
+    if (buffer.isNotEmpty) yield buffer.toString();
   }
 }
 

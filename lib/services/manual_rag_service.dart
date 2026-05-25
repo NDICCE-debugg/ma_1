@@ -23,8 +23,8 @@ class ManualRagService {
   ManualRagService._init();
 
   static const int _maxSnippets = 5;
-  static const int _maxPdfAttachments = 2;
-  static const int _maxInlinePdfBytes = 8 * 1024 * 1024;
+  static const int _maxPdfAttachments = 0;
+  static const int _maxInlinePdfBytes = 0;
 
   Future<ManualRagContext> buildContext(String query) async {
     final rows = await DatabaseHelper.instance.getManualEntries();
@@ -43,9 +43,15 @@ class ManualRagService {
         .toList()
       ..sort((a, b) => b.score.compareTo(a.score));
 
-    final selected = ranked.isEmpty
-        ? manuals.take(3).map((manual) => _RankedManual(manual, 1)).toList()
-        : ranked.take(6).toList();
+    if (ranked.isEmpty) {
+      return const ManualRagContext(
+        promptBlock: '',
+        attachments: [],
+        sourceTitles: [],
+      );
+    }
+
+    final selected = ranked.take(4).toList();
 
     final snippets = <String>[];
     final sourceTitles = <String>[];
@@ -177,4 +183,3 @@ class _RankedChunk {
 
   const _RankedChunk(this.text, this.score);
 }
-
