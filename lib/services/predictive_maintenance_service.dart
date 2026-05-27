@@ -1,13 +1,42 @@
 import 'dart:math' as math;
+import 'dart:convert';
 import 'package:ma_1/models/hospital_asset.dart';
 import 'package:ma_1/models/spare_part.dart';
 import 'package:ma_1/services/database_helper.dart';
 import 'package:ma_1/services/gemini_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class PredictiveMaintenanceService {
   static final PredictiveMaintenanceService instance =
       PredictiveMaintenanceService._init();
   PredictiveMaintenanceService._init();
+
+  static const String _telemetryPrefix = 'pulse_asset_telemetry_v1_';
+
+  Future<void> saveTelemetry(
+    HospitalAsset asset,
+    Map<String, num> telemetry,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      '$_telemetryPrefix${asset.serialNumber}',
+      jsonEncode({
+        ...telemetry,
+        'updated_at': DateTime.now().toIso8601String(),
+      }),
+    );
+  }
+
+  Future<Map<String, dynamic>?> getStoredTelemetry(HospitalAsset asset) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('$_telemetryPrefix${asset.serialNumber}');
+    if (raw == null || raw.trim().isEmpty) return null;
+    try {
+      return Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Calculates dynamic health scores, simulated telemetry, and wear metrics for an asset.
   Future<Map<String, dynamic>> getPrognostics(HospitalAsset asset) async {
@@ -27,17 +56,31 @@ class PredictiveMaintenanceService {
     double wearPct = 0.0;
     String warningMessage = 'All sensor telemetry stable.';
 
+    final storedTelemetry = await getStoredTelemetry(asset);
+    final hasStoredTelemetry = storedTelemetry != null;
+
     if (isVent) {
-      // Simulate real ICU Ventilator telemetry
-      final int turbineHours = (hash % 15000) + 3000;
-      final double o2Drift = (hash % 30) / 10.0;
-      final double pressureVar = (hash % 20) / 10.0;
-      final int batteryCycles = (hash % 350) + 60;
+      final int turbineHours = hasStoredTelemetry
+          ? (storedTelemetry['turbineHours'] as num?)?.toInt() ?? 0
+          : (hash % 15000) + 3000;
+      final double o2Drift = hasStoredTelemetry
+          ? (storedTelemetry['o2Drift'] as num?)?.toDouble() ?? 0.0
+          : (hash % 30) / 10.0;
+      final double pressureVar = hasStoredTelemetry
+          ? (storedTelemetry['pressureVar'] as num?)?.toDouble() ?? 0.0
+          : (hash % 20) / 10.0;
+      final int batteryCycles = hasStoredTelemetry
+          ? (storedTelemetry['batteryCycles'] as num?)?.toInt() ?? 0
+          : (hash % 350) + 60;
 
       telemetry['turbineHours'] = turbineHours;
       telemetry['o2Drift'] = o2Drift;
       telemetry['pressureVar'] = pressureVar;
       telemetry['batteryCycles'] = batteryCycles;
+      telemetry['source'] = hasStoredTelemetry ? 'entered' : 'simulated';
+      if (hasStoredTelemetry) {
+        telemetry['updatedAt'] = storedTelemetry['updated_at'];
+      }
 
       // Wear percentage logic
       final double turbineWear = (turbineHours / 18000) * 100;
@@ -52,14 +95,23 @@ class PredictiveMaintenanceService {
             'Oxygen sensor calibration drift is elevated (+$o2Drift mV).';
       }
     } else {
-      // Simulate Operating Theatre Anesthetic Workstation telemetry
-      final double gasDrift = (hash % 25) / 10.0;
-      final double sodalimeSat = (hash % 80) + 12.0;
-      final int compHours = (hash % 16000) + 2000;
+      final double gasDrift = hasStoredTelemetry
+          ? (storedTelemetry['gasDrift'] as num?)?.toDouble() ?? 0.0
+          : (hash % 25) / 10.0;
+      final double sodalimeSat = hasStoredTelemetry
+          ? (storedTelemetry['sodalimeSat'] as num?)?.toDouble() ?? 0.0
+          : (hash % 80) + 12.0;
+      final int compHours = hasStoredTelemetry
+          ? (storedTelemetry['compHours'] as num?)?.toInt() ?? 0
+          : (hash % 16000) + 2000;
 
       telemetry['gasDrift'] = gasDrift;
       telemetry['sodalimeSat'] = sodalimeSat;
       telemetry['compHours'] = compHours;
+      telemetry['source'] = hasStoredTelemetry ? 'entered' : 'simulated';
+      if (hasStoredTelemetry) {
+        telemetry['updatedAt'] = storedTelemetry['updated_at'];
+      }
 
       final double compWear = (compHours / 20000) * 100;
       final double sodaWear = sodalimeSat;
@@ -148,10 +200,13 @@ class PredictiveMaintenanceService {
     List<SparePart> compatibleParts,
   ) async* {
     final HospitalAsset asset = prog['asset'] as HospitalAsset;
-    final double healthScore = (prog['healthScore'] as num?)?.toDouble() ?? 100.0;
+    final double healthScore =
+        (prog['healthScore'] as num?)?.toDouble() ?? 100.0;
     final String riskLevel = prog['riskLevel']?.toString() ?? 'LOW';
-    final String warningMessage = prog['warningMessage']?.toString() ?? 'All telemetry stable';
-    final int remainingLifeDays = (prog['remainingLifeDays'] as num?)?.toInt() ?? 365;
+    final String warningMessage =
+        prog['warningMessage']?.toString() ?? 'All telemetry stable';
+    final int remainingLifeDays =
+        (prog['remainingLifeDays'] as num?)?.toInt() ?? 365;
     final Map<dynamic, dynamic> telemetry = prog['telemetry'] as Map? ?? {};
 
     final bool isVent = asset.assetType == 'ventilator';
@@ -211,8 +266,9 @@ Please generate a professional, structured Biomedical Engineering Prognostic Rep
       yield '> [!WARNING]\n'
           '> **Gemini API Rate Limit Reached (429 Quota Exhausted)**\n'
           '> Seamlessly switched to the **Local Rules-Based Clinical Prognostics Engine** to compile report offline.\n\n';
-      
-      final offlineReport = _generateLocalDiagnosticReport(prog, compatibleParts);
+
+      final offlineReport =
+          _generateLocalDiagnosticReport(prog, compatibleParts);
       final words = offlineReport.split(' ');
       String buffer = '';
       for (int i = 0; i < words.length; i++) {
@@ -234,88 +290,122 @@ Please generate a professional, structured Biomedical Engineering Prognostic Rep
     List<SparePart> compatibleParts,
   ) {
     final HospitalAsset asset = prog['asset'] as HospitalAsset;
-    final double healthScore = (prog['healthScore'] as num?)?.toDouble() ?? 100.0;
+    final double healthScore =
+        (prog['healthScore'] as num?)?.toDouble() ?? 100.0;
     final String riskLevel = prog['riskLevel']?.toString() ?? 'LOW';
-    final String warningMessage = prog['warningMessage']?.toString() ?? 'All telemetry stable';
-    final int remainingLifeDays = (prog['remainingLifeDays'] as num?)?.toInt() ?? 365;
+    final String warningMessage =
+        prog['warningMessage']?.toString() ?? 'All telemetry stable';
+    final int remainingLifeDays =
+        (prog['remainingLifeDays'] as num?)?.toInt() ?? 365;
     final Map<dynamic, dynamic> telemetry = prog['telemetry'] as Map? ?? {};
     final bool isVent = asset.assetType == 'ventilator';
 
     final buffer = StringBuffer();
     buffer.writeln('# Biomedical Engineering Prognostic Report');
-    buffer.writeln('**Generated Offline by Clinical Rules Engine** • Telemetry verified');
+    buffer.writeln(
+        '**Generated Offline by Clinical Rules Engine** • Telemetry verified');
     buffer.writeln('\n---');
     buffer.writeln('**System Warning Flags**: *$warningMessage*');
     buffer.writeln('\n---');
-    
+
     buffer.writeln('\n## 1. Audited Risk Analysis');
     if (isVent) {
       final turbineHours = telemetry['turbineHours'] ?? 0;
       final o2Drift = telemetry['o2Drift'] ?? 0.0;
-      buffer.writeln('A comprehensive audit of the ventilator system indicates a **$riskLevel** operational risk level (overall health score: **${healthScore.toStringAsFixed(1)}%**).');
+      buffer.writeln(
+          'A comprehensive audit of the ventilator system indicates a **$riskLevel** operational risk level (overall health score: **${healthScore.toStringAsFixed(1)}%**).');
       buffer.writeln('\nKey Telemetry Concerns Identified:');
       if (turbineHours > 12000) {
-        buffer.writeln('- **Turbine Wear**: Expiratory air turbine hours are currently at **$turbineHours hrs**, exceeding the optimal 12,000 hrs threshold. Failure to perform preventative overhaul may cause exsufflation pressure drops during mechanical ventilation.');
+        buffer.writeln(
+            '- **Turbine Wear**: Expiratory air turbine hours are currently at **$turbineHours hrs**, exceeding the optimal 12,000 hrs threshold. Failure to perform preventative overhaul may cause exsufflation pressure drops during mechanical ventilation.');
       } else {
-        buffer.writeln('- **Turbine Wear**: Turbine hours ($turbineHours hrs) are within tolerable bounds. Baseline vibration signature remains stable.');
+        buffer.writeln(
+            '- **Turbine Wear**: Turbine hours ($turbineHours hrs) are within tolerable bounds. Baseline vibration signature remains stable.');
       }
       if (o2Drift > 2.0) {
-        buffer.writeln('- **O2 Sensor Drift**: Calibration offset is currently at **+$o2Drift mV**, indicating electrochemical drift of the oxygen sensor galvanic cell. Failure risks hypoxic/hyperoxic gas mixture delivery to patients.');
+        buffer.writeln(
+            '- **O2 Sensor Drift**: Calibration offset is currently at **+$o2Drift mV**, indicating electrochemical drift of the oxygen sensor galvanic cell. Failure risks hypoxic/hyperoxic gas mixture delivery to patients.');
       } else {
-        buffer.writeln('- **O2 Sensor**: Output voltage ($o2Drift mV) is standard.');
+        buffer.writeln(
+            '- **O2 Sensor**: Output voltage ($o2Drift mV) is standard.');
       }
-      buffer.writeln('\n**Prognosis**: Projected remaining lifetime is approximately **$remainingLifeDays days**. Clinical intervention is recommended before active critical care redeployment.');
+      buffer.writeln(
+          '\n**Prognosis**: Projected remaining lifetime is approximately **$remainingLifeDays days**. Clinical intervention is recommended before active critical care redeployment.');
     } else {
       final sodalimeSat = telemetry['sodalimeSat'] ?? 0.0;
       final gasDrift = telemetry['gasDrift'] ?? 0.0;
-      buffer.writeln('A detailed risk analysis of the anesthetic machine indicates a **$riskLevel** operational threat level (current health score: **${healthScore.toStringAsFixed(1)}%**).');
+      buffer.writeln(
+          'A detailed risk analysis of the anesthetic machine indicates a **$riskLevel** operational threat level (current health score: **${healthScore.toStringAsFixed(1)}%**).');
       buffer.writeln('\nKey Telemetry Concerns Identified:');
       if (sodalimeSat > 60.0) {
-        buffer.writeln('- **Canister Saturation**: Sodalime carbon dioxide absorbent is currently **$sodalimeSat% saturated**. Hypercapnic patient rebreathing is imminent once saturation exceeds 75% due to lack of sodium hydroxide capture capacity.');
+        buffer.writeln(
+            '- **Canister Saturation**: Sodalime carbon dioxide absorbent is currently **$sodalimeSat% saturated**. Hypercapnic patient rebreathing is imminent once saturation exceeds 75% due to lack of sodium hydroxide capture capacity.');
       } else {
-        buffer.writeln('- **Canister Saturation**: Canister holds adequate capacity ($sodalimeSat% saturated). Color indicator remains within normal guidelines.');
+        buffer.writeln(
+            '- **Canister Saturation**: Canister holds adequate capacity ($sodalimeSat% saturated). Color indicator remains within normal guidelines.');
       }
       if (gasDrift > 1.8) {
-        buffer.writeln('- **Vaporizer Output**: Vaporizer delivery concentration calibration offset has drifted by **+$gasDrift%**, indicating thermal or barometric compensation drift. Risks unexpected light or deep anesthesia events.');
+        buffer.writeln(
+            '- **Vaporizer Output**: Vaporizer delivery concentration calibration offset has drifted by **+$gasDrift%**, indicating thermal or barometric compensation drift. Risks unexpected light or deep anesthesia events.');
       } else {
-        buffer.writeln('- **Vaporizer Output**: Gas delivery parameters remain within acceptable limits.');
+        buffer.writeln(
+            '- **Vaporizer Output**: Gas delivery parameters remain within acceptable limits.');
       }
-      buffer.writeln('\n**Prognosis**: The prognosticated failure horizon is **$remainingLifeDays days**. Recommend scheduling canister exchange and circuit recalibration.');
+      buffer.writeln(
+          '\n**Prognosis**: The prognosticated failure horizon is **$remainingLifeDays days**. Recommend scheduling canister exchange and circuit recalibration.');
     }
 
     buffer.writeln('\n## 2. Proactive Mitigation Guidelines');
     if (isVent) {
-      buffer.writeln('To address the identified telemetry warnings, execute the following technical protocol:');
-      buffer.writeln('1. **Galvanic Cell Recalibration**: Flush the oxygen sensor with 100% O2 for 2 minutes, then perform a two-point calibration check (21% room air, 100% pure oxygen). If drift is persistent, replace the O2 cell.');
-      buffer.writeln('2. **Turbine Overhaul**: Inspect exhalation port valves, clear silicone seals, and verify exsufflation flow-sensor integrity. Lubricate compressor fan bearings to reduce thermal load.');
-      buffer.writeln('3. **Software Reset**: Perform a full self-test sequence (leak test, compliance correction, patient circuit compliance audit).');
+      buffer.writeln(
+          'To address the identified telemetry warnings, execute the following technical protocol:');
+      buffer.writeln(
+          '1. **Galvanic Cell Recalibration**: Flush the oxygen sensor with 100% O2 for 2 minutes, then perform a two-point calibration check (21% room air, 100% pure oxygen). If drift is persistent, replace the O2 cell.');
+      buffer.writeln(
+          '2. **Turbine Overhaul**: Inspect exhalation port valves, clear silicone seals, and verify exsufflation flow-sensor integrity. Lubricate compressor fan bearings to reduce thermal load.');
+      buffer.writeln(
+          '3. **Software Reset**: Perform a full self-test sequence (leak test, compliance correction, patient circuit compliance audit).');
     } else {
-      buffer.writeln('To maintain clinical standard delivery of anesthetic gases, execute these steps immediately:');
-      buffer.writeln('1. **Absorbent Replacement**: Disengage the CO2 absorber canister, replace sodalime granules with fresh pink-to-white color indicators, and reseal block. Perform standard circuit leak audit.');
-      buffer.writeln('2. **Vaporizer Calibration**: Mount the vaporizer on a Selectatec bar, perform high-pressure test, verify exclusion locking system, and verify pressure relief valve sealing.');
-      buffer.writeln('3. **Patient Circuit Check**: Verify integrity of bellows dome, y-piece patient connector, and exhaust scavenging tubes.');
+      buffer.writeln(
+          'To maintain clinical standard delivery of anesthetic gases, execute these steps immediately:');
+      buffer.writeln(
+          '1. **Absorbent Replacement**: Disengage the CO2 absorber canister, replace sodalime granules with fresh pink-to-white color indicators, and reseal block. Perform standard circuit leak audit.');
+      buffer.writeln(
+          '2. **Vaporizer Calibration**: Mount the vaporizer on a Selectatec bar, perform high-pressure test, verify exclusion locking system, and verify pressure relief valve sealing.');
+      buffer.writeln(
+          '3. **Patient Circuit Check**: Verify integrity of bellows dome, y-piece patient connector, and exhaust scavenging tubes.');
     }
 
     buffer.writeln('\n## 3. Spare Parts Recommendation');
     if (compatibleParts.isEmpty) {
-      buffer.writeln('⚠️ **Warning**: No compatible spare parts are currently logged in the off-line SQLite database. Please dispatch a requisition ticket to clinical procurement immediately.');
+      buffer.writeln(
+          '⚠️ **Warning**: No compatible spare parts are currently logged in the off-line SQLite database. Please dispatch a requisition ticket to clinical procurement immediately.');
     } else {
-      buffer.writeln('The following compatible parts have been located in the hospital database:');
+      buffer.writeln(
+          'The following compatible parts have been located in the hospital database:');
       for (final p in compatibleParts) {
-        final alert = p.quantity <= p.reorderThreshold ? '⚠️ LOW STOCK ALERT' : '✅ AVAILABLE';
+        final alert = p.quantity <= p.reorderThreshold
+            ? '⚠️ LOW STOCK ALERT'
+            : '✅ AVAILABLE';
         buffer.writeln('- **${p.name}** ($alert):');
-        buffer.writeln('  - In-stock quantity: **${p.quantity} ${p.unit}** (Reorder limit: ${p.reorderThreshold})');
+        buffer.writeln(
+            '  - In-stock quantity: **${p.quantity} ${p.unit}** (Reorder limit: ${p.reorderThreshold})');
         buffer.writeln('  - Storage Location: **${p.location}**');
       }
     }
 
     buffer.writeln('\n## 4. Safety & Verification Protocols');
-    buffer.writeln('Before the asset is cleared for clinical redeployment in Zimbabwean hospitals (per clinical equipment safety policy):');
-    buffer.writeln('1. **Electrical Safety Inspection**: Conduct high-resistance ground-wire chassis test (leakage current must remain <100µA).');
-    buffer.writeln('2. **Pressure and Leak Verification**: Execute automated high-pressure and low-pressure leak checks. Circuit pressure leakage must not exceed **15 cmH2O/min** at 30 cmH2O static inflation.');
-    buffer.writeln('3. **Alarms and Interlocks**: Verify acoustic and visual alarm dispatch for: *Power Failure*, *Apnea*, *High Pressure*, *O2 Concentration Deviation*, and *Patient Circuit Disconnect*.');
-    buffer.writeln('4. **Battery Autonomy**: Confirm backup battery charge/discharge cycles. Unit must supply at least **45 minutes** of absolute battery autonomy under typical clinical ventilation parameters.');
-    
+    buffer.writeln(
+        'Before the asset is cleared for clinical redeployment in Zimbabwean hospitals (per clinical equipment safety policy):');
+    buffer.writeln(
+        '1. **Electrical Safety Inspection**: Conduct high-resistance ground-wire chassis test (leakage current must remain <100µA).');
+    buffer.writeln(
+        '2. **Pressure and Leak Verification**: Execute automated high-pressure and low-pressure leak checks. Circuit pressure leakage must not exceed **15 cmH2O/min** at 30 cmH2O static inflation.');
+    buffer.writeln(
+        '3. **Alarms and Interlocks**: Verify acoustic and visual alarm dispatch for: *Power Failure*, *Apnea*, *High Pressure*, *O2 Concentration Deviation*, and *Patient Circuit Disconnect*.');
+    buffer.writeln(
+        '4. **Battery Autonomy**: Confirm backup battery charge/discharge cycles. Unit must supply at least **45 minutes** of absolute battery autonomy under typical clinical ventilation parameters.');
+
     return buffer.toString();
   }
 }

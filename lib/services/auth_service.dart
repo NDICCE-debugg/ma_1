@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService {
   static final AuthService instance = AuthService._init();
+  static const String googleOAuthRedirectUrl =
+      'pulseauth://login-callback/';
+
   final _client = Supabase.instance.client;
   User? _mockUser;
 
@@ -168,67 +170,49 @@ class AuthService {
     }
   }
 
-  Future<User?> signInWithGoogle() async {
+  Future<Map<String, dynamic>> signInWithGoogle() async {
     try {
-      if (kIsWeb) {
-        // On Web, use standard Supabase OAuth redirect. This is extremely robust,
-        // official, and avoids the Google identity services 'idToken' deprecation trap.
-        await _client.auth.signInWithOAuth(
-          OAuthProvider.google,
-          redirectTo: Uri.base.origin,
-        );
-        return _client.auth.currentUser;
-      }
-
-      // 🔑 CONFIGURE YOUR WEB/SERVER CLIENT ID HERE (Native Platforms):
-      const String webClientId =
-          '287297883810-9ke9cqk0oena9s7ol062in2eijrjfco4.apps.googleusercontent.com';
-
-      // 1. Trigger the native system sign-in popup
-      final GoogleSignInAccount? googleUser = await GoogleSignIn(
-        clientId: webClientId,
-        serverClientId: webClientId,
-      ).signIn();
-
-      if (googleUser == null) return null;
-
-      // 2. Fetch the Google authentication credentials
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-      final String? idToken = googleAuth.idToken;
-      final String? accessToken = googleAuth.accessToken;
-
-      if (idToken == null) {
-        throw 'No Google ID Token was retrieved.';
-      }
-
-      // 3. Exchange the Google token directly for a Supabase session
-      final AuthResponse response = await _client.auth.signInWithIdToken(
-        provider: OAuthProvider.google,
-        idToken: idToken,
-        accessToken: accessToken,
+      final opened = await _client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: kIsWeb ? Uri.base.origin : googleOAuthRedirectUrl,
+        scopes: 'email profile',
       );
 
-      // 4. Synchronize details into the users profile index
-      if (response.user != null) {
-        try {
-          await _client.from('users').upsert({
-            'id': response.user!.id,
-            'name': googleUser.displayName ?? 'Google User',
-            'email': googleUser.email,
-            'reg_number':
-                'GOOG-${response.user!.id.substring(0, 5).toUpperCase()}',
-            'role': 'technician',
-            'online': true,
-          });
-        } catch (_) {}
+      if (!opened) {
+        return {
+          'success': false,
+          'pending': false,
+          'message': 'Could not open Google sign-in on this device.',
+        };
       }
 
-      return response.user;
+      return {
+        'success': false,
+        'pending': true,
+        'message': 'Complete Google sign-in in the browser.',
+      };
     } catch (e) {
       debugPrint("Supabase Google Auth Exception: $e");
-      return null;
+      return {
+        'success': false,
+        'pending': false,
+        'message': 'Google sign-in failed. Check the provider configuration.',
+      };
     }
+  }
+
+  Future<void> syncCurrentUserProfile() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+
+    final metadata = user.userMetadata ?? {};
+    await _syncUserProfile(
+      user,
+      name: metadata['full_name'] ?? metadata['name'] ?? metadata['user_name'],
+      email: user.email ?? metadata['email'],
+      regNumber: metadata['reg_number'] ??
+          'GOOG-${user.id.substring(0, 5).toUpperCase()}',
+    );
   }
 
   Future<void> signOut() async {

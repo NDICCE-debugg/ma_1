@@ -29,7 +29,7 @@ void main() async {
       anonKey: SupabaseConfig.anonKey,
       authOptions: const FlutterAuthClientOptions(
         authFlowType: AuthFlowType.pkce,
-        detectSessionInUri: false,
+        detectSessionInUri: !kIsWeb,
       ),
     );
     if (shouldExchangeAuthCallback) {

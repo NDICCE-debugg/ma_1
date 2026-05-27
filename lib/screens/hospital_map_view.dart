@@ -582,7 +582,7 @@ class EquipmentEntryFormState extends State<EquipmentEntryForm> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: (isDark ? AppTheme.ring : AppTheme.primary).withOpacity(0.08),
+                      color: (isDark ? AppTheme.ring : AppTheme.primary).withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
@@ -650,7 +650,7 @@ class EquipmentEntryFormState extends State<EquipmentEntryForm> {
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.015),
+                            color: Colors.black.withValues(alpha: 0.015),
                             blurRadius: 10,
                           )
                         ],
@@ -663,7 +663,7 @@ class EquipmentEntryFormState extends State<EquipmentEntryForm> {
                                 Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: (isDark ? AppTheme.ring : AppTheme.primary).withOpacity(0.05),
+                                    color: (isDark ? AppTheme.ring : AppTheme.primary).withValues(alpha: 0.05),
                                     shape: BoxShape.circle,
                                   ),
                                   child: Icon(
@@ -712,7 +712,7 @@ class EquipmentEntryFormState extends State<EquipmentEntryForm> {
                                   right: 12,
                                   child: Container(
                                     decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(0.65),
+                                      color: Colors.black.withValues(alpha: 0.65),
                                       shape: BoxShape.circle,
                                     ),
                                     child: IconButton(
@@ -735,7 +735,7 @@ class EquipmentEntryFormState extends State<EquipmentEntryForm> {
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                     decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(0.65),
+                                      color: Colors.black.withValues(alpha: 0.65),
                                       borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: Row(
@@ -1013,7 +1013,7 @@ class EquipmentEntryFormState extends State<EquipmentEntryForm> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF111F23).withOpacity(0.3) : const Color(0xFFF8FAFC),
+        color: isDark ? const Color(0xFF111F23).withValues(alpha: 0.3) : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isDark ? const Color(0xFF24353A) : AppTheme.divider,
@@ -1094,7 +1094,7 @@ class EquipmentEntryFormState extends State<EquipmentEntryForm> {
           prefixIcon: prefixIcon != null
               ? Icon(
                   prefixIcon,
-                  color: isDark ? AppTheme.ring.withOpacity(0.8) : AppTheme.primary.withOpacity(0.7),
+                  color: isDark ? AppTheme.ring.withValues(alpha: 0.8) : AppTheme.primary.withValues(alpha: 0.7),
                   size: 18,
                 )
               : null,
@@ -1144,7 +1144,7 @@ class EquipmentEntryFormState extends State<EquipmentEntryForm> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: DropdownButtonFormField<T>(
-        value: value,
+        initialValue: value,
         items: items,
         onChanged: onChanged,
         style: TextStyle(
@@ -1172,7 +1172,7 @@ class EquipmentEntryFormState extends State<EquipmentEntryForm> {
           prefixIcon: prefixIcon != null
               ? Icon(
                   prefixIcon,
-                  color: isDark ? AppTheme.ring.withOpacity(0.8) : AppTheme.primary.withOpacity(0.7),
+                  color: isDark ? AppTheme.ring.withValues(alpha: 0.8) : AppTheme.primary.withValues(alpha: 0.7),
                   size: 18,
                 )
               : null,

@@ -1293,28 +1293,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
           const SizedBox(width: 8),
           if (MediaQuery.of(context).size.width > 560) _buildModeSelector(),
           const SizedBox(width: 10),
-          // Model label
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppTheme.primary.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(20),
-              border:
-                  Border.all(color: AppTheme.primary.withValues(alpha: 0.15)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.auto_awesome, color: AppTheme.primary, size: 12),
-                SizedBox(width: 5),
-                Text('Gemini 2.5 Flash',
-                    style: TextStyle(
-                        color: AppTheme.primary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'Outfit')),
-              ],
-            ),
-          ),
+          const PulseLogo(size: 32, borderRadius: 9),
           const SizedBox(width: 10),
           // Clear button
           if (_messages.isNotEmpty)
@@ -1403,12 +1382,12 @@ class _AIAssistantViewState extends State<AIAssistantView> {
         Center(
           child: Column(
             children: [
-              const Icon(Icons.auto_awesome, color: AppTheme.primary, size: 56)
+              const PulseLogo(size: 64, borderRadius: 18)
                   .animate(onPlay: (c) => c.repeat(reverse: true))
                   .shimmer(duration: 2000.ms)
                   .scale(
-                      begin: const Offset(0.9, 0.9),
-                      end: const Offset(1.1, 1.1),
+                      begin: const Offset(0.94, 0.94),
+                      end: const Offset(1.04, 1.04),
                       duration: 1500.ms),
               const SizedBox(height: 20),
               Text(

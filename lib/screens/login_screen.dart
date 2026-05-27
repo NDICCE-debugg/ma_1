@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:ma_1/theme/app_theme.dart';
@@ -5,6 +7,7 @@ import 'package:ma_1/services/auth_service.dart';
 import 'package:ma_1/screens/home_screen.dart';
 import 'package:ma_1/screens/registration_screen.dart';
 import 'package:ma_1/widgets/pulse_logo.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,10 +21,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isLoading = false;
   bool _isPasswordVisible = false;
+  StreamSubscription<AuthState>? _authSubscription;
 
   @override
   void initState() {
     super.initState();
+    _authSubscription =
+        Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
+      if (data.session != null && mounted) {
+        await AuthService.instance.syncCurrentUserProfile();
+        _goHome();
+      }
+    });
     _checkActiveSession();
   }
 
@@ -29,6 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _email.dispose();
     _pass.dispose();
+    _authSubscription?.cancel();
     super.dispose();
   }
 
@@ -37,9 +49,13 @@ class _LoginScreenState extends State<LoginScreen> {
     await Future.delayed(const Duration(milliseconds: 100));
     final hasValidSession = await AuthService.instance.checkSession();
     if (hasValidSession && mounted) {
-      Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+      _goHome();
     }
+  }
+
+  void _goHome() {
+    Navigator.pushReplacement(
+        context, MaterialPageRoute(builder: (_) => const HomeScreen()));
   }
 
   void _handleLogin() async {
@@ -66,8 +82,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (res['success'] == true) {
         if (!mounted) return;
-        Navigator.pushReplacement(
-            context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+        _goHome();
       } else {
         if (!mounted) return;
         setState(() => _isLoading = false);
@@ -84,14 +99,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _handleGoogleSignIn() async {
     setState(() => _isLoading = true);
-    final user = await AuthService.instance.signInWithGoogle();
+    final res = await AuthService.instance.signInWithGoogle();
     if (!mounted) return;
     setState(() => _isLoading = false);
-    if (user != null && mounted) {
-      Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+    if (res['pending'] == true) {
+      _showStatusMessage(
+          res['message'] ?? 'Complete Google sign-in in the browser.',
+          AppTheme.primary);
+    } else if (res['success'] == true) {
+      _goHome();
     } else {
-      _showStatusMessage("Google sign-in was not completed", AppTheme.error);
+      _showStatusMessage(
+          res['message'] ?? "Google sign-in was not completed",
+          AppTheme.error);
     }
   }
 

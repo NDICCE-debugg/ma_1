@@ -147,6 +147,7 @@ class _ChatScreenState extends State<ChatScreen> {
       'message_type': 'text',
       'timestamp': DateTime.now().toUtc().toIso8601String(),
       'delivery_state': 'sending',
+      'recipient_name': widget.contactName,
     };
 
     _msgCtrl.clear();
@@ -248,6 +249,23 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _normalizedPhone(String? value) {
     final phone = value?.replaceAll(RegExp(r'[^\d+]'), '').trim() ?? '';
     return phone.isEmpty ? null : phone;
+  }
+
+  Future<void> _launchWhatsAppChat(String phoneNumber) async {
+    final cleanPhone = phoneNumber.replaceAll(RegExp(r'[^\d+]'), '').trim();
+    if (cleanPhone.isEmpty) {
+      _showCallMessage('Invalid phone number for WhatsApp.');
+      return;
+    }
+    
+    final digitsOnly = cleanPhone.replaceAll('+', '');
+    final Uri waUri = Uri.parse("https://wa.me/$digitsOnly");
+    try {
+      await launchUrl(waUri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      debugPrint("Could not launch WhatsApp: $e");
+      _showCallMessage('Could not open WhatsApp on this device.');
+    }
   }
 
   void _showCallMessage(String message) {
@@ -454,6 +472,13 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
         actions: [
+          if (widget.phoneNumber != null && widget.phoneNumber!.isNotEmpty) ...[
+            IconButton(
+                tooltip: "WhatsApp Chat",
+                icon: const Icon(Icons.chat_bubble_rounded, color: Color(0xFF25D366)),
+                onPressed: () => _launchWhatsAppChat(widget.phoneNumber!)),
+            const SizedBox(width: 4),
+          ],
           IconButton(
               icon: const Icon(Icons.call_rounded, color: AppTheme.primary),
               onPressed: _placePhoneCall),

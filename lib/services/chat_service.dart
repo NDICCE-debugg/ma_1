@@ -28,190 +28,21 @@ class ChatService {
   RealtimeChannel? _typingChannel;
   RealtimeChannel? _presenceChannel;
 
-  // Local simulated messages storage
-  final Map<String, List<Map<String, dynamic>>> _localSimulatedMessages = {};
-  bool _isLocalCacheLoaded = false;
-
   // Dynamic Call Logs & Meetings storage
   final List<Map<String, dynamic>> _localCallLogs = [];
   final List<Map<String, dynamic>> _localMeetings = [];
   bool _isCommsLoaded = false;
 
+  final List<Map<String, dynamic>> _localCallNotes = [];
+  bool _isCallNotesLoaded = false;
+
   ChatService._init();
 
-  List<Map<String, dynamic>> get fallbackContacts => [
-        {
-          'id': 'dr-chipo-moyo',
-          'name': 'Dr. Chipo Moyo',
-          'reg_number': 'CONSULT-ICU',
-          'phone': '+263772123456',
-          'online': true,
-          'last_seen': DateTime.now().toUtc().toIso8601String(),
-          'role': 'ICU Consultant',
-        },
-        {
-          'id': 'farai-gumbo',
-          'name': 'Farai Gumbo',
-          'reg_number': 'TECH-VENT',
-          'phone': '+263773456789',
-          'online': true,
-          'last_seen': DateTime.now().toUtc().toIso8601String(),
-          'role': 'Ventilator Technician',
-        },
-        {
-          'id': 'tendai-chidi',
-          'name': 'Tendai Chidi',
-          'reg_number': 'PLANT-OXY',
-          'phone': '+263774567890',
-          'online': true,
-          'last_seen': DateTime.now().toUtc().toIso8601String(),
-          'role': 'Medical Gas Technician',
-        },
-        {
-          'id': 'dr-sekai-nzenza',
-          'name': 'Dr. Sekai Nzenza',
-          'reg_number': 'CMO-ADMIN',
-          'phone': '+263771987654',
-          'online': true,
-          'last_seen': DateTime.now().toUtc().toIso8601String(),
-          'role': 'Chief Medical Officer',
-        },
-        {
-          'id': 'rufaro-moyo',
-          'name': 'Rufaro Moyo',
-          'reg_number': 'BIOMED-HEAD',
-          'phone': '+263782345678',
-          'online': true,
-          'last_seen': DateTime.now().toUtc().toIso8601String(),
-          'role': 'Biomedical Department Head',
-        },
-        {
-          'id': 'kudakwashe-hove',
-          'name': 'Kudakwashe Hove',
-          'reg_number': 'LAB-SPECIAL',
-          'phone': '+263715678901',
-          'online': true,
-          'last_seen': DateTime.now().toUtc().toIso8601String(),
-          'role': 'Senior Laboratory Specialist',
-        },
-      ];
+  List<Map<String, dynamic>> get fallbackContacts => [];
 
-  List<Map<String, dynamic>> get fallbackConversations => [
-        {
-          'id': 'dr-chipo-moyo',
-          'name': 'Dr. Chipo Moyo',
-          'last_message':
-              "Urgent: ICU Aeonmed VG70 has a constant Low O2 Pressure fault alarm.",
-          'last_message_time': DateTime.now()
-              .subtract(const Duration(minutes: 11))
-              .toUtc()
-              .toIso8601String(),
-          'unread': 2,
-          'online': true,
-          'role': 'ICU Consultant',
-          'phone': '+263772123456',
-        },
-        {
-          'id': 'farai-gumbo',
-          'name': 'Farai Gumbo',
-          'last_message':
-              "Evita V500 PEEP valve calibration test complete. Ready to redeploy.",
-          'last_message_time': DateTime.now()
-              .subtract(const Duration(hours: 3))
-              .toUtc()
-              .toIso8601String(),
-          'unread': 0,
-          'online': true,
-          'role': 'Ventilator Technician',
-          'phone': '+263773456789',
-        },
-        {
-          'id': 'tendai-chidi',
-          'name': 'Tendai Chidi',
-          'last_message':
-              "Central oxygen plant manifold pressure is dropping below 4.2 bar.",
-          'last_message_time': DateTime.now()
-              .subtract(const Duration(hours: 5))
-              .toUtc()
-              .toIso8601String(),
-          'unread': 1,
-          'online': true,
-          'role': 'Medical Gas Technician',
-          'phone': '+263774567890',
-        },
-        {
-          'id': 'dr-sekai-nzenza',
-          'name': 'Dr. Sekai Nzenza',
-          'last_message':
-              "BMET Team, please prepare the technical audit report for the ICU fleet.",
-          'last_message_time': DateTime.now()
-              .subtract(const Duration(hours: 8))
-              .toUtc()
-              .toIso8601String(),
-          'unread': 0,
-          'online': true,
-          'role': 'Chief Medical Officer',
-          'phone': '+263771987654',
-        },
-        {
-          'id': 'rufaro-moyo',
-          'name': 'Rufaro Moyo',
-          'last_message':
-              "Regarding the spare parts inventory: do we have the turbine replacements?",
-          'last_message_time': DateTime.now()
-              .subtract(const Duration(hours: 12))
-              .toUtc()
-              .toIso8601String(),
-          'unread': 0,
-          'online': true,
-          'role': 'Biomedical Department Head',
-          'phone': '+263782345678',
-        },
-        {
-          'id': 'kudakwashe-hove',
-          'name': 'Kudakwashe Hove',
-          'last_message':
-              "The blood gas analyzer in ICU lab is drifting on pH calibration.",
-          'last_message_time': DateTime.now()
-              .subtract(const Duration(hours: 18))
-              .toUtc()
-              .toIso8601String(),
-          'unread': 0,
-          'online': true,
-          'role': 'Senior Laboratory Specialist',
-          'phone': '+263715678901',
-        },
-      ];
+  List<Map<String, dynamic>> get fallbackConversations => [];
 
   // --- LOCAL PERSISTENCE HELPERS ---
-  Future<void> _loadLocalSimulatedMessages() async {
-    if (_isLocalCacheLoaded) return;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final jsonStr = prefs.getString('local_simulated_messages_v3');
-      if (jsonStr != null) {
-        final data = jsonDecode(jsonStr) as Map<String, dynamic>;
-        data.forEach((key, value) {
-          _localSimulatedMessages[key] = List<Map<String, dynamic>>.from(
-            (value as List).map((x) => Map<String, dynamic>.from(x)),
-          );
-        });
-      }
-    } catch (e) {
-      debugPrint("Error loading local simulated messages: $e");
-    }
-    _isLocalCacheLoaded = true;
-  }
-
-  Future<void> _saveLocalSimulatedMessages() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-          'local_simulated_messages_v3', jsonEncode(_localSimulatedMessages));
-    } catch (e) {
-      debugPrint("Error saving local simulated messages: $e");
-    }
-  }
 
   Future<void> _loadCommsData() async {
     if (_isCommsLoaded) return;
@@ -221,15 +52,19 @@ class ChatService {
       final callLogsStr = prefs.getString('local_call_logs_v3');
       if (callLogsStr != null) {
         _localCallLogs.clear();
-        _localCallLogs.addAll(List<Map<String, dynamic>>.from(
-            jsonDecode(callLogsStr).map((x) => Map<String, dynamic>.from(x))));
+        final rawLogs = List<Map<String, dynamic>>.from(
+            jsonDecode(callLogsStr).map((x) => Map<String, dynamic>.from(x)));
+        final decoys = {"Dr. Sekai Nzenza", "Dr. Chipo Moyo", "Farai Gumbo", "Tendai Chidi", "Rufaro Moyo"};
+        _localCallLogs.addAll(rawLogs.where((log) => !decoys.contains(log['name'])));
       }
 
       final meetingsStr = prefs.getString('local_meetings_v2');
       if (meetingsStr != null) {
         _localMeetings.clear();
-        _localMeetings.addAll(List<Map<String, dynamic>>.from(
-            jsonDecode(meetingsStr).map((x) => Map<String, dynamic>.from(x))));
+        final rawMeetings = List<Map<String, dynamic>>.from(
+            jsonDecode(meetingsStr).map((x) => Map<String, dynamic>.from(x)));
+        final decoys = {"Dr. Sekai Nzenza", "Dr. Chipo Moyo", "Farai Gumbo", "Tendai Chidi", "Rufaro Moyo"};
+        _localMeetings.addAll(rawMeetings.where((m) => !decoys.contains(m['host'])));
       }
     } catch (e) {
       debugPrint("Error loading local call logs & meetings: $e");
@@ -258,48 +93,6 @@ class ChatService {
   // --- DYNAMIC CALL LOGS API ---
   Future<List<Map<String, dynamic>>> getCallLogs() async {
     await _loadCommsData();
-    if (_localCallLogs.isEmpty) {
-      // Realistic clinical phone activity only. Video sessions are handled as meetings.
-      _localCallLogs.addAll([
-        {
-          "name": "Dr. Chipo Moyo",
-          "type": "voice",
-          "direction": "incoming",
-          "time": "Today, 10:45 AM",
-          "status": "ICU VG70 low O2 alarm escalation (12m 04s)",
-          "phone": "+263772123456",
-          "online": true,
-        },
-        {
-          "name": "Farai Gumbo",
-          "type": "voice",
-          "direction": "outgoing",
-          "time": "Today, 08:20 AM",
-          "status": "Evita V500 service handover (6m 18s)",
-          "phone": "+263773456789",
-          "online": true,
-        },
-        {
-          "name": "Tendai Chidi",
-          "type": "voice",
-          "direction": "missed",
-          "time": "Yesterday, 09:15",
-          "status": "Oxygen manifold pressure callback required",
-          "phone": "+263774567890",
-          "online": true,
-        },
-        {
-          "name": "Rufaro Moyo",
-          "type": "voice",
-          "direction": "outgoing",
-          "time": "May 22, 14:15",
-          "status": "Parts approval for turbine order (4m 46s)",
-          "phone": "+263782345678",
-          "online": true,
-        },
-      ]);
-      await _saveCallLogs();
-    }
     return _localCallLogs;
   }
 
@@ -312,27 +105,6 @@ class ChatService {
   // --- DYNAMIC MEETINGS API ---
   Future<List<Map<String, dynamic>>> getMeetings() async {
     await _loadCommsData();
-    if (_localMeetings.isEmpty) {
-      // Seed default scheduled meetings dynamically
-      _localMeetings.addAll([
-        {
-          "topic": "Oxygen Plant Pipeline Pressure Failure Consultation",
-          "time": "Today, 14:00",
-          "host": "Farai Gumbo"
-        },
-        {
-          "topic": "ICU Ventilator Oxygen Cell Failover Audit",
-          "time": "Tomorrow, 09:30",
-          "host": "Dr. Chipo Moyo"
-        },
-        {
-          "topic": "National Biomedical Compliance Framework Review",
-          "time": "May 26, 11:00",
-          "host": "Dr. Sekai Nzenza"
-        }
-      ]);
-      await _saveMeetings();
-    }
     return _localMeetings;
   }
 
@@ -342,57 +114,107 @@ class ChatService {
     await _saveMeetings();
   }
 
-  String _getInitialSeedMessage(String contactId) {
-    switch (contactId) {
-      case 'dr-chipo-moyo':
-        return "Hello colleague. We have SN-VG70-442 in ICU Bed 2 triggering high pressure alarms. Can you check it immediately? Patient is stable on manual mask for now.";
-      case 'farai-gumbo':
-        return "Colleague, I just finished calibrating the Evita V500 valve assembly. Let me know if you need to run the diagnostic on the ICU 1 system.";
-      case 'tendai-chidi':
-        return "Alarm in the oxygen plant manifold. Reserve cylinders are routing, but pressure is borderline. I need eyes on the plant pressure gauge.";
-      case 'dr-sekai-nzenza':
-        return "BMET Team, please prepare the technical audit report for the ICU ventilator fleet before the clinical safety review this afternoon.";
-      case 'rufaro-moyo':
-        return "Regarding the spare parts inventory: do we have the turbine replacements restocked on Shelf B2? I am drafting the procurement invoice.";
-      case 'kudakwashe-hove':
-        return "The blood gas analyzer in ICU lab is drifting on pH calibration. Can you bring the reference buffers for a verification test?";
-      default:
-        return "Hi, let me know if we have any pending maintenance orders to coordinate today.";
+  String generateMeetUrl() {
+    const letters = 'abcdefghijklmnopqrstuvwxyz';
+    final rand = math.Random();
+    String block(int len) {
+      return List.generate(len, (_) => letters[rand.nextInt(letters.length)]).join('');
     }
+    return 'https://meet.google.com/${block(3)}-${block(4)}-${block(3)}';
+  }
+
+  Future<void> _loadCallNotes() async {
+    if (_isCallNotesLoaded) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final notesStr = prefs.getString('local_call_notes_v3');
+      if (notesStr != null) {
+        _localCallNotes.clear();
+        _localCallNotes.addAll(List<Map<String, dynamic>>.from(
+            jsonDecode(notesStr).map((x) => Map<String, dynamic>.from(x))));
+      }
+    } catch (e) {
+      debugPrint("Error loading call notes: $e");
+    }
+    _isCallNotesLoaded = true;
+  }
+
+  Future<void> saveCallNotes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('local_call_notes_v3', jsonEncode(_localCallNotes));
+    } catch (e) {
+      debugPrint("Error saving call notes: $e");
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getCallNotes() async {
+    await _loadCallNotes();
+    if (_localCallNotes.isEmpty) {
+      _localCallNotes.addAll([
+        {
+          "id": "CALL-4890",
+          "equipment": "Mindray SV300 Ventilator",
+          "technician": "Marcus Chen",
+          "date": "Today, 14:12",
+          "issue": "Frequent pressure deviations (Error Code: P-ERR-11).",
+          "notes": "Collaboratively analyzed O2 sensor flow rates. Instructed field engineer to replace the secondary flow valve. Flow sensor recalibrated and tested under simulated lung load. Operating capacity restored to 100%.",
+        },
+        {
+          "id": "CALL-4752",
+          "equipment": "Drager Evita V500",
+          "technician": "Sarah Jenkins",
+          "date": "Yesterday, 10:45",
+          "issue": "System backup battery failure alert during grid fluctuations.",
+          "notes": "Guided technician to inspect battery terminals. Deployed external UPS module in Paediatric Ward ER to maintain continuous operation. Logged a preventative maintenance task to swap the internal Li-Ion battery pack within 48 hours.",
+        },
+        {
+          "id": "CALL-4610",
+          "equipment": "Aeonmed VG70",
+          "technician": "Tadiwanashe M.",
+          "date": "May 21, 15:30",
+          "issue": "Expiratory valve locking due to humidity accumulation.",
+          "notes": "Ongoing expiratory condensation cleared. Heated moisture trap aligned. recalibrated expiratory flow parameters. Calibrations matching guidelines. Valve returned to service.",
+        }
+      ]);
+      await saveCallNotes();
+    }
+    return _localCallNotes;
+  }
+
+  Future<void> addCallNote(Map<String, dynamic> note) async {
+    await _loadCallNotes();
+    _localCallNotes.insert(0, note);
+    await saveCallNotes();
   }
 
   // --- GET REGISTERED TECHNICIANS ---
   Future<List<Map<String, dynamic>>> getContacts() async {
     try {
+      final currentUid = currentUserId;
       final response = await _client
           .from('users')
           .select('id, name, reg_number, online, last_seen')
           .order('name');
-      final contacts = List<Map<String, dynamic>>.from(response).map((row) {
-        final fallback = _fallbackContactFor(row['id']?.toString());
-        return {
-          ...row,
-          'phone': fallback?['phone'] ?? '',
-          'role': fallback?['role'] ?? row['reg_number'] ?? 'Technician',
-        };
-      }).toList();
-
-      if (contacts.isEmpty) return fallbackContacts;
-
-      for (final fallback in fallbackContacts) {
-        if (!contacts.any((c) => c['id'] == fallback['id'])) {
-          contacts.add(fallback);
-        }
-      }
+      
+      final contacts = List<Map<String, dynamic>>.from(response)
+          .where((row) => row['id'] != currentUid)
+          .map((row) {
+            return {
+              ...row,
+              'phone': row['phone'] ?? '',
+              'role': row['role'] ?? row['reg_number'] ?? 'Technician',
+            };
+          })
+          .toList();
       return contacts;
     } catch (e) {
       debugPrint("Error fetching contacts from Supabase: $e");
-      return fallbackContacts;
+      return [];
     }
   }
 
   Future<List<Map<String, dynamic>>> getConversations() async {
-    await _loadLocalSimulatedMessages();
     List<Map<String, dynamic>> list = [];
 
     try {
@@ -400,70 +222,44 @@ class ChatService {
           .from('conversations')
           .select('id, group_name, last_message, last_message_time, is_group')
           .order('last_message_time', ascending: false);
-      final conversations =
-          List<Map<String, dynamic>>.from(response).map((row) {
-        final id = row['id']?.toString() ?? '';
-        final contact = fallbackContacts.firstWhere(
-          (c) => c['id'] == id,
-          orElse: () => {
-            'name': row['group_name'] ?? 'Clinical Conversation',
-            'online': false,
-            'role': row['is_group'] == true ? 'Group' : 'Technician',
-            'phone': '',
-          },
-        );
+      final conversations = List<Map<String, dynamic>>.from(response);
 
-        final localMsgs = _localSimulatedMessages[id];
-        String lastMsg = row['last_message'] ?? 'Conversation started';
-        String lastTime = row['last_message_time'] ??
-            DateTime.now().toUtc().toIso8601String();
-        if (localMsgs != null && localMsgs.isNotEmpty) {
-          lastMsg = localMsgs.last['message_text'];
-          lastTime = localMsgs.last['timestamp'];
+      // Resolve each conversation's details using live contacts
+      final contacts = await getContacts();
+      final contactsMap = {for (var c in contacts) c['id']: c};
+
+      list = conversations.map((row) {
+        final id = row['id']?.toString() ?? '';
+        final isGroup = row['is_group'] == true;
+        
+        final contact = contactsMap[id] ?? {
+          'name': row['group_name'] ?? 'Clinical Conversation',
+          'online': false,
+          'role': isGroup ? 'Group' : 'Technician',
+          'phone': '',
+        };
+
+        String extractedPhone = '';
+        final String gName = row['group_name']?.toString() ?? '';
+        if (gName.startsWith('Technician (')) {
+          extractedPhone = gName.replaceAll('Technician (', '').replaceAll(')', '').trim();
+        } else {
+          extractedPhone = contact['phone']?.toString() ?? '';
         }
 
         return {
           'id': id,
-          'name': row['group_name'] ?? contact['name'],
-          'last_message': lastMsg,
-          'last_message_time': lastTime,
+          'name': isGroup ? (row['group_name'] ?? 'Clinical Group') : contact['name'],
+          'last_message': row['last_message'] ?? 'Conversation started',
+          'last_message_time': row['last_message_time'] ?? DateTime.now().toUtc().toIso8601String(),
           'unread': 0,
           'online': contact['online'] == true || contact['online'] == 1,
           'role': contact['role'] ?? contact['reg_number'] ?? 'Technician',
-          'phone': contact['phone'] ?? '',
+          'phone': extractedPhone,
         };
       }).toList();
-
-      if (conversations.isEmpty) {
-        list = fallbackConversations.map((c) {
-          final id = c['id'];
-          final localMsgs = _localSimulatedMessages[id];
-          if (localMsgs != null && localMsgs.isNotEmpty) {
-            return {
-              ...c,
-              'last_message': localMsgs.last['message_text'],
-              'last_message_time': localMsgs.last['timestamp'],
-            };
-          }
-          return c;
-        }).toList();
-      } else {
-        list = conversations;
-      }
     } catch (e) {
       debugPrint("Error fetching conversations from Supabase: $e");
-      list = fallbackConversations.map((c) {
-        final id = c['id'];
-        final localMsgs = _localSimulatedMessages[id];
-        if (localMsgs != null && localMsgs.isNotEmpty) {
-          return {
-            ...c,
-            'last_message': localMsgs.last['message_text'],
-            'last_message_time': localMsgs.last['timestamp'],
-          };
-        }
-        return c;
-      }).toList();
     }
 
     // Optional Google Chat Space injection. Disabled unless explicitly configured.
@@ -501,32 +297,6 @@ class ChatService {
     if (conversationId == 'google-chat-workspace') {
       return await GoogleChatService.instance.fetchMessages();
     }
-    await _loadLocalSimulatedMessages();
-
-    final isSimulated = fallbackContacts.any((c) => c['id'] == conversationId);
-    if (isSimulated) {
-      if (!_localSimulatedMessages.containsKey(conversationId) ||
-          _localSimulatedMessages[conversationId]!.isEmpty) {
-        final now = DateTime.now();
-        _localSimulatedMessages[conversationId] = [
-          {
-            'id': 'seed-1-$conversationId',
-            'conversation_id': conversationId,
-            'sender_id': conversationId,
-            'sender_name': fallbackContacts
-                .firstWhere((c) => c['id'] == conversationId)['name'],
-            'message_text': _getInitialSeedMessage(conversationId),
-            'message_type': 'text',
-            'timestamp': now
-                .subtract(const Duration(minutes: 30))
-                .toUtc()
-                .toIso8601String(),
-          },
-        ];
-        await _saveLocalSimulatedMessages();
-      }
-      return _localSimulatedMessages[conversationId]!;
-    }
 
     try {
       final response = await _client
@@ -538,39 +308,11 @@ class ChatService {
       final messages = List<Map<String, dynamic>>.from(response)
           .map(_withSenderDisplayName)
           .toList();
-      if (messages.isNotEmpty) return messages;
+      return messages;
     } catch (e) {
       debugPrint("Error fetching messages from Supabase: $e");
+      return [];
     }
-
-    final now = DateTime.now();
-    return [
-      {
-        'id': 'seed-1-$conversationId',
-        'conversation_id': conversationId,
-        'sender_id': conversationId,
-        'sender_name': fallbackConversations.firstWhere(
-          (c) => c['id'] == conversationId,
-          orElse: () => {'name': 'Clinical Team'},
-        )['name'],
-        'message_text':
-            'Can you check this equipment case and confirm the next maintenance action?',
-        'message_type': 'text',
-        'timestamp':
-            now.subtract(const Duration(minutes: 18)).toUtc().toIso8601String(),
-      },
-      {
-        'id': 'seed-2-$conversationId',
-        'conversation_id': conversationId,
-        'sender_id': currentUserId ?? 'local-technician',
-        'sender_name': currentUserName ?? 'Technician',
-        'message_text':
-            'I am reviewing the service logs and will update you with the safest next step.',
-        'message_type': 'text',
-        'timestamp':
-            now.subtract(const Duration(minutes: 14)).toUtc().toIso8601String(),
-      },
-    ];
   }
 
   // --- CONNECT REALTIME CHANNELS ---
@@ -647,32 +389,6 @@ class ChatService {
       return userMsg;
     }
 
-    await _loadLocalSimulatedMessages();
-    final isSimulated = fallbackContacts.any((c) => c['id'] == conversationId);
-    if (isSimulated) {
-      final timestamp = DateTime.now().toUtc().toIso8601String();
-      final userMsg = {
-        'id': 'user-${DateTime.now().microsecondsSinceEpoch}',
-        'conversation_id': conversationId,
-        'sender_id': 'local-technician',
-        'sender_name': currentUserName ?? 'Technician',
-        'message_text': msgText,
-        'message_type': 'text',
-        'timestamp': timestamp,
-        'delivery_state': 'sent',
-      };
-
-      if (!_localSimulatedMessages.containsKey(conversationId)) {
-        _localSimulatedMessages[conversationId] = [];
-      }
-      _localSimulatedMessages[conversationId]!.add(userMsg);
-      await _saveLocalSimulatedMessages();
-
-      _triggerSimulatedReply(conversationId, msgText);
-
-      return userMsg;
-    }
-
     final timestamp = DateTime.now().toUtc().toIso8601String();
     final optimisticMessage = {
       'id': 'local-${DateTime.now().microsecondsSinceEpoch}',
@@ -686,6 +402,42 @@ class ChatService {
     };
 
     try {
+      // Ensure the conversation entry already exists in Supabase
+      final existingConvo = await _client
+          .from('conversations')
+          .select('id')
+          .eq('id', conversationId)
+          .maybeSingle();
+
+      if (existingConvo == null) {
+        String groupName = payload['recipient_name'] ?? 'Direct Chat';
+        try {
+          if (payload['recipient_name'] == null) {
+            final recipientUser = await _client
+                .from('users')
+                .select('name')
+                .eq('id', conversationId)
+                .maybeSingle();
+            if (recipientUser != null && recipientUser['name'] != null) {
+              groupName = recipientUser['name'];
+            }
+          }
+        } catch (_) {}
+
+        await _client.from('conversations').insert({
+          'id': conversationId,
+          'is_group': false,
+          'group_name': groupName,
+          'last_message': msgText,
+          'last_message_time': timestamp,
+        });
+      } else {
+        await _client.from('conversations').update({
+          'last_message': msgText,
+          'last_message_time': timestamp,
+        }).eq('id', conversationId);
+      }
+
       final inserted = await _client
           .from('messages')
           .insert({
@@ -697,11 +449,6 @@ class ChatService {
           })
           .select()
           .maybeSingle();
-
-      await _client.from('conversations').update({
-        'last_message': msgText,
-        'last_message_time': timestamp,
-      }).eq('id', conversationId);
 
       return inserted == null
           ? optimisticMessage
@@ -718,60 +465,20 @@ class ChatService {
     }
   }
 
-  // --- TRIGGER AI SIMULATED REPLY ---
-  void _triggerSimulatedReply(String conversationId, String userMessage) async {
-    final contact =
-        fallbackContacts.firstWhere((c) => c['id'] == conversationId);
-    final contactName = contact['name'];
-    final role = contact['role'];
-
-    typingIndicator.value = {
-      'conversation_id': conversationId,
-      'user_id': conversationId,
-    };
-
-    final typingDelay = 1500 + math.Random().nextInt(1500);
-    await Future.delayed(Duration(milliseconds: typingDelay));
-
-    final prior = _localSimulatedMessages[conversationId] ?? [];
-
-    final replyText = await GemmaSimulationService.instance.generateReply(
-      contactId: conversationId,
-      contactName: contactName,
-      role: role,
-      userMessage: userMessage,
-      priorMessages: prior,
-    );
-
-    final timestamp = DateTime.now().toUtc().toIso8601String();
-    final replyMsg = {
-      'id': 'reply-${DateTime.now().microsecondsSinceEpoch}',
-      'conversation_id': conversationId,
-      'sender_id': conversationId,
-      'sender_name': contactName,
-      'message_text': replyText,
-      'message_type': 'text',
-      'timestamp': timestamp,
-      'delivery_state': 'sent',
-    };
-
-    if (!_localSimulatedMessages.containsKey(conversationId)) {
-      _localSimulatedMessages[conversationId] = [];
-    }
-    _localSimulatedMessages[conversationId]!.add(replyMsg);
-    await _saveLocalSimulatedMessages();
-
-    typingIndicator.value = null;
-    incomingMessage.value = replyMsg;
-  }
-
   // --- TRIGGER IN-APP AUDIO CALL RESPONSE GENERATION ---
   Future<String> getSimulatedCallReply({
     required String contactId,
     required String userSpeechText,
     required List<Map<String, dynamic>> callHistory,
   }) async {
-    final contact = fallbackContacts.firstWhere((c) => c['id'] == contactId);
+    final contacts = await getContacts();
+    final contact = contacts.firstWhere(
+      (c) => c['id'] == contactId,
+      orElse: () => {
+        'name': 'Clinical Coordinator',
+        'role': 'Technician',
+      },
+    );
     return GemmaSimulationService.instance.generateReply(
       contactId: contactId,
       contactName: contact['name'],
@@ -838,25 +545,33 @@ class ChatService {
     };
   }
 
-  String? _conversationName(String? senderId) {
-    if (senderId == null || senderId.isEmpty) return null;
-    for (final contact in fallbackContacts) {
-      if (contact['id'] == senderId) return contact['name']?.toString();
+  String deterministicUuidFromPhone(String phone) {
+    final clean = phone.replaceAll(RegExp(r'[^\d]'), '').trim();
+    if (clean.isEmpty) {
+      return '00000000-0000-0000-0000-000000000000';
     }
-    for (final conversation in fallbackConversations) {
-      if (conversation['id'] == senderId) {
-        return conversation['name']?.toString();
+    
+    int seed = int.tryParse(clean) ?? 0;
+    if (seed == 0) {
+      for (int i = 0; i < clean.length; i++) {
+        seed = (seed * 31 + clean.codeUnitAt(i)) & 0xFFFFFFFF;
       }
     }
-    return null;
+    
+    int x = seed;
+    final StringBuffer hex = StringBuffer();
+    for (int i = 0; i < 32; i++) {
+      x = (1103515245 * x + 12345) & 0x7FFFFFFF;
+      final int digit = x % 16;
+      hex.write(digit.toRadixString(16));
+    }
+    
+    final String h = hex.toString();
+    return '${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-${h.substring(16, 20)}-${h.substring(20, 32)}';
   }
 
-  Map<String, dynamic>? _fallbackContactFor(String? id) {
-    if (id == null) return null;
-    for (final contact in fallbackContacts) {
-      if (contact['id'] == id) return contact;
-    }
+  String? _conversationName(String? senderId) {
+    if (senderId == null || senderId.isEmpty) return null;
     return null;
   }
 }
-

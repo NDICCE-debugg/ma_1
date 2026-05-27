@@ -81,6 +81,12 @@ RULES:
       });
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       if (response.statusCode >= 400) {
+        if (response.statusCode == 503 || body['retryable'] == true) {
+          throw GeminiException(
+            body['error']?.toString() ??
+                'Pulse AI is temporarily busy. Please retry in a moment.',
+          );
+        }
         throw GeminiException(body['error']?.toString() ?? 'Backend AI error');
       }
       final text = body['answer']?.toString().trim();

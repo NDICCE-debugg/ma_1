@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:ma_1/services/auth_service.dart';
@@ -17,13 +18,20 @@ class AuthRequiredException implements Exception {
 
 class ApiClient {
   static final ApiClient instance = ApiClient._init();
+  static const Duration _requestTimeout = Duration(seconds: 45);
+  static const String _configuredBaseUrl = String.fromEnvironment(
+    'PULSE_API_BASE_URL',
+    defaultValue: '',
+  );
 
-  // Set your Flask server IP here
   static String get baseUrl {
+    if (_configuredBaseUrl.isNotEmpty) {
+      return _configuredBaseUrl;
+    }
     if (kIsWeb) {
       return 'http://localhost:5000/api';
     }
-    return 'http://10.160.120.215:5000/api';
+    return 'http://172.16.30.18:5000/api';
   }
 
   ApiClient._init();
@@ -47,15 +55,13 @@ class ApiClient {
     bool authenticated = true,
   }) async {
     var headers = await _getHeaders(authenticated: authenticated);
-    var response = await http.post(Uri.parse('$baseUrl$endpoint'),
-        headers: headers, body: jsonEncode(body));
+    var response = await _post(endpoint, headers, body);
 
     if (authenticated && response.statusCode == 401) {
       bool refreshed = await _refreshSession();
       if (refreshed) {
         headers = await _getHeaders(authenticated: authenticated);
-        response = await http.post(Uri.parse('$baseUrl$endpoint'),
-            headers: headers, body: jsonEncode(body));
+        response = await _post(endpoint, headers, body);
       }
       if (response.statusCode == 401) {
         await AuthService.instance.clearInvalidSession();
@@ -70,15 +76,13 @@ class ApiClient {
     bool authenticated = true,
   }) async {
     var headers = await _getHeaders(authenticated: authenticated);
-    var response =
-        await http.get(Uri.parse('$baseUrl$endpoint'), headers: headers);
+    var response = await _get(endpoint, headers);
 
     if (authenticated && response.statusCode == 401) {
       bool refreshed = await _refreshSession();
       if (refreshed) {
         headers = await _getHeaders(authenticated: authenticated);
-        response =
-            await http.get(Uri.parse('$baseUrl$endpoint'), headers: headers);
+        response = await _get(endpoint, headers);
       }
       if (response.statusCode == 401) {
         await AuthService.instance.clearInvalidSession();
@@ -95,5 +99,28 @@ class ApiClient {
     } catch (e) {
       return false;
     }
+  }
+
+  Future<http.Response> _post(
+    String endpoint,
+    Map<String, String> headers,
+    Map<String, dynamic> body,
+  ) {
+    return http
+        .post(
+          Uri.parse('$baseUrl$endpoint'),
+          headers: headers,
+          body: jsonEncode(body),
+        )
+        .timeout(_requestTimeout);
+  }
+
+  Future<http.Response> _get(
+    String endpoint,
+    Map<String, String> headers,
+  ) {
+    return http
+        .get(Uri.parse('$baseUrl$endpoint'), headers: headers)
+        .timeout(_requestTimeout);
   }
 }

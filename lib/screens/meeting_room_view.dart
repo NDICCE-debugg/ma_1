@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:ma_1/theme/app_theme.dart';
+import 'package:ma_1/services/chat_service.dart';
 
 class MeetingRoomView extends StatefulWidget {
   final String meetingTopic;
@@ -16,46 +19,79 @@ class _MeetingRoomViewState extends State<MeetingRoomView> {
 
   final TextEditingController _msgCtrl = TextEditingController();
   final ScrollController _chatScrollCtrl = ScrollController();
+  final ScrollController _notesScrollCtrl = ScrollController();
 
   // Real-time local meeting message log
-  final List<Map<String, String>> _meetingMessages = [
-    {
-      "sender": "Sarah Jenkins",
-      "text":
-          "I've uploaded the schematics for the Aeonmed VG70 pressure valves."
-    },
-    {
-      "sender": "Dr. Alistair",
-      "text":
-          "Excellent, let's verify if the flow sensor calibration is stable."
-    },
-  ];
+  final List<Map<String, String>> _meetingMessages = [];
+
+  final List<Map<String, String>> _detectedNotes = [];
 
   // Professional clinical participant list
   final List<String> _participants = [
     "You",
-    "Sarah Jenkins",
-    "Marcus Chen",
-    "Dr. Alistair"
   ];
+
+  @override
+  void initState() {
+    super.initState();
+  }
 
   @override
   void dispose() {
     _msgCtrl.dispose();
     _chatScrollCtrl.dispose();
+    _notesScrollCtrl.dispose();
     super.dispose();
   }
 
   void _sendMeetingMessage() {
     if (_msgCtrl.text.trim().isEmpty) return;
+    final text = _msgCtrl.text.trim();
+    final note = _noteFromTranscript({
+      "sender": "You",
+      "text": text,
+    });
     setState(() {
       _meetingMessages.add({
         "sender": "You",
-        "text": _msgCtrl.text.trim(),
+        "text": text,
       });
+      _detectedNotes.insert(0, note);
     });
     _msgCtrl.clear();
     _scrollChatToBottom();
+    _scrollNotesToTop();
+
+    ChatService.instance.addCallNote({
+      "id": "CALL-${DateTime.now().millisecondsSinceEpoch % 10000}",
+      "equipment": widget.meetingTopic,
+      "technician": "You",
+      "date": "Today, ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}",
+      "issue": "Live Call Note (${note['type']}): ${note['text']}",
+      "notes": text,
+    });
+  }
+
+  Map<String, String> _noteFromTranscript(Map<String, String> message) {
+    final text = message["text"] ?? "";
+    final lower = text.toLowerCase();
+    final type = lower.contains("decision")
+        ? "Decision"
+        : lower.contains("risk") || lower.contains("do not")
+            ? "Risk"
+            : lower.contains("follow up") || lower.contains("action")
+                ? "Action"
+                : "Note";
+    return {
+      "type": type,
+      "text": text
+          .replaceFirst(
+              RegExp(r'^(Action item|Decision|Risk noted|Follow up):\s*',
+                  caseSensitive: false),
+              '')
+          .trim(),
+      "source": "From ${message["sender"] ?? "meeting audio"}",
+    };
   }
 
   void _scrollChatToBottom() {
@@ -64,6 +100,18 @@ class _MeetingRoomViewState extends State<MeetingRoomView> {
         _chatScrollCtrl.animateTo(
           _chatScrollCtrl.position.maxScrollExtent,
           duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  void _scrollNotesToTop() {
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (_notesScrollCtrl.hasClients) {
+        _notesScrollCtrl.animateTo(
+          0,
+          duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
         );
       }
@@ -122,7 +170,7 @@ class _MeetingRoomViewState extends State<MeetingRoomView> {
                 ],
               ),
               const Text(
-                  "Archived call notes and transcripts summarizing clinical hardware decisions.",
+                  "Live detected notes plus archived transcripts summarizing clinical hardware decisions.",
                   style: TextStyle(
                       color: AppTheme.textSecondary,
                       fontSize: 13,
@@ -130,40 +178,32 @@ class _MeetingRoomViewState extends State<MeetingRoomView> {
               const SizedBox(height: 20),
 
               Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  children: [
-                    _buildCallNoteCard(
-                      callId: "#CALL-4890",
-                      equipment: "Mindray SV300 Ventilator",
-                      technician: "Marcus Chen",
-                      date: "Today, 14:12",
-                      issue:
-                          "Frequent pressure deviations (Error Code: P-ERR-11).",
-                      notes:
-                          "Collaboratively analyzed O2 sensor flow rates. Instructed field engineer to replace the secondary flow valve. Flow sensor recalibrated and tested under simulated lung load. Operating capacity restored to 100%.",
-                    ),
-                    _buildCallNoteCard(
-                      callId: "#CALL-4752",
-                      equipment: "Drager Evita V500",
-                      technician: "Sarah Jenkins",
-                      date: "Yesterday, 10:45",
-                      issue:
-                          "System backup battery failure alert during grid fluctuations.",
-                      notes:
-                          "Guided technician to inspect battery terminals. Deployed external UPS module in Paediatric Ward ER to maintain continuous operation. Logged a preventative maintenance task to swap the internal Li-Ion battery pack within 48 hours.",
-                    ),
-                    _buildCallNoteCard(
-                      callId: "#CALL-4610",
-                      equipment: "Aeonmed VG70",
-                      technician: "Tadiwanashe M.",
-                      date: "May 21, 15:30",
-                      issue:
-                          "Expiratory valve locking due to humidity accumulation.",
-                      notes:
-                          "Ongoing expiratory condensation cleared. Heated moisture trap aligned. recalibrated expiratory flow parameters. Calibrations matching guidelines. Valve returned to service.",
-                    ),
-                  ],
+                child: FutureBuilder<List<Map<String, dynamic>>>(
+                  future: ChatService.instance.getCallNotes(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final notesList = snapshot.data!;
+                    return ListView(
+                      controller: scrollController,
+                      children: [
+                        ..._detectedNotes.map(_buildDetectedNoteCard),
+                        const SizedBox(height: 8),
+                        if (notesList.isNotEmpty) ...[
+                          const Divider(height: 28, color: AppTheme.divider),
+                          ...notesList.map((note) => _buildCallNoteCard(
+                                callId: note['id'] ?? '#CALL-NEW',
+                                equipment: note['equipment'] ?? 'Medical Device',
+                                technician: note['technician'] ?? 'Technician',
+                                date: note['date'] ?? 'Just now',
+                                issue: note['issue'] ?? '',
+                                notes: note['notes'] ?? '',
+                              )),
+                        ],
+                      ],
+                    );
+                  }
                 ),
               ),
             ],
@@ -266,6 +306,67 @@ class _MeetingRoomViewState extends State<MeetingRoomView> {
     );
   }
 
+  Widget _buildDetectedNoteCard(Map<String, String> note) {
+    final type = note["type"] ?? "Note";
+    final color = switch (type) {
+      "Decision" => AppTheme.success,
+      "Risk" => AppTheme.error,
+      "Action" => AppTheme.secondary,
+      _ => AppTheme.primary,
+    };
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.auto_awesome_rounded, color: color, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  type,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  note["text"] ?? "",
+                  style: const TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 13,
+                    height: 1.35,
+                    fontFamily: 'Outfit',
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  note["source"] ?? "Detected during call",
+                  style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -335,9 +436,9 @@ class _MeetingRoomViewState extends State<MeetingRoomView> {
               ),
               itemCount: _participants.length,
               itemBuilder: (ctx, i) {
-                bool isActiveSpeaker = i == 1; // Simulate clinical focus
-                return _buildVideoCard(
-                    _participants[i], isActiveSpeaker, i == 2);
+                final name = _participants[i];
+                final isMuted = name == "You" ? _isMuted : false;
+                return _buildVideoCard(name, false, isMuted);
               },
             ),
           ),
@@ -362,18 +463,26 @@ class _MeetingRoomViewState extends State<MeetingRoomView> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.chat_bubble_outline_rounded,
-                                  size: 16, color: AppTheme.primary),
-                              SizedBox(width: 8),
-                              Text("Consultation Chat",
-                                  style: TextStyle(
-                                      color: AppTheme.primary,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                      fontFamily: 'Outfit')),
-                            ],
+                          const Expanded(
+                            child: Row(
+                              children: [
+                                Icon(Icons.chat_bubble_outline_rounded,
+                                    size: 16, color: AppTheme.primary),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    "Consultation Chat",
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        color: AppTheme.primary,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        fontFamily: 'Outfit'),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                           IconButton(
                             icon: const Icon(Icons.close,
@@ -507,9 +616,10 @@ class _MeetingRoomViewState extends State<MeetingRoomView> {
   }
 
   Widget _buildVideoCard(String name, bool isActive, bool isMuted) {
+    final showCameraFeed = name == "You" && _isCameraOn;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: showCameraFeed ? const Color(0xFF0F172A) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
             color: isActive ? AppTheme.secondary : AppTheme.divider,
@@ -523,16 +633,50 @@ class _MeetingRoomViewState extends State<MeetingRoomView> {
       ),
       child: Stack(
         children: [
-          Center(
-              child: CircleAvatar(
-                  radius: 32,
-                  backgroundColor: AppTheme.background,
-                  child: Text(name.substring(0, 1),
-                      style: const TextStyle(
-                          color: AppTheme.primary,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'Outfit')))),
+          if (showCameraFeed)
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.08),
+                      border: Border.all(color: Colors.white24, width: 2),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.videocam_rounded,
+                      color: Colors.white70,
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    "Secure Camera Stream Active",
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'Outfit',
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Center(
+                child: CircleAvatar(
+                    radius: 32,
+                    backgroundColor: AppTheme.background,
+                    child: Text(name.substring(0, 1),
+                        style: const TextStyle(
+                            color: AppTheme.primary,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Outfit')))),
           // Name Tag Pill
           Positioned(
             bottom: 12,

@@ -5,7 +5,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:intl/intl.dart';
 import 'package:ma_1/services/chat_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class CallScreen extends StatefulWidget {
   final String contactName;
@@ -41,6 +43,7 @@ class _CallScreenState extends State<CallScreen> {
   String _listeningText = '';
   bool _isGeneratingResponse = false;
   String? _captions;
+  final List<Map<String, String>> _detectedNotes = [];
 
   @override
   void initState() {
@@ -170,6 +173,7 @@ class _CallScreenState extends State<CallScreen> {
     setState(() {
       _isConnected = true;
       _captions = "${widget.contactName}: $greeting";
+      _captureDetectedNote(greeting, widget.contactName);
     });
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -185,6 +189,7 @@ class _CallScreenState extends State<CallScreen> {
     _tts.stop();
     setState(() {
       _captions = "You: $text";
+      _captureDetectedNote(text, "You");
       _isGeneratingResponse = true;
     });
 
@@ -197,11 +202,50 @@ class _CallScreenState extends State<CallScreen> {
     if (!mounted) return;
     setState(() {
       _captions = "${widget.contactName}: $reply";
+      _captureDetectedNote(reply, widget.contactName);
       _isGeneratingResponse = false;
     });
 
     // Speak response!
     await _tts.speak(reply);
+  }
+
+  void _captureDetectedNote(String text, String speaker) {
+    final lower = text.toLowerCase();
+    if (!lower.contains('alarm') &&
+        !lower.contains('pressure') &&
+        !lower.contains('calibrat') &&
+        !lower.contains('replace') &&
+        !lower.contains('restock') &&
+        !lower.contains('reserve') &&
+        !lower.contains('approval') &&
+        !lower.contains('service') &&
+        !lower.contains('ready')) {
+      return;
+    }
+
+    final type = lower.contains('replace') || lower.contains('restock')
+        ? 'Action'
+        : lower.contains('alarm') || lower.contains('pressure')
+            ? 'Risk'
+            : lower.contains('ready') || lower.contains('approval')
+                ? 'Decision'
+                : 'Note';
+
+    _detectedNotes.insert(0, {
+      'type': type,
+      'text': text,
+      'source': 'Detected from $speaker',
+    });
+
+    ChatService.instance.addCallNote({
+      "id": "CALL-${DateTime.now().millisecondsSinceEpoch % 10000}",
+      "equipment": "Biomedical Systems Triage",
+      "technician": speaker == "You" ? "You" : widget.contactName,
+      "date": "Today, ${DateFormat('HH:mm').format(DateTime.now())}",
+      "issue": "Live Call Note ($type): $text",
+      "notes": text,
+    });
   }
 
   void _toggleListening() async {
@@ -328,31 +372,70 @@ class _CallScreenState extends State<CallScreen> {
                 Text(
                   widget.contactName,
                   style: TextStyle(
-                      color: widget.isVideoCall ? Colors.white : AppTheme.textPrimary,
+                      color: widget.isVideoCall
+                          ? Colors.white
+                          : AppTheme.textPrimary,
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'Inter'),
                 ),
                 const SizedBox(height: 4),
                 if ((widget.phoneNumber ?? '').isNotEmpty)
-                  Text(
-                    widget.phoneNumber!,
-                    style: TextStyle(
-                      color: widget.isVideoCall ? Colors.white70 : AppTheme.textSecondary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                  InkWell(
+                    onTap: () async {
+                      final phone = widget.phoneNumber!.replaceAll(RegExp(r'[^\d+]'), '');
+                      final Uri telLaunchUri = Uri(
+                        scheme: 'tel',
+                        path: phone,
+                      );
+                      try {
+                        await launchUrl(telLaunchUri, mode: LaunchMode.externalApplication);
+                      } catch (e) {
+                        debugPrint("Could not launch phone dialer: $e");
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    hoverColor: (widget.isVideoCall ? Colors.white : AppTheme.primary).withValues(alpha: 0.08),
+                    splashColor: (widget.isVideoCall ? Colors.white : AppTheme.primary).withValues(alpha: 0.15),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.phone_in_talk_rounded,
+                            size: 14,
+                            color: widget.isVideoCall ? Colors.white70 : AppTheme.primary,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            widget.phoneNumber!,
+                            style: TextStyle(
+                              color: widget.isVideoCall
+                                  ? Colors.white70
+                                  : AppTheme.primary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 const SizedBox(height: 8),
                 // Connection timer or status
                 if (!_isConnected)
                   const Text("Connecting secure hospital line...",
-                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 13))
+                      style: TextStyle(
+                          color: AppTheme.textSecondary, fontSize: 13))
                 else
                   Text(
                     _formatElapsed(),
                     style: GoogleFonts.robotoMono(
-                      color: widget.isVideoCall ? Colors.white70 : AppTheme.primary,
+                      color: widget.isVideoCall
+                          ? Colors.white70
+                          : AppTheme.primary,
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                     ),
@@ -367,6 +450,7 @@ class _CallScreenState extends State<CallScreen> {
                       child: Column(
                         children: [
                           _buildCaptionsConsole(),
+                          _buildDetectedNotesPanel(),
                           _buildQuickRepliesPanel(),
                         ],
                       ),
@@ -395,7 +479,9 @@ class _CallScreenState extends State<CallScreen> {
       padding: const EdgeInsets.all(16),
       width: double.infinity,
       decoration: BoxDecoration(
-        color: widget.isVideoCall ? Colors.black54 : Colors.white.withValues(alpha: 0.85),
+        color: widget.isVideoCall
+            ? Colors.black54
+            : Colors.white.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
             color: widget.isVideoCall ? Colors.white12 : AppTheme.border),
@@ -422,7 +508,9 @@ class _CallScreenState extends State<CallScreen> {
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.1,
                   fontFamily: 'Inter',
-                  color: widget.isVideoCall ? Colors.white54 : AppTheme.textSecondary,
+                  color: widget.isVideoCall
+                      ? Colors.white54
+                      : AppTheme.textSecondary,
                 ),
               ),
               const Spacer(),
@@ -452,6 +540,90 @@ class _CallScreenState extends State<CallScreen> {
     );
   }
 
+  Widget _buildDetectedNotesPanel() {
+    if (_detectedNotes.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+      padding: const EdgeInsets.all(14),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: widget.isVideoCall
+            ? Colors.white.withValues(alpha: 0.08)
+            : AppTheme.secondary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: widget.isVideoCall
+              ? Colors.white12
+              : AppTheme.secondary.withValues(alpha: 0.18),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.auto_awesome_rounded,
+                  color:
+                      widget.isVideoCall ? Colors.white70 : AppTheme.secondary,
+                  size: 18),
+              const SizedBox(width: 8),
+              Text(
+                "DETECTED CALL NOTES",
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.0,
+                  color: widget.isVideoCall
+                      ? Colors.white60
+                      : AppTheme.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ..._detectedNotes.take(3).map((note) {
+            final type = note['type'] ?? 'Note';
+            final color = type == 'Risk'
+                ? AppTheme.error
+                : type == 'Action'
+                    ? AppTheme.secondary
+                    : AppTheme.success;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    margin: const EdgeInsets.only(top: 6),
+                    decoration:
+                        BoxDecoration(color: color, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "${note['type']}: ${note['text']}",
+                      style: TextStyle(
+                        color: widget.isVideoCall
+                            ? Colors.white.withValues(alpha: 0.9)
+                            : AppTheme.textPrimary,
+                        fontSize: 12,
+                        height: 1.35,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
   Widget _buildQuickRepliesPanel() {
     final replies = _getQuickReplies();
     return Container(
@@ -468,7 +640,9 @@ class _CallScreenState extends State<CallScreen> {
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1.0,
-                color: widget.isVideoCall ? Colors.white54 : AppTheme.textSecondary,
+                color: widget.isVideoCall
+                    ? Colors.white54
+                    : AppTheme.textSecondary,
               ),
             ),
           ),
@@ -481,7 +655,8 @@ class _CallScreenState extends State<CallScreen> {
                     ? Colors.white.withValues(alpha: 0.1)
                     : Colors.white,
                 side: BorderSide(
-                    color: widget.isVideoCall ? Colors.white12 : AppTheme.border),
+                    color:
+                        widget.isVideoCall ? Colors.white12 : AppTheme.border),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20)),
                 label: Text(
@@ -489,7 +664,9 @@ class _CallScreenState extends State<CallScreen> {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: widget.isVideoCall ? Colors.white.withValues(alpha: 0.9) : AppTheme.primaryDark,
+                    color: widget.isVideoCall
+                        ? Colors.white.withValues(alpha: 0.9)
+                        : AppTheme.primaryDark,
                   ),
                 ),
                 onPressed: () => _onUserResponse(reply),
@@ -532,7 +709,8 @@ class _CallScreenState extends State<CallScreen> {
               ),
               child: CircleAvatar(
                 radius: 26,
-                backgroundColor: _isListening ? AppTheme.error : AppTheme.primary,
+                backgroundColor:
+                    _isListening ? AppTheme.error : AppTheme.primary,
                 child: Icon(
                   _isListening ? Icons.mic : Icons.mic_none,
                   color: Colors.white,
@@ -543,11 +721,14 @@ class _CallScreenState extends State<CallScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            _isListening ? "Listening... Tap to stop" : "Tap Mic to speak hands-free",
+            _isListening
+                ? "Listening... Tap to stop"
+                : "Tap Mic to speak hands-free",
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.bold,
-              color: widget.isVideoCall ? Colors.white70 : AppTheme.textSecondary,
+              color:
+                  widget.isVideoCall ? Colors.white70 : AppTheme.textSecondary,
             ),
           ),
         ],
@@ -585,9 +766,7 @@ class _CallScreenState extends State<CallScreen> {
             ),
           // Speaker phone toggle
           _buildCallButton(
-            _isSpeakerOn
-                ? Icons.volume_up_rounded
-                : Icons.volume_off_rounded,
+            _isSpeakerOn ? Icons.volume_up_rounded : Icons.volume_off_rounded,
             widget.isVideoCall ? Colors.white12 : Colors.white,
             "Speaker",
             () => setState(() => _isSpeakerOn = !_isSpeakerOn),
@@ -637,7 +816,8 @@ class _CallScreenState extends State<CallScreen> {
         Text(
           label,
           style: TextStyle(
-              color: widget.isVideoCall ? Colors.white70 : AppTheme.textSecondary,
+              color:
+                  widget.isVideoCall ? Colors.white70 : AppTheme.textSecondary,
               fontSize: 11,
               fontFamily: 'Inter',
               fontWeight: FontWeight.w600),
@@ -646,4 +826,3 @@ class _CallScreenState extends State<CallScreen> {
     );
   }
 }
-

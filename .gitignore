@@ -58,3 +58,5 @@ backend/.env.*
 # Local Google/Firebase client config. Use restricted keys and local copies.
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
+android/key.properties
+android/app/upload-keystore.jks

@@ -3,6 +3,7 @@ import random
 import requests
 import base64
 import binascii
+import time
 from pathlib import Path
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -31,11 +32,29 @@ MAX_TOTAL_ATTACHMENT_BYTES = int(
 )
 GEMINI_CONNECT_TIMEOUT = int(os.environ.get("GEMINI_CONNECT_TIMEOUT", "15"))
 GEMINI_READ_TIMEOUT = int(os.environ.get("GEMINI_READ_TIMEOUT", "120"))
+GEMINI_MODELS = [
+    model.strip()
+    for model in os.environ.get(
+        "GEMINI_MODELS",
+        "gemini-2.5-flash,gemini-2.0-flash",
+    ).split(",")
+    if model.strip()
+]
+GEMINI_RETRY_DELAYS = [
+    float(delay.strip())
+    for delay in os.environ.get("GEMINI_RETRY_DELAYS", "1.0,2.5").split(",")
+    if delay.strip()
+]
 
 # --- ENV VALS ---
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://awswkatcjffcsobusvic.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_JS_DyaON4AC8FoJMcEkOwg_6aYjl6d2")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+
+
+class TemporaryModelUnavailable(RuntimeError):
+    """Raised when all configured AI models are temporarily unavailable."""
+
 
 # --- TOKEN SECURE VERIFICATION ---
 def verify_supabase_token(request):
@@ -69,46 +88,75 @@ def run_gemini_query(query_text, system_instruction=None, attachments=None):
 
     if not gemini_key or "api-key" in gemini_key.lower():
         return f"GEMINI UPLINK SECURED. RAG Pipeline online. (Awaiting GEMINI_API_KEY in backend/.env to analyze: '{query_text}')"
-        
-    try:
-        # Google Gemini 2.5 Flash HTTP API endpoint
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_key}"
-        headers = {"Content-Type": "application/json"}
-        
-        # Expert clinical engineering system instructions combined with user query
-        instruction = system_instruction or (
-            "You are Pulse, an industry-standard AI clinical equipment assistant. "
-            "Provide extremely precise, technical, and safe guidelines for repairing or servicing medical machinery."
-        )
-        parts = [{"text": f"{instruction}\n\nTechnician Query: {query_text}"}]
-        for attachment in attachments or []:
-            mime_type = attachment.get("mime_type") or attachment.get("mimeType")
-            data = attachment.get("data")
-            if mime_type and data:
-                parts.append({"inlineData": {"mimeType": mime_type, "data": data}})
 
-        payload = {
-            "contents": [{
-                "parts": parts
-            }]
-        }
-        
-        res = requests.post(
-            url,
-            json=payload,
-            headers=headers,
-            timeout=(GEMINI_CONNECT_TIMEOUT, GEMINI_READ_TIMEOUT),
+    headers = {"Content-Type": "application/json"}
+
+    # Expert clinical engineering system instructions combined with user query
+    instruction = system_instruction or (
+        "You are Pulse, an industry-standard AI clinical equipment assistant. "
+        "Provide extremely precise, technical, and safe guidelines for repairing or servicing medical machinery."
+    )
+    parts = [{"text": f"{instruction}\n\nTechnician Query: {query_text}"}]
+    for attachment in attachments or []:
+        mime_type = attachment.get("mime_type") or attachment.get("mimeType")
+        data = attachment.get("data")
+        if mime_type and data:
+            parts.append({"inlineData": {"mimeType": mime_type, "data": data}})
+
+    payload = {"contents": [{"parts": parts}]}
+    transient_statuses = {429, 500, 502, 503, 504}
+    transient_errors = []
+
+    for model in GEMINI_MODELS:
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/"
+            f"models/{model}:generateContent?key={gemini_key}"
         )
-        if res.status_code == 200:
-            data = res.json()
-            # Extract text safely from Gemini schema: candidates[0].content.parts[0].text
-            answer = data['candidates'][0]['content']['parts'][0]['text']
-            return answer.strip()
-        else:
+        attempts = 1 + len(GEMINI_RETRY_DELAYS)
+        for attempt in range(attempts):
+            try:
+                res = requests.post(
+                    url,
+                    json=payload,
+                    headers=headers,
+                    timeout=(GEMINI_CONNECT_TIMEOUT, GEMINI_READ_TIMEOUT),
+                )
+            except requests.Timeout as exc:
+                transient_errors.append(f"{model}: request timed out")
+                if attempt < len(GEMINI_RETRY_DELAYS):
+                    time.sleep(GEMINI_RETRY_DELAYS[attempt])
+                    continue
+                break
+            except requests.RequestException as exc:
+                transient_errors.append(f"{model}: network error: {exc}")
+                if attempt < len(GEMINI_RETRY_DELAYS):
+                    time.sleep(GEMINI_RETRY_DELAYS[attempt])
+                    continue
+                break
+
+            if res.status_code == 200:
+                data = res.json()
+                answer = data["candidates"][0]["content"]["parts"][0]["text"]
+                return answer.strip()
+
             detail = res.text[:500]
-            raise RuntimeError(f"Gemini API returned status code {res.status_code}: {detail}")
-    except Exception as e:
-        raise RuntimeError(str(e))
+            if res.status_code in transient_statuses:
+                transient_errors.append(
+                    f"{model}: status {res.status_code}: {detail}"
+                )
+                if attempt < len(GEMINI_RETRY_DELAYS):
+                    time.sleep(GEMINI_RETRY_DELAYS[attempt])
+                    continue
+                break
+
+            raise RuntimeError(
+                f"Gemini API returned status code {res.status_code}: {detail}"
+            )
+
+    raise TemporaryModelUnavailable(
+        "Pulse AI is temporarily busy because the upstream AI model service is under high demand. "
+        "Please retry in a moment."
+    )
 
 
 def _validated_attachments(raw_attachments):
@@ -249,6 +297,12 @@ def gemini_generate():
             attachments=attachments,
         )
         return jsonify({"answer": answer})
+    except TemporaryModelUnavailable as e:
+        return jsonify({
+            "error": str(e),
+            "retryable": True,
+            "code": "AI_TEMPORARILY_UNAVAILABLE",
+        }), 503
     except Exception as e:
         return jsonify({"error": f"Gemini generation failed: {str(e)}"}), 500
 

@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/services/auth_service.dart';
 import 'package:ma_1/screens/home_screen.dart';
 import 'package:ma_1/widgets/pulse_logo.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -20,6 +23,19 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
   bool _isLoading = false;
   bool _isPasswordVisible = false;
+  StreamSubscription<AuthState>? _authSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _authSubscription =
+        Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
+      if (data.session != null && mounted) {
+        await AuthService.instance.syncCurrentUserProfile();
+        _goHome();
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -27,7 +43,13 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     _emailCtrl.dispose();
     _passCtrl.dispose();
     _regCtrl.dispose();
+    _authSubscription?.cancel();
     super.dispose();
+  }
+
+  void _goHome() {
+    Navigator.pushReplacement(
+        context, MaterialPageRoute(builder: (_) => const HomeScreen()));
   }
 
   void _handleRegister() async {
@@ -70,8 +92,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       if (res['success'] == true) {
         if (!mounted) return;
         if (res['sessionActive'] == true) {
-          Navigator.pushReplacement(
-              context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+          _goHome();
         } else {
           setState(() => _isLoading = false);
           _passCtrl.clear();
@@ -97,15 +118,19 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
   void _handleGoogleSignIn() async {
     setState(() => _isLoading = true);
-    final user = await AuthService.instance.signInWithGoogle();
+    final res = await AuthService.instance.signInWithGoogle();
     if (!mounted) return;
     setState(() => _isLoading = false);
-    if (user != null && mounted) {
-      Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+    if (res['pending'] == true) {
+      _showStatusMessage(
+          res['message'] ?? 'Complete Google sign-in in the browser.',
+          AppTheme.primary);
+    } else if (res['success'] == true) {
+      _goHome();
     } else {
       _showStatusMessage(
-          "Google registration was not completed", AppTheme.error);
+          res['message'] ?? "Google registration was not completed",
+          AppTheme.error);
     }
   }
 
