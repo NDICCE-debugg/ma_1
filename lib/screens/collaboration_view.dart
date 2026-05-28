@@ -5,8 +5,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/services/chat_service.dart';
 import 'package:ma_1/screens/chat_screen.dart';
-import 'package:ma_1/screens/call_screen.dart';
-import 'package:ma_1/screens/meeting_room_view.dart';
 import 'package:intl/intl.dart';
 import 'package:ma_1/services/google_chat_service.dart';
 
@@ -141,18 +139,11 @@ class _CollaborationViewState extends State<CollaborationView>
       "type": contact['type'] ?? "voice",
       "direction": "outgoing",
       "time": "Today, ${DateFormat('HH:mm').format(DateTime.now())}",
-      "status": "Mock clinical call started",
+      "status": "Outgoing call placed",
       "phone": phone,
       "online": contact['online'] == true || contact['online'] == 1,
     });
     _loadCommsData();
-    if (!mounted) return;
-    _openDemoCall({
-      ...contact,
-      "name": name,
-      "phone": phone,
-      "type": contact['type'] ?? "voice",
-    });
   }
 
   String? _normalizedPhone(String? value) {
@@ -183,19 +174,6 @@ class _CollaborationViewState extends State<CollaborationView>
     );
   }
 
-  void _openDemoCall(Map<String, dynamic> call) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CallScreen(
-          contactName: call['name']?.toString() ?? 'Clinical Coordinator',
-          phoneNumber: call['phone']?.toString(),
-          isVideoCall: call['type'] == 'video',
-        ),
-      ),
-    );
-  }
-
   Future<void> _joinSimulatedMeet(Map<String, dynamic> meeting) async {
     final topic = meeting['topic']?.toString() ?? 'Clinical Consultation';
     final joinUrl = meeting['join_url'] ?? "https://meet.google.com/new";
@@ -216,13 +194,6 @@ class _CollaborationViewState extends State<CollaborationView>
       "participants": meeting['participants'] ?? 5,
     });
 
-    if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => MeetingRoomView(meetingTopic: topic),
-      ),
-    );
     _loadCommsData();
   }
 
@@ -1292,20 +1263,14 @@ class _CollaborationViewState extends State<CollaborationView>
                   ),
                 ),
                 trailing: IconButton(
-                  tooltip: call['is_live'] == true
-                      ? 'Join live demo call'
-                      : 'Open mock call',
-                  icon: Icon(
-                    call['is_live'] == true
-                        ? Icons.video_call_rounded
-                        : Icons.call_rounded,
-                    color: call['is_live'] == true
-                        ? AppTheme.error
-                        : AppTheme.secondary,
+                  tooltip: 'Place call',
+                  icon: const Icon(
+                    Icons.call_rounded,
+                    color: AppTheme.secondary,
                   ),
-                  onPressed: () => _openDemoCall(call),
+                  onPressed: () => _placePhoneCall(call),
                 ),
-                onTap: () => _openDemoCall(call),
+                onTap: () => _placePhoneCall(call),
               );
             },
           ),
