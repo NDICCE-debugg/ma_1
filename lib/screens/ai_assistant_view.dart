@@ -16,6 +16,7 @@ import 'package:ma_1/services/manual_rag_service.dart';
 import 'package:ma_1/services/rag_api_service.dart';
 import 'package:ma_1/screens/manuals_library_screen.dart';
 import 'package:ma_1/widgets/pulse_logo.dart';
+import 'package:ma_1/utils/app_snackbar.dart';
 
 // â”€â”€â”€ Chat message model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -633,10 +634,16 @@ class _AIAssistantViewState extends State<AIAssistantView> {
   // â”€â”€â”€ Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: const TextStyle(fontFamily: 'Outfit')),
-      behavior: SnackBarBehavior.floating,
-    ));
+    final lower = msg.toLowerCase();
+    if (lower.contains('error') || lower.contains('failed') || lower.contains('could not')) {
+      AppSnackBar.error(context, msg);
+    } else if (lower.contains('stop') || lower.contains('large') || lower.contains('not available')) {
+      AppSnackBar.warning(context, msg);
+    } else if (lower.contains('copied') || lower.contains('success')) {
+      AppSnackBar.success(context, msg);
+    } else {
+      AppSnackBar.info(context, msg);
+    }
   }
 
   Future<void> _openManualLibrary() async {

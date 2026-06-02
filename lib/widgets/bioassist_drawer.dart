@@ -10,6 +10,7 @@ import 'package:ma_1/services/auth_service.dart';
 import 'package:ma_1/screens/login_screen.dart';
 import 'package:ma_1/services/database_helper.dart';
 import 'package:ma_1/services/rag_api_service.dart';
+import 'package:ma_1/utils/app_snackbar.dart';
 
 class PulseAccountDrawer extends StatefulWidget {
   const PulseAccountDrawer({super.key});
@@ -368,30 +369,10 @@ class _PulseAccountDrawerState extends State<PulseAccountDrawer> {
                         if (!ctx.mounted) return;
                         setDialogState(() => _uploadProgress = 1.0);
                         Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            behavior: SnackBarBehavior.floating,
-                            backgroundColor: AppTheme.success,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            content: Row(
-                              children: [
-                                const Icon(Icons.check_circle,
-                                    color: Colors.white, size: 20),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    "Indexed '${titleCtrl.text}' with ${result.chunks} searchable manual chunks.",
-                                    style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontFamily: 'Outfit',
-                                        fontSize: 13),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                        if (!context.mounted) return;
+                        AppSnackBar.success(
+                          context,
+                          "Indexed '${titleCtrl.text}' with ${result.chunks} searchable chunks.",
                         );
                       } catch (e) {
                         progressTimer.cancel();
@@ -400,15 +381,10 @@ class _PulseAccountDrawerState extends State<PulseAccountDrawer> {
                           _isUploading = false;
                           _uploadProgress = 0.0;
                         });
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            behavior: SnackBarBehavior.floating,
-                            backgroundColor: AppTheme.warning,
-                            content: Text(
-                              'Saved locally, but cloud RAG indexing failed: $e',
-                              style: const TextStyle(fontFamily: 'Outfit'),
-                            ),
-                          ),
+                        if (!context.mounted) return;
+                        AppSnackBar.warning(
+                          context,
+                          'Saved locally, but cloud RAG indexing failed.',
                         );
                       }
                     },

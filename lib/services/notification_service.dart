@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:ma_1/theme/app_theme.dart';
+import 'package:ma_1/utils/app_snackbar.dart';
 import 'package:ma_1/services/database_helper.dart';
+import 'package:ma_1/theme/app_theme.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -28,12 +29,7 @@ class NotificationService {
 
     if (granted == false) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          backgroundColor: AppTheme.warning,
-          content: Text("Alerts disabled. Some critical updates might be missed."),
-        ),
-      );
+      AppSnackBar.warning(context, "Alerts disabled. Some critical updates might be missed.");
     }
   }
 

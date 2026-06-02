@@ -10,6 +10,7 @@ import 'package:ma_1/services/database_helper.dart';
 import 'package:ma_1/services/google_chat_service.dart';
 import 'package:ma_1/models/hospital_asset.dart';
 import 'package:ma_1/screens/hospital_map_view.dart';
+import 'package:ma_1/utils/app_snackbar.dart';
 
 class AssetDetailView extends StatefulWidget {
   final Map<String, dynamic> assetData;
@@ -43,34 +44,12 @@ class _AssetDetailViewState extends State<AssetDetailView> {
           Navigator.pop(ctx);
           if (isDeleted) {
             Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                backgroundColor: AppTheme.error,
-                content: Text(
-                  'Equipment successfully deleted.',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'Outfit',
-                      color: Colors.white),
-                ),
-              ),
-            );
+            AppSnackBar.info(context, 'Equipment permanently deleted.');
           } else {
             setState(() {
               _currentAssetData = asset.toMap();
             });
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                backgroundColor: AppTheme.success,
-                content: Text(
-                  'Equipment details updated.',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'Outfit',
-                      color: Colors.white),
-                ),
-              ),
-            );
+            AppSnackBar.success(context, 'Equipment details updated.');
           }
         },
       ),
@@ -252,11 +231,11 @@ class _AssetDetailViewState extends State<AssetDetailView> {
                     if (!ctx.mounted) return;
                     Navigator.pop(ctx);
                     if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        backgroundColor: AppTheme.error,
-                        content: Text(sentToGoogleChat
-                            ? "Issue logged and sent to Google Chat."
-                            : "Issue logged. Google Chat is not configured.")));
+                    if (sentToGoogleChat) {
+                      AppSnackBar.success(context, 'Issue logged and dispatched to Google Chat.');
+                    } else {
+                      AppSnackBar.warning(context, 'Issue logged. Google Chat not configured.');
+                    }
                   },
                   child: const Text("Submit Report"),
                 ),

@@ -7,6 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/models/hospital_asset.dart';
 import 'package:ma_1/services/asset_service.dart';
+import 'package:ma_1/utils/app_snackbar.dart';
 
 class HospitalMapView extends StatefulWidget {
   const HospitalMapView({super.key});
@@ -538,8 +539,15 @@ class EquipmentEntryFormState extends State<EquipmentEntryForm> {
     );
 
     if (confirmed == true) {
-      await AssetService.instance.deleteAsset(asset);
-      widget.onComplete?.call(asset, true);
+      try {
+        await AssetService.instance.deleteAsset(asset);
+        if (!context.mounted) return;
+        AppSnackBar.info(context, '${asset.modelName} permanently deleted.');
+        widget.onComplete?.call(asset, true);
+      } catch (e) {
+        if (!context.mounted) return;
+        AppSnackBar.error(context, 'Delete failed. Please try again.');
+      }
     }
   }
 
@@ -946,12 +954,21 @@ class EquipmentEntryFormState extends State<EquipmentEntryForm> {
                         );
 
                         late HospitalAsset savedAsset;
-                        if (widget.existingAsset == null) {
-                          savedAsset = await AssetService.instance.registerAsset(asset);
-                        } else {
-                          savedAsset = await AssetService.instance.updateAsset(asset);
+                        try {
+                          if (widget.existingAsset == null) {
+                            savedAsset = await AssetService.instance.registerAsset(asset);
+                            if (!context.mounted) return;
+                            AppSnackBar.success(context, '${asset.modelName} registered successfully.');
+                          } else {
+                            savedAsset = await AssetService.instance.updateAsset(asset);
+                            if (!context.mounted) return;
+                            AppSnackBar.success(context, '${asset.modelName} updated successfully.');
+                          }
+                          widget.onComplete?.call(savedAsset, false);
+                        } catch (e) {
+                          if (!context.mounted) return;
+                          AppSnackBar.error(context, 'Could not save equipment. Check your connection.');
                         }
-                        widget.onComplete?.call(savedAsset, false);
                       },
                       icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
                       label: Text(

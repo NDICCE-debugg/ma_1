@@ -16,6 +16,7 @@ import 'package:ma_1/services/database_helper.dart';
 import 'package:ma_1/services/notification_service.dart';
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/screens/hospital_map_view.dart';
+import 'package:ma_1/utils/app_snackbar.dart';
 
 // â”€â”€â”€ Supplier model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -610,16 +611,15 @@ class _AnalyticsViewState extends State<AnalyticsView>
   // ——— HELPERS ————————————————————————————————————————————————————————————
 
   void _showStatusMessage(String msg, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      backgroundColor: color,
-      content: Text(msg,
-          style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'Outfit')),
-      duration: const Duration(seconds: 3),
-      behavior: SnackBarBehavior.floating,
-    ));
+    if (color == AppTheme.success) {
+      AppSnackBar.success(context, msg);
+    } else if (color == AppTheme.error) {
+      AppSnackBar.error(context, msg);
+    } else if (color == AppTheme.warning) {
+      AppSnackBar.warning(context, msg);
+    } else {
+      AppSnackBar.info(context, msg);
+    }
   }
 
   Widget _buildClinicalInput(String label, TextEditingController ctrl,
@@ -2964,9 +2964,7 @@ class _PartEditorDialogState extends State<_PartEditorDialog> {
 
   void _save() {
     if (_nameCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Part name is required')),
-      );
+      AppSnackBar.warning(context, 'Part name is required');
       return;
     }
 

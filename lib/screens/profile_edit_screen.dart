@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:ma_1/services/auth_service.dart';
 import 'package:ma_1/theme/app_theme.dart';
+import 'package:ma_1/utils/app_snackbar.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   const ProfileEditScreen({super.key});
@@ -114,19 +115,12 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Professional profile updated.')),
-      );
+      AppSnackBar.success(context, 'Professional profile updated.');
       _currentPasswordController.clear();
       _newPasswordController.clear();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: AppTheme.error,
-          content: Text('Failed to update profile: $e'),
-        ),
-      );
+      AppSnackBar.error(context, 'Failed to update profile. Try again.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

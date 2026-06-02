@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/services/chat_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:ma_1/utils/app_snackbar.dart';
 
 class ChatScreen extends StatefulWidget {
   final String conversationId;
@@ -269,9 +270,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _showCallMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-    );
+    AppSnackBar.info(context, message);
   }
 
   Widget _buildQuickSuggestions() {

@@ -7,6 +7,7 @@ import 'package:ma_1/services/chat_service.dart';
 import 'package:ma_1/screens/chat_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:ma_1/services/google_chat_service.dart';
+import 'package:ma_1/utils/app_snackbar.dart';
 
 class CollaborationView extends StatefulWidget {
   const CollaborationView({super.key});
@@ -169,9 +170,7 @@ class _CollaborationViewState extends State<CollaborationView>
   }
 
   void _showCallMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-    );
+    AppSnackBar.info(context, message);
   }
 
   Future<void> _joinSimulatedMeet(Map<String, dynamic> meeting) async {
@@ -239,9 +238,7 @@ class _CollaborationViewState extends State<CollaborationView>
                           onPressed: () {
                             final number = chatDialerCtrl.text.trim();
                             if (number.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Please enter a phone number.')),
-                              );
+                              AppSnackBar.warning(context, 'Please enter a phone number.');
                               return;
                             }
                             Navigator.pop(ctx);
@@ -291,9 +288,7 @@ class _CollaborationViewState extends State<CollaborationView>
                     onPressed: () {
                       final number = chatDialerCtrl.text.trim();
                       if (number.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please enter a phone number.')),
-                        );
+                        AppSnackBar.warning(context, 'Please enter a phone number.');
                         return;
                       }
                       Navigator.pop(ctx);
@@ -313,8 +308,7 @@ class _CollaborationViewState extends State<CollaborationView>
                         color: AppTheme.primary, fontWeight: FontWeight.w600)),
                 onTap: () {
                   Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text("Group feature pending update.")));
+                  AppSnackBar.info(context, "Group feature pending update.");
                 },
               ),
               const Divider(height: 24),
@@ -440,9 +434,7 @@ class _CollaborationViewState extends State<CollaborationView>
                     onPressed: () async {
                       final number = dialerCtrl.text.trim();
                       if (number.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please enter a phone number.')),
-                        );
+                        AppSnackBar.warning(context, 'Please enter a phone number.');
                         return;
                       }
                       Navigator.pop(ctx);
@@ -616,9 +608,7 @@ class _CollaborationViewState extends State<CollaborationView>
                     child: ElevatedButton(
                         onPressed: () async {
                           if (topicCtrl.text.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Please enter a meeting topic.')),
-                            );
+                            AppSnackBar.warning(context, 'Please enter a meeting topic.');
                             return;
                           }
 
@@ -657,14 +647,10 @@ class _CollaborationViewState extends State<CollaborationView>
                           if (!mounted) return;
                           _loadCommsData();
 
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(sentToGoogleChat
-                                  ? 'Clinical meeting scheduled and sent to Google Chat.'
-                                  : 'Clinical meeting scheduled. Google Chat is not configured.'),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
+                          final msg = sentToGoogleChat
+                              ? 'Clinical meeting scheduled and sent to Google Chat.'
+                              : 'Clinical meeting scheduled. Google Chat is not configured.';
+                          AppSnackBar.success(context, msg);
                         },
                         child: const Text("Schedule Meeting"))),
                 const SizedBox(height: 32),
@@ -923,9 +909,7 @@ class _CollaborationViewState extends State<CollaborationView>
                         onPressed: () {
                           final number = _directChatPhoneCtrl.text.trim();
                           if (number.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Please enter a phone number.')),
-                            );
+                            AppSnackBar.warning(context, 'Please enter a phone number.');
                             return;
                           }
                           
@@ -988,9 +972,7 @@ class _CollaborationViewState extends State<CollaborationView>
                         onPressed: () {
                           final number = _directChatPhoneCtrl.text.trim();
                           if (number.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Please enter a phone number.')),
-                            );
+                            AppSnackBar.warning(context, 'Please enter a phone number.');
                             return;
                           }
                           _launchWhatsAppChat(number);
@@ -1407,14 +1389,10 @@ class _CollaborationViewState extends State<CollaborationView>
                   );
 
                   if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(sentToGoogleChat
-                          ? 'Instant meeting started and sent to Google Chat.'
-                          : 'Instant meeting started. Google Chat is not configured.'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                  final msg = sentToGoogleChat
+                      ? 'Instant meeting started and sent to Google Chat.'
+                      : 'Instant meeting started. Google Chat is not configured.';
+                  AppSnackBar.success(context, msg);
                   _joinSimulatedMeet({
                     "topic": "Instant Technical Consultation Bridge",
                     "time": "Started now",
@@ -1797,29 +1775,7 @@ class _CollaborationViewState extends State<CollaborationView>
                               onTap: () {
                                 Clipboard.setData(
                                     ClipboardData(text: _generatedMeetLink!));
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    behavior: SnackBarBehavior.floating,
-                                    backgroundColor: AppTheme.midnightBlue,
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(12)),
-                                    content: const Row(
-                                      children: [
-                                        Icon(Icons.check_circle,
-                                            color: AppTheme.iceBlue, size: 20),
-                                        SizedBox(width: 10),
-                                        Text(
-                                          "Meet link copied to clipboard!",
-                                          style: TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold,
-                                              fontFamily: 'Outfit'),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
+                                AppSnackBar.success(context, "Meet link copied to clipboard!");
                               },
                               child: const Icon(
                                 Icons.copy_rounded,

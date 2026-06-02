@@ -6,6 +6,7 @@ import 'package:ma_1/models/spare_part.dart';
 import 'package:ma_1/services/asset_service.dart';
 import 'package:ma_1/services/predictive_maintenance_service.dart';
 import 'package:ma_1/theme/app_theme.dart';
+import 'package:ma_1/utils/app_snackbar.dart';
 
 class AiDiagnosticsSheet extends StatefulWidget {
   final Map<String, dynamic> prog;
@@ -134,37 +135,15 @@ class _AiDiagnosticsSheetState extends State<AiDiagnosticsSheet> {
     if (!mounted) return;
     setState(() => _isActionExecuting = false);
     Navigator.pop(context);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        backgroundColor: AppTheme.warning,
-        content: Text(
-          'Machine successfully scheduled for maintenance. Bio-mechanical ticket logged.',
-          style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontFamily: 'Outfit',
-              color: Colors.white),
-        ),
-      ),
-    );
+    AppSnackBar.warning(context, 'Maintenance scheduled. Bio-mechanical ticket logged.');
   }
 
   void _reserveParts() {
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: AppTheme.success,
-        content: Text(
-          widget.compatibleParts.isNotEmpty
-              ? 'Required parts successfully reserved in storage bins.'
-              : 'Spare parts requisition order dispatched to procurement.',
-          style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontFamily: 'Outfit',
-              color: Colors.white),
-        ),
-      ),
-    );
+    final msg = widget.compatibleParts.isNotEmpty
+        ? 'Required parts reserved in storage bins.'
+        : 'Spare parts requisition order dispatched to procurement.';
+    AppSnackBar.success(context, msg);
   }
 
   Future<void> _showTelemetryForm(HospitalAsset asset, bool isVent) async {
@@ -309,14 +288,7 @@ class _AiDiagnosticsSheetState extends State<AiDiagnosticsSheet> {
                       widget.onStateChanged();
                       _startAiAudit();
                       if (ctx.mounted) Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Sensor values saved. Pulse Predictions refreshed.',
-                          ),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
+                      AppSnackBar.success(context, 'Sensor values saved. Pulse Predictions refreshed.');
                     },
                     icon: const Icon(Icons.insights_rounded),
                     label: const Text('Save and run Pulse Predictions'),

@@ -9,6 +9,7 @@ import 'package:ma_1/models/manual_entry.dart';
 import 'package:ma_1/services/database_helper.dart';
 import 'package:ma_1/services/rag_api_service.dart';
 import 'package:ma_1/theme/app_theme.dart';
+import 'package:ma_1/utils/app_snackbar.dart';
 import 'package:ma_1/widgets/pulse_logo.dart';
 
 class ManualsLibraryScreen extends StatefulWidget {
@@ -267,13 +268,11 @@ class _ManualsLibraryScreenState extends State<ManualsLibraryScreen> {
   }
 
   void _showSnack(String message, {bool isSuccess = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: isSuccess ? AppTheme.success : AppTheme.warning,
-        content: Text(message, style: const TextStyle(fontFamily: 'Outfit')),
-      ),
-    );
+    if (isSuccess) {
+      AppSnackBar.success(context, message);
+    } else {
+      AppSnackBar.warning(context, message);
+    }
   }
 
   Future<void> _checkStorage() async {

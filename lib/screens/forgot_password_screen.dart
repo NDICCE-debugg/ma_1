@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:ma_1/theme/app_theme.dart';
 import 'package:ma_1/services/api_client.dart';
+import 'package:ma_1/utils/app_snackbar.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -26,20 +27,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        backgroundColor: AppTheme.primary,
-        content: Text("Password reset link sent. Please check your inbox.",
-            style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white)),
-      ));
+      AppSnackBar.success(context, "Password reset link sent. Please check your inbox.");
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        backgroundColor: AppTheme.error,
-        content: Text("Error: Account not found. Please verify your email.",
-            style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white)),
-      ));
+      AppSnackBar.error(context, "Error: Account not found. Please verify your email.");
     }
   }
 

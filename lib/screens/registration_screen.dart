@@ -7,6 +7,7 @@ import 'package:ma_1/services/auth_service.dart';
 import 'package:ma_1/screens/home_screen.dart';
 import 'package:ma_1/widgets/pulse_logo.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:ma_1/utils/app_snackbar.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -139,15 +140,15 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   }
 
   void _showStatusMessage(String msg, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: color,
-        content: Text(msg,
-            style: const TextStyle(
-                fontWeight: FontWeight.w600, fontFamily: 'Outfit')),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    if (color == AppTheme.success) {
+      AppSnackBar.success(context, msg);
+    } else if (color == AppTheme.error) {
+      AppSnackBar.error(context, msg);
+    } else if (color == AppTheme.warning) {
+      AppSnackBar.warning(context, msg);
+    } else {
+      AppSnackBar.info(context, msg);
+    }
   }
 
   @override
