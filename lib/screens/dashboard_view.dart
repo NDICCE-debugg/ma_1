@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:ma_1/models/hospital_asset.dart';
 import 'package:ma_1/screens/ai_diagnostics_sheet.dart';
 import 'package:ma_1/screens/asset_detail_view.dart';
+import 'package:ma_1/services/auth_service.dart';
 import 'package:ma_1/services/predictive_maintenance_service.dart';
 import 'package:ma_1/services/system_overview_service.dart';
 import 'package:ma_1/theme/app_theme.dart';
@@ -171,13 +172,16 @@ class _DashboardViewState extends State<DashboardView> {
     final textSecondaryColor = isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary;
 
     final hour = DateTime.now().hour;
+    final metadata = AuthService.instance.currentUser?.userMetadata ?? {};
+    final rawName = (metadata['name'] ?? metadata['full_name'] ?? metadata['user_name'] ?? '') as String;
+    final firstName = rawName.isNotEmpty ? rawName.split(' ').first : 'there';
     String greeting;
     if (hour >= 5 && hour < 12) {
-      greeting = 'Good morning, Michael';
+      greeting = 'Good morning, $firstName';
     } else if (hour >= 12 && hour < 17) {
-      greeting = 'Good afternoon, Michael';
+      greeting = 'Good afternoon, $firstName';
     } else {
-      greeting = 'Good evening, Michael';
+      greeting = 'Good evening, $firstName';
     }
 
     return Row(
