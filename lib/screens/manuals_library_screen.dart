@@ -588,7 +588,11 @@ class _ManualsLibraryScreenState extends State<ManualsLibraryScreen> {
               _savedLocalCopy ? AppTheme.success : AppTheme.textSecondary),
           _statusPill(
               _indexingStage,
-              AppTheme.secondary),
+              _indexingStage.contains('ready') || _indexingStage.contains('Indexed')
+                  ? AppTheme.success
+                  : _indexingStage.contains('No upload')
+                      ? AppTheme.textSecondary
+                      : AppTheme.secondary),
           _statusPill('Backend: localhost:5000', AppTheme.deepBlue),
           ActionChip(
             avatar: _isCheckingStorage
