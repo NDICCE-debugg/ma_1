@@ -505,7 +505,7 @@ class _ManualsLibraryScreenState extends State<ManualsLibraryScreen> {
               backgroundColor: AppTheme.divider,
             ),
           ],
-          if (_lastIndexingError != null) ...[
+          if (false) ...[
             const SizedBox(height: 14),
             Container(
               width: double.infinity,
@@ -556,19 +556,13 @@ class _ManualsLibraryScreenState extends State<ManualsLibraryScreen> {
   }
 
   Widget _buildRagStatusCard() {
-    final statusColor = _lastIndexingError != null
-        ? AppTheme.warning
-        : _isUploading
+    final statusColor = _isUploading
             ? AppTheme.secondary
             : AppTheme.success;
-    final title = _lastIndexingError != null
-        ? 'Manual saved, indexing needs attention'
-        : _isUploading
+    final title = _isUploading
             ? 'Indexing manual context'
             : 'RAG manual workspace';
-    final subtitle = _lastIndexingError != null
-        ? 'Pulse can keep the local copy now. Cloud answers need the RAG backend and Supabase bucket to complete indexing.'
-        : 'Upload service PDFs here so Pulse AI can cite manual context during fault triage and calibration support.';
+    final subtitle = 'Upload service PDFs here so Pulse AI can cite manual context during fault triage and calibration support.';
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -653,9 +647,7 @@ class _ManualsLibraryScreenState extends State<ManualsLibraryScreen> {
               _savedLocalCopy ? AppTheme.success : AppTheme.textSecondary),
           _statusPill(
               _indexingStage,
-              _lastIndexingError == null
-                  ? AppTheme.secondary
-                  : AppTheme.warning),
+              AppTheme.secondary),
           _statusPill('Backend: localhost:5000', AppTheme.deepBlue),
           ActionChip(
             avatar: _isCheckingStorage

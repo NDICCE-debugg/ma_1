@@ -672,7 +672,7 @@ class _AIAssistantViewState extends State<AIAssistantView> {
                 _buildTopBar(isWide),
                 _buildSafetyBanner(),
                 // API key warning banner
-                if (!GeminiService.instance.isConfigured) _buildKeyBanner(),
+                // if (!GeminiService.instance.isConfigured) _buildKeyBanner(),
                 // Processing indicator
                 if (_isProcessing)
                   LinearProgressIndicator(
