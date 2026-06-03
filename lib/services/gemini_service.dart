@@ -93,6 +93,9 @@ RULES:
       if (text == null || text.isEmpty) {
         return 'No response received. Please try rephrasing your question.';
       }
+      if (text.startsWith('GEMINI UPLINK SECURED') || text.contains('Awaiting GEMINI_API_KEY')) {
+        throw GeminiException('Gemini API key is not configured.');
+      }
       return text;
     } on AuthRequiredException catch (e) {
       throw GeminiException(e.message);

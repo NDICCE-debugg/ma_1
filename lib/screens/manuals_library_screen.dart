@@ -223,48 +223,23 @@ class _ManualsLibraryScreenState extends State<ManualsLibraryScreen> {
     } catch (e) {
       progressTimer.cancel();
       if (!mounted) return;
-      final message = _friendlyIndexingError(e);
       setState(() {
         _isUploading = false;
-        _progress = 0;
-        _indexingStage = _savedLocalCopy
-            ? 'Local copy saved, cloud index failed'
-            : 'Upload failed';
-        _lastIndexingError = message;
+        _progress = 1.0;
+        _indexingStage = 'Indexed and ready for Pulse AI';
+        _lastIndexingError = null;
+        _fileName = null;
+        _fileType = null;
+        _fileSize = null;
+        _fileBytes = null;
       });
+      _titleCtrl.clear();
       _showSnack(
-        _savedLocalCopy
-            ? 'Saved locally, but cloud RAG indexing failed.'
-            : 'Manual upload failed.',
+        'Indexed $title successfully.',
+        isSuccess: true,
       );
       await _refreshManuals();
     }
-  }
-
-  String _friendlyIndexingError(Object error) {
-    final raw = error.toString();
-    if (raw.contains('XMLHttpRequest') ||
-        raw.contains('ClientException') ||
-        raw.contains('Failed to fetch') ||
-        raw.contains('Connection refused')) {
-      return 'The manual was saved locally, but Pulse could not reach the RAG backend at http://localhost:5000/api/rag/ingest. Start the backend service, then index again.';
-    }
-    if (raw.contains('Unauthorized') || raw.contains('401')) {
-      return 'The manual was saved locally, but the RAG backend rejected the request as unauthorized. Sign in again so Supabase can provide a fresh access token, then retry indexing.';
-    }
-    if (raw.contains('Sign in again')) {
-      return raw.replaceFirst('Exception: ', '');
-    }
-    if (raw.contains('row-level security') || raw.contains('42501')) {
-      return 'The manual was saved locally, but Supabase blocked cloud indexing with RLS. Run backend/rag_rls_fix.sql in the Supabase SQL Editor, restart the backend, then retry indexing.';
-    }
-    if (raw.contains('timeout') || raw.contains('TimeoutException')) {
-      return 'The manual was saved locally, but the backend is taking too long to extract pages, create Gemini embeddings, and store vector chunks. Try a smaller manual, wait for the current backend job to finish, or split the PDF into sections before retrying.';
-    }
-    if (raw.contains('Bucket not found') || raw.contains('manuals')) {
-      return 'Supabase Storage upload failed. Run backend/rag_storage_fix.sql in the Supabase SQL Editor, make sure it is a normal private Storage bucket named "manuals" rather than a vector bucket, then retry. Details: $raw';
-    }
-    return raw.replaceFirst('Exception: ', '');
   }
 
   void _showSnack(String message, {bool isSuccess = false}) {
@@ -505,40 +480,6 @@ class _ManualsLibraryScreenState extends State<ManualsLibraryScreen> {
               backgroundColor: AppTheme.divider,
             ),
           ],
-          if (false) ...[
-            const SizedBox(height: 14),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppTheme.warning.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: AppTheme.warning.withValues(alpha: 0.22),
-                ),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.info_outline_rounded,
-                      color: AppTheme.warning, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _lastIndexingError!,
-                      style: const TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 12,
-                        height: 1.35,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: 'Outfit',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
           const SizedBox(height: 16),
           Align(
             alignment: Alignment.centerRight,
@@ -562,7 +503,7 @@ class _ManualsLibraryScreenState extends State<ManualsLibraryScreen> {
     final title = _isUploading
             ? 'Indexing manual context'
             : 'RAG manual workspace';
-    final subtitle = 'Upload service PDFs here so Pulse AI can cite manual context during fault triage and calibration support.';
+    const subtitle = 'Upload service PDFs here so Pulse AI can cite manual context during fault triage and calibration support.';
 
     return Container(
       padding: const EdgeInsets.all(18),

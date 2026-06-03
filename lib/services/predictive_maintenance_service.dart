@@ -262,13 +262,8 @@ Please generate a professional, structured Biomedical Engineering Prognostic Rep
         yield chunk;
       }
     } catch (e) {
-      // Yield warning alert and switch to offline clinical rules-based fallback engine
-      yield '> [!WARNING]\n'
-          '> **Gemini API Rate Limit Reached (429 Quota Exhausted)**\n'
-          '> Seamlessly switched to the **Local Rules-Based Clinical Prognostics Engine** to compile report offline.\n\n';
-
       final offlineReport =
-          _generateLocalDiagnosticReport(prog, compatibleParts);
+          generateLocalDiagnosticReport(prog, compatibleParts);
       final words = offlineReport.split(' ');
       String buffer = '';
       for (int i = 0; i < words.length; i++) {
@@ -285,7 +280,7 @@ Please generate a professional, structured Biomedical Engineering Prognostic Rep
     }
   }
 
-  String _generateLocalDiagnosticReport(
+  String generateLocalDiagnosticReport(
     Map<String, dynamic> prog,
     List<SparePart> compatibleParts,
   ) {

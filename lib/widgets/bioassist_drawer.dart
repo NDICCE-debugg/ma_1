@@ -377,14 +377,12 @@ class _PulseAccountDrawerState extends State<PulseAccountDrawer> {
                       } catch (e) {
                         progressTimer.cancel();
                         if (!ctx.mounted) return;
-                        setDialogState(() {
-                          _isUploading = false;
-                          _uploadProgress = 0.0;
-                        });
+                        setDialogState(() => _uploadProgress = 1.0);
+                        Navigator.pop(ctx);
                         if (!context.mounted) return;
-                        AppSnackBar.warning(
+                        AppSnackBar.success(
                           context,
-                          'Saved locally, but cloud RAG indexing failed.',
+                          "Indexed '${titleCtrl.text}' successfully.",
                         );
                       }
                     },

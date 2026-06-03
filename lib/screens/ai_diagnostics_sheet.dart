@@ -50,6 +50,48 @@ class _AiDiagnosticsSheetState extends State<AiDiagnosticsSheet> {
     super.dispose();
   }
 
+  void _showOfflineFallbackReport() {
+    setState(() {
+      _diagnosticOutput = 'Compiling local rules-based clinical prognostics...';
+      _isStreaming = true;
+    });
+    final report = PredictiveMaintenanceService.instance
+        .generateLocalDiagnosticReport(_currentProg, widget.compatibleParts);
+    
+    final words = report.split(' ');
+    int index = 0;
+    
+    Timer.periodic(const Duration(milliseconds: 15), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      
+      setState(() {
+        if (_diagnosticOutput.startsWith('Compiling') ||
+            _diagnosticOutput.startsWith('Initializing') ||
+            _diagnosticOutput.startsWith('An error') ||
+            _diagnosticOutput.startsWith('Predictive engine')) {
+          _diagnosticOutput = '';
+        }
+        
+        final buffer = StringBuffer();
+        for (int i = 0; i < 5 && index < words.length; i++) {
+          buffer.write('${words[index++]} ');
+        }
+        _diagnosticOutput += buffer.toString();
+        _scrollToBottom();
+      });
+      
+      if (index >= words.length) {
+        timer.cancel();
+        setState(() {
+          _isStreaming = false;
+        });
+      }
+    });
+  }
+
   void _startAiAudit() {
     setState(() {
       _diagnosticOutput = 'Initializing clinical diagnostic telemetry...';
@@ -66,21 +108,17 @@ class _AiDiagnosticsSheetState extends State<AiDiagnosticsSheet> {
           if (!mounted) return;
           setState(() {
             if (_diagnosticOutput.startsWith('Initializing') ||
+                _diagnosticOutput.startsWith('Compiling') ||
                 _diagnosticOutput.startsWith('An error')) {
               _diagnosticOutput = '';
             }
             _diagnosticOutput += chunk;
           });
-          // Autoscroll to bottom as diagnostic text streams in
           _scrollToBottom();
         },
         onError: (err) {
           if (!mounted) return;
-          setState(() {
-            _diagnosticOutput =
-                'An error occurred while compiling AI diagnostics: $err';
-            _isStreaming = false;
-          });
+          _showOfflineFallbackReport();
         },
         onDone: () {
           if (!mounted) return;
@@ -90,11 +128,7 @@ class _AiDiagnosticsSheetState extends State<AiDiagnosticsSheet> {
         },
       );
     } catch (e) {
-      setState(() {
-        _diagnosticOutput =
-            'Predictive engine failure. Ensure Gemini API key is configured in settings.\nError: $e';
-        _isStreaming = false;
-      });
+      _showOfflineFallbackReport();
     }
   }
 

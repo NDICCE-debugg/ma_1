@@ -729,43 +729,6 @@ class _AIAssistantViewState extends State<AIAssistantView> {
     );
   }
 
-  Widget _buildKeyBanner() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      color: AppTheme.warning.withValues(alpha: 0.08),
-      child: Row(
-        children: [
-          const Icon(Icons.warning_amber_outlined,
-              color: AppTheme.warning, size: 18),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Text(
-              'Backend AI key not available. '
-              'Set GEMINI_API_KEY in backend/.env and restart the Flask service.',
-              style: TextStyle(
-                  color: AppTheme.warning,
-                  fontSize: 12,
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w600),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Clipboard.setData(const ClipboardData(text: 'backend/.env'));
-              _showSnack('Backend env path copied to clipboard');
-            },
-            child: const Text('Copy path',
-                style: TextStyle(
-                    fontSize: 11,
-                    color: AppTheme.warning,
-                    fontFamily: 'Outfit')),
-          ),
-        ],
-      ),
-    );
-  }
-
   // â”€â”€â”€ LISTENING BANNER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildListeningBanner() {
